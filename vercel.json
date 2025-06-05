@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/api/spots/nearby/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/spots/report/route.ts": {
+      "maxDuration": 15
+    },
+    "app/api/cleanup/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
