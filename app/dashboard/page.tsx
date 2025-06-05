@@ -25,31 +25,21 @@ export default function DashboardPage() {
   const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("map")
   const [showDebug, setShowDebug] = useState(false)
-  const [loadingTimeout, setLoadingTimeout] = useState(false)
 
   // Use Firebase user if available, otherwise Supabase user
   const user = firebaseUser || supabaseUser
-  const loading = (firebaseLoading || supabaseLoading) && !loadingTimeout
+  const loading = firebaseLoading || supabaseLoading
   const signOut = firebaseUser ? firebaseSignOut : supabaseSignOut
 
-  // Add a timeout to prevent infinite loading
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoadingTimeout(true)
-    }, 3000) // Reduced from 5000 to 3000ms
-
-    return () => clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
-    // Only redirect if we're sure the user is not authenticated
-    if (!loading && !user && !loadingTimeout) {
+    // Only redirect if we're sure the user is not authenticated and not loading
+    if (!loading && !user) {
       router.push("/")
     }
-  }, [user, loading, router, loadingTimeout])
+  }, [user, loading, router])
 
-  // If still loading and not timed out, show loading state
-  if (loading && !loadingTimeout) {
+  // Show loading state only while actually loading
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -61,36 +51,9 @@ export default function DashboardPage() {
     )
   }
 
-  // If loading timed out or there's an auth issue, show debug info
-  if (loadingTimeout || (!user && !loading)) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="container mx-auto max-w-4xl py-8">
-          <div className="text-center mb-8">
-            <MapPin className="w-12 h-12 text-orange-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Authentication Issue Detected</h1>
-            <p className="text-gray-600 mb-6">
-              We're having trouble loading your dashboard. Let's troubleshoot the issue.
-            </p>
-          </div>
-
-          <AuthDebug />
-
-          <div className="mt-8 text-center">
-            <p className="mb-4 text-gray-600">You can try these options:</p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <Button onClick={() => window.location.reload()}>Refresh Page</Button>
-              <Button variant="outline" onClick={() => router.push("/auth/login")}>
-                Sign In Again
-              </Button>
-              <Button variant="outline" onClick={() => router.push("/")}>
-                Return Home
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+  // If no user and not loading, redirect (this should not show)
+  if (!user) {
+    return null
   }
 
   const getUserDisplayName = () => {
@@ -116,13 +79,13 @@ export default function DashboardPage() {
               <span className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold">
                 AI POWERED
               </span>
-              <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              <span className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
                 {getAuthProvider()}
               </span>
             </Link>
 
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm" onClick={() => setShowDebug(!showDebug)} className="text-orange-500">
+              <Button variant="ghost" size="sm" onClick={() => setShowDebug(!showDebug)} className="text-gray-500">
                 <Bug className="w-4 h-4 mr-2" />
                 Debug
               </Button>
@@ -141,13 +104,22 @@ export default function DashboardPage() {
       </header>
 
       {showDebug && (
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-4 bg-yellow-50 border-b border-yellow-200">
+          <div className="mb-2">
+            <h3 className="text-sm font-medium text-yellow-800">Debug Information</h3>
+            <p className="text-xs text-yellow-600">This debug panel is optional and can be hidden</p>
+          </div>
           <AuthDebug />
         </div>
       )}
 
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-6 mb-6">
+            <h1 className="text-2xl font-bold mb-2">Welcome back, {getUserDisplayName()}! 🎉</h1>
+            <p className="text-blue-100">Your dashboard is ready. Everything is working perfectly!</p>
+          </div>
+
           <StatsCards totalSpots={0} activeUsers={1} averageRating={4.8} responseTime="2.3s" />
         </div>
 
