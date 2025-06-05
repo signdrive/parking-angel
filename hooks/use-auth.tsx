@@ -26,17 +26,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
   const refreshUser = async () => {
     if (!isSupabaseConfigured()) {
       setUser(null)
       setLoading(false)
       setError("Supabase not configured")
+      setInitialized(true)
       return
     }
 
     try {
-      setLoading(true)
       setError(null) // Clear any previous errors
 
       const { data, error } = await supabase.auth.getSession()
@@ -49,18 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.session?.user ?? null)
         setError(null)
 
-        // If user exists, ensure profile exists
+        // If user exists, ensure profile exists (but don't block on this)
         if (data.session?.user) {
-          try {
-            const profileResult = await createOrUpdateProfile(data.session.user)
-            if (profileResult.error) {
-              console.warn("Profile update warning:", profileResult.error.message)
-              // Don't set this as a fatal error since user is still authenticated
-            }
-          } catch (profileError) {
+          createOrUpdateProfile(data.session.user).catch((profileError) => {
             console.error("Error updating profile:", profileError)
             // Don't block authentication for profile errors
-          }
+          })
         }
       }
     } catch (err) {
@@ -69,26 +64,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
     } finally {
       setLoading(false)
+      setInitialized(true)
     }
   }
 
   useEffect(() => {
+    // Initial session check
     refreshUser()
 
+    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event)
-      setUser(session?.user ?? null)
-      setLoading(false)
+      console.log("Auth state changed:", event, session?.user?.id)
 
-      // Handle OAuth sign-in by creating/updating profile
+      setUser(session?.user ?? null)
+      setLoading(false) // Always stop loading on auth state change
+      setInitialized(true)
+
+      // Handle profile creation for sign-in events
       if (event === "SIGNED_IN" && session?.user) {
-        try {
-          await createOrUpdateProfile(session.user)
-        } catch (err) {
+        createOrUpdateProfile(session.user).catch((err) => {
           console.error("Error updating profile on sign in:", err)
-        }
+        })
       }
     })
 
@@ -96,7 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signOut = async () => {
-    setLoading(true)
     try {
       if (isSupabaseConfigured()) {
         const { error } = await supabase.auth.signOut()
@@ -111,12 +108,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Unexpected sign out error:", err)
       setError(err instanceof Error ? err.message : "Unknown sign out error")
-    } finally {
-      setLoading(false)
     }
   }
 
-  return <AuthContext.Provider value={{ user, loading, signOut, refreshUser, error }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, loading: loading && !initialized, signOut, refreshUser, error }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export const useAuth = () => {

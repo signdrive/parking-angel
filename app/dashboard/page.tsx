@@ -25,15 +25,35 @@ export default function DashboardPage() {
   const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("map")
   const [showDebug, setShowDebug] = useState(false)
+  const [debugInfo, setDebugInfo] = useState("")
 
   // Use Firebase user if available, otherwise Supabase user
   const user = firebaseUser || supabaseUser
   const loading = firebaseLoading || supabaseLoading
   const signOut = firebaseUser ? firebaseSignOut : supabaseSignOut
 
+  // Debug logging
+  useEffect(() => {
+    const info = `
+      Supabase: user=${!!supabaseUser}, loading=${supabaseLoading}
+      Firebase: user=${!!firebaseUser}, loading=${firebaseLoading}
+      Combined: user=${!!user}, loading=${loading}
+    `
+    setDebugInfo(info)
+    console.log("Dashboard state:", {
+      supabaseUser: !!supabaseUser,
+      supabaseLoading,
+      firebaseUser: !!firebaseUser,
+      firebaseLoading,
+      user: !!user,
+      loading,
+    })
+  }, [supabaseUser, supabaseLoading, firebaseUser, firebaseLoading, user, loading])
+
   useEffect(() => {
     // Only redirect if we're sure the user is not authenticated and not loading
     if (!loading && !user) {
+      console.log("Redirecting to home - no user and not loading")
       router.push("/")
     }
   }, [user, loading, router])
@@ -46,6 +66,12 @@ export default function DashboardPage() {
           <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
           <p className="text-gray-600">Loading your dashboard...</p>
           <p className="text-sm text-gray-500 mt-2">Connecting to database...</p>
+          <div className="mt-4 p-4 bg-gray-100 rounded text-xs text-left max-w-md">
+            <pre>{debugInfo}</pre>
+          </div>
+          <Button onClick={() => setShowDebug(true)} variant="outline" size="sm" className="mt-4">
+            Force Show Dashboard
+          </Button>
         </div>
       </div>
     )
@@ -53,7 +79,13 @@ export default function DashboardPage() {
 
   // If no user and not loading, redirect (this should not show)
   if (!user) {
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p>No user found, redirecting...</p>
+        </div>
+      </div>
+    )
   }
 
   const getUserDisplayName = () => {
@@ -107,7 +139,8 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-4 bg-yellow-50 border-b border-yellow-200">
           <div className="mb-2">
             <h3 className="text-sm font-medium text-yellow-800">Debug Information</h3>
-            <p className="text-xs text-yellow-600">This debug panel is optional and can be hidden</p>
+            <p className="text-xs text-yellow-600">Loading states and auth status</p>
+            <pre className="text-xs mt-2 p-2 bg-white rounded">{debugInfo}</pre>
           </div>
           <AuthDebug />
         </div>
