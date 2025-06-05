@@ -14,56 +14,42 @@ import { FirebaseUserProfile } from "@/components/dashboard/firebase-user-profil
 import { NotificationTest } from "@/components/firebase/notification-test"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug, RefreshCw } from "lucide-react"
+import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug } from "lucide-react"
 import Link from "next/link"
 import { AuthDebug } from "@/components/debug/auth-debug"
 
 export default function DashboardPage() {
-  const {
-    user: supabaseUser,
-    loading: supabaseLoading,
-    signOut: supabaseSignOut,
-    error: supabaseError,
-    refreshUser,
-  } = useAuth()
+  const { user: supabaseUser, loading: supabaseLoading, signOut: supabaseSignOut } = useAuth()
   const { user: firebaseUser, loading: firebaseLoading, signOut: firebaseSignOut } = useFirebaseAuth()
   const router = useRouter()
   const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("map")
   const [showDebug, setShowDebug] = useState(false)
-  const [debugInfo, setDebugInfo] = useState("")
 
   // Use Firebase user if available, otherwise Supabase user
   const user = firebaseUser || supabaseUser
-  const loading = firebaseLoading || supabaseLoading
+  // Only consider loading if BOTH are loading, or if we have no user and Supabase is still loading
+  const loading = supabaseLoading && (!supabaseUser || firebaseLoading)
   const signOut = firebaseUser ? firebaseSignOut : supabaseSignOut
 
-  // Debug logging
   useEffect(() => {
-    const info = `
-      Supabase: user=${!!supabaseUser}, loading=${supabaseLoading}, error=${supabaseError}
-      Firebase: user=${!!firebaseUser}, loading=${firebaseLoading}
-      Combined: user=${!!user}, loading=${loading}
-    `
-    setDebugInfo(info)
     console.log("Dashboard state:", {
       supabaseUser: !!supabaseUser,
       supabaseLoading,
-      supabaseError,
       firebaseUser: !!firebaseUser,
       firebaseLoading,
       user: !!user,
       loading,
     })
-  }, [supabaseUser, supabaseLoading, supabaseError, firebaseUser, firebaseLoading, user, loading])
+  }, [supabaseUser, supabaseLoading, firebaseUser, firebaseLoading, user, loading])
 
   useEffect(() => {
     // Only redirect if we're sure the user is not authenticated and not loading
-    if (!loading && !user && !supabaseError?.includes("timed out")) {
+    if (!loading && !user) {
       console.log("Redirecting to home - no user and not loading")
       router.push("/")
     }
-  }, [user, loading, router, supabaseError])
+  }, [user, loading, router])
 
   // Show loading state only while actually loading
   if (loading) {
@@ -73,57 +59,27 @@ export default function DashboardPage() {
           <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
           <p className="text-gray-600">Loading your dashboard...</p>
           <p className="text-sm text-gray-500 mt-2">Connecting to database...</p>
-          <div className="mt-4 p-4 bg-gray-100 rounded text-xs text-left max-w-md">
-            <pre>{debugInfo}</pre>
-          </div>
-          <div className="mt-4 space-x-2">
-            <Button onClick={() => setShowDebug(true)} variant="outline" size="sm">
-              Force Show Dashboard
-            </Button>
-            <Button onClick={refreshUser} variant="outline" size="sm">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Retry Auth
-            </Button>
-          </div>
         </div>
       </div>
     )
   }
 
-  // If there's a timeout error but we're not loading, show the dashboard anyway
-  if (!user && supabaseError?.includes("timed out")) {
-    console.log("Auth timed out but showing dashboard anyway")
-    // Continue to show dashboard with limited functionality
-  }
-
-  // If no user and not loading and no timeout error, redirect
-  if (!user && !supabaseError?.includes("timed out")) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p>No user found, redirecting...</p>
-        </div>
-      </div>
-    )
+  // If no user and not loading, redirect
+  if (!user) {
+    return null
   }
 
   const getUserDisplayName = () => {
     if (firebaseUser) {
       return firebaseUser.displayName || firebaseUser.email
     }
-    if (supabaseUser) {
-      return supabaseUser.user_metadata?.full_name || supabaseUser.email
-    }
-    return "Guest User"
+    return supabaseUser?.user_metadata?.full_name || supabaseUser?.email
   }
 
   const getAuthProvider = () => {
     if (firebaseUser) return "Firebase"
-    if (supabaseUser) return "Supabase"
-    return "Guest"
+    return "Supabase"
   }
-
-  const isGuestMode = !user && supabaseError?.includes("timed out")
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -136,15 +92,14 @@ export default function DashboardPage() {
               <span className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold">
                 AI POWERED
               </span>
-              <span
-                className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                  isGuestMode
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white"
-                    : "bg-gradient-to-r from-green-500 to-blue-500 text-white"
-                }`}
-              >
-                {isGuestMode ? "GUEST MODE" : getAuthProvider()}
+              <span className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                {getAuthProvider()}
               </span>
+              {!firebaseLoading && !firebaseUser && (
+                <span className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                  SUPABASE ONLY
+                </span>
+              )}
             </Link>
 
             <div className="flex items-center space-x-4">
@@ -153,30 +108,14 @@ export default function DashboardPage() {
                 Debug
               </Button>
 
-              {!isGuestMode && (
-                <>
-                  <div className="flex items-center space-x-2">
-                    <User className="w-5 h-5 text-gray-600" />
-                    <span className="text-sm text-gray-700">{getUserDisplayName()}</span>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={signOut}>
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
-                  </Button>
-                </>
-              )}
-
-              {isGuestMode && (
-                <div className="flex items-center space-x-2">
-                  <Button onClick={refreshUser} variant="outline" size="sm">
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Retry Login
-                  </Button>
-                  <Button onClick={() => router.push("/auth/login")} size="sm">
-                    Sign In
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center space-x-2">
+                <User className="w-5 h-5 text-gray-600" />
+                <span className="text-sm text-gray-700">{getUserDisplayName()}</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={signOut}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
             </div>
           </div>
         </div>
@@ -186,8 +125,7 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-4 bg-yellow-50 border-b border-yellow-200">
           <div className="mb-2">
             <h3 className="text-sm font-medium text-yellow-800">Debug Information</h3>
-            <p className="text-xs text-yellow-600">Loading states and auth status</p>
-            <pre className="text-xs mt-2 p-2 bg-white rounded">{debugInfo}</pre>
+            <p className="text-xs text-yellow-600">Auth status and loading states</p>
           </div>
           <AuthDebug />
         </div>
@@ -195,20 +133,11 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">
-          <div
-            className={`rounded-lg p-6 mb-6 ${
-              isGuestMode
-                ? "bg-gradient-to-r from-orange-600 to-red-600 text-white"
-                : "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-            }`}
-          >
-            <h1 className="text-2xl font-bold mb-2">
-              {isGuestMode ? "Welcome to Parking Angel! 🚗" : `Welcome back, ${getUserDisplayName()}! 🎉`}
-            </h1>
-            <p className={isGuestMode ? "text-orange-100" : "text-blue-100"}>
-              {isGuestMode
-                ? "You're in guest mode. Some features may be limited. Try signing in for full access!"
-                : "Your dashboard is ready. Everything is working perfectly!"}
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-6 mb-6">
+            <h1 className="text-2xl font-bold mb-2">Welcome back, {getUserDisplayName()}! 🎉</h1>
+            <p className="text-blue-100">
+              Your dashboard is ready.{" "}
+              {firebaseUser ? "Full Firebase integration active!" : "Running on Supabase authentication."}
             </p>
           </div>
 

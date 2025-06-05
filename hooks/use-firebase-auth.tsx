@@ -3,7 +3,6 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "firebase/auth"
-import { onAuthStateChangedFirebase, createOrUpdateUserProfile } from "@/lib/firebase-auth"
 
 interface AuthContextType {
   user: User | null
@@ -31,38 +30,64 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     const loadingTimeout = setTimeout(() => {
       console.log("Firebase: Loading timeout reached, forcing loading to false")
       setLoading(false)
-    }, 5000)
+    }, 3000) // Reduced to 3 seconds
 
-    const unsubscribe = onAuthStateChangedFirebase(async (user) => {
-      console.log("Firebase: Auth state changed:", !!user)
-      clearTimeout(loadingTimeout)
+    // Try to initialize Firebase auth
+    const initializeFirebaseAuth = async () => {
+      try {
+        const { onAuthStateChangedFirebase, createOrUpdateUserProfile } = await import("@/lib/firebase-auth")
 
-      setUser(user)
+        const unsubscribe = onAuthStateChangedFirebase(async (user) => {
+          console.log("Firebase: Auth state changed:", !!user)
+          clearTimeout(loadingTimeout)
 
-      if (user) {
-        try {
-          console.log("Firebase: User found, updating profile...")
-          const profile = await createOrUpdateUserProfile(user)
-          setUserProfile(profile)
-        } catch (error) {
-          console.error("Firebase: Error handling auth state change:", error)
-        }
-      } else {
-        setUserProfile(null)
+          setUser(user)
+
+          if (user) {
+            try {
+              console.log("Firebase: User found, updating profile...")
+              const profile = await createOrUpdateUserProfile(user)
+              setUserProfile(profile)
+            } catch (error) {
+              console.error("Firebase: Error handling auth state change:", error)
+            }
+          } else {
+            setUserProfile(null)
+          }
+
+          setLoading(false)
+        })
+
+        return unsubscribe
+      } catch (error) {
+        console.error("Firebase: Failed to initialize auth:", error)
+        clearTimeout(loadingTimeout)
+        setLoading(false)
+        return () => {}
       }
+    }
 
-      setLoading(false)
+    let unsubscribe: (() => void) | undefined
+
+    initializeFirebaseAuth().then((unsub) => {
+      unsubscribe = unsub
     })
 
     return () => {
       clearTimeout(loadingTimeout)
-      unsubscribe()
+      if (unsubscribe) {
+        unsubscribe()
+      }
     }
   }, [])
 
   const signOut = async () => {
-    const { signOutFirebase } = await import("@/lib/firebase-auth")
-    await signOutFirebase()
+    try {
+      const { signOutFirebase } = await import("@/lib/firebase-auth")
+      await signOutFirebase()
+    } catch (error) {
+      console.error("Firebase: Error signing out:", error)
+    }
   }
 
   return <AuthContext.Provider value={{ user, userProfile, loading, signOut }}>{children}</AuthContext.Provider>
