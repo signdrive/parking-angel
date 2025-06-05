@@ -44,11 +44,13 @@ export async function signInWithGoogle() {
     return { data: null, error: { message: "Supabase not configured. Please add environment variables." } }
   }
 
+  // Get the current origin (works for both localhost and Vercel)
+  const origin = typeof window !== "undefined" ? window.location.origin : ""
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      // Redirect to homepage instead of callback page since that's where Supabase is sending us
-      redirectTo: `${window.location.origin}/`,
+      redirectTo: `${origin}/`,
     },
   })
   return { data, error }
