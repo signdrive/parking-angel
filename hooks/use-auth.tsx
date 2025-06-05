@@ -26,24 +26,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [initialized, setInitialized] = useState(false)
 
   const refreshUser = async () => {
+    console.log("Supabase: Starting refreshUser")
+
     if (!isSupabaseConfigured()) {
+      console.log("Supabase: Not configured, setting loading to false")
       setUser(null)
       setLoading(false)
       setError("Supabase not configured")
-      setInitialized(true)
       return
     }
 
     try {
-      setError(null) // Clear any previous errors
+      setError(null)
+      console.log("Supabase: Getting session...")
 
       const { data, error } = await supabase.auth.getSession()
+      console.log("Supabase: Session result:", { user: !!data.session?.user, error: !!error })
 
       if (error) {
-        console.error("Error getting session:", error)
+        console.error("Supabase: Session error:", error)
         setError(error.message)
         setUser(null)
       } else {
@@ -52,45 +55,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // If user exists, ensure profile exists (but don't block on this)
         if (data.session?.user) {
+          console.log("Supabase: User found, updating profile...")
           createOrUpdateProfile(data.session.user).catch((profileError) => {
-            console.error("Error updating profile:", profileError)
-            // Don't block authentication for profile errors
+            console.error("Supabase: Profile error:", profileError)
           })
         }
       }
     } catch (err) {
-      console.error("Unexpected auth error:", err)
+      console.error("Supabase: Unexpected auth error:", err)
       setError(err instanceof Error ? err.message : "Unknown authentication error")
       setUser(null)
     } finally {
+      console.log("Supabase: Setting loading to false")
       setLoading(false)
-      setInitialized(true)
     }
   }
 
   useEffect(() => {
+    console.log("Supabase: Auth hook initializing...")
+
+    // Set a timeout to ensure loading doesn't stay true forever
+    const loadingTimeout = setTimeout(() => {
+      console.log("Supabase: Loading timeout reached, forcing loading to false")
+      setLoading(false)
+    }, 5000)
+
     // Initial session check
-    refreshUser()
+    refreshUser().finally(() => {
+      clearTimeout(loadingTimeout)
+    })
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.id)
+      console.log("Supabase: Auth state changed:", event, !!session?.user)
+      clearTimeout(loadingTimeout)
 
       setUser(session?.user ?? null)
-      setLoading(false) // Always stop loading on auth state change
-      setInitialized(true)
+      setLoading(false)
 
       // Handle profile creation for sign-in events
       if (event === "SIGNED_IN" && session?.user) {
         createOrUpdateProfile(session.user).catch((err) => {
-          console.error("Error updating profile on sign in:", err)
+          console.error("Supabase: Profile update error on sign in:", err)
         })
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(loadingTimeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signOut = async () => {
@@ -98,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isSupabaseConfigured()) {
         const { error } = await supabase.auth.signOut()
         if (error) {
-          console.error("Sign out error:", error)
+          console.error("Supabase: Sign out error:", error)
           setError(error.message)
         } else {
           setUser(null)
@@ -106,16 +122,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (err) {
-      console.error("Unexpected sign out error:", err)
+      console.error("Supabase: Unexpected sign out error:", err)
       setError(err instanceof Error ? err.message : "Unknown sign out error")
     }
   }
 
-  return (
-    <AuthContext.Provider value={{ user, loading: loading && !initialized, signOut, refreshUser, error }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, loading, signOut, refreshUser, error }}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {

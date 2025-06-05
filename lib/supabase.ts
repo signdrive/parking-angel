@@ -4,25 +4,32 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
 export const isSupabaseConfigured = () => {
-  // This is the problematic line - it's checking at build time, not runtime
-  // return !!(supabaseUrl && supabaseAnonKey)
+  // Check if we have the required environment variables
+  const hasUrl = !!(supabaseUrl && supabaseUrl !== "")
+  const hasKey = !!(supabaseAnonKey && supabaseAnonKey !== "")
 
-  // Fix: Check environment variables at runtime instead
-  if (typeof window !== "undefined") {
-    return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  }
-  return false
+  console.log("Supabase config check:", { hasUrl, hasKey, url: supabaseUrl?.substring(0, 20) + "..." })
+
+  return hasUrl && hasKey
 }
 
 // Create a mock client for when Supabase is not configured
 const createMockClient = () => ({
   auth: {
-    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+    getSession: () => {
+      console.log("Mock Supabase: getSession called")
+      return Promise.resolve({ data: { session: null }, error: null })
+    },
     getUser: () => Promise.resolve({ data: { user: null }, error: null }),
     signInWithPassword: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
     signUp: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
     signOut: () => Promise.resolve({ error: null }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    onAuthStateChange: (callback: any) => {
+      console.log("Mock Supabase: onAuthStateChange called")
+      // Call the callback immediately with no user
+      setTimeout(() => callback("INITIAL_SESSION", null), 100)
+      return { data: { subscription: { unsubscribe: () => {} } } }
+    },
   },
   from: () => ({
     select: () => ({

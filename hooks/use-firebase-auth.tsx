@@ -25,16 +25,27 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    console.log("Firebase: Auth hook initializing...")
+
+    // Set a timeout to ensure loading doesn't stay true forever
+    const loadingTimeout = setTimeout(() => {
+      console.log("Firebase: Loading timeout reached, forcing loading to false")
+      setLoading(false)
+    }, 5000)
+
     const unsubscribe = onAuthStateChangedFirebase(async (user) => {
+      console.log("Firebase: Auth state changed:", !!user)
+      clearTimeout(loadingTimeout)
+
       setUser(user)
 
       if (user) {
         try {
-          // Create or update user profile when user signs in
+          console.log("Firebase: User found, updating profile...")
           const profile = await createOrUpdateUserProfile(user)
           setUserProfile(profile)
         } catch (error) {
-          console.error("Error handling auth state change:", error)
+          console.error("Firebase: Error handling auth state change:", error)
         }
       } else {
         setUserProfile(null)
@@ -43,7 +54,10 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
       setLoading(false)
     })
 
-    return unsubscribe
+    return () => {
+      clearTimeout(loadingTimeout)
+      unsubscribe()
+    }
   }, [])
 
   const signOut = async () => {
