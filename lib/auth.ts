@@ -39,6 +39,20 @@ export async function signUpWithEmail(email: string, password: string, fullName:
   return { data, error }
 }
 
+export async function signInWithGoogle() {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: "Supabase not configured. Please add environment variables." } }
+  }
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  })
+  return { data, error }
+}
+
 export async function signOut() {
   if (!isSupabaseConfigured()) {
     return { error: null }
@@ -66,4 +80,44 @@ export async function getUserProfile(userId: string) {
 
   const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
   return { data, error }
+}
+
+// Create or update user profile after OAuth login
+export async function createOrUpdateProfile(user: User) {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: "Supabase not configured" } }
+  }
+
+  const { data: existingProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+
+  if (existingProfile) {
+    // Update existing profile
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({
+        email: user.email,
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name,
+        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id)
+      .select()
+      .single()
+
+    return { data, error }
+  } else {
+    // Create new profile
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert({
+        id: user.id,
+        email: user.email,
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name,
+        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture,
+      })
+      .select()
+      .single()
+
+    return { data, error }
+  }
 }

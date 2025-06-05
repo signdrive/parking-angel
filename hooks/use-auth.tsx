@@ -4,6 +4,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { createOrUpdateProfile } from "@/lib/auth"
 
 interface AuthContextType {
   user: User | null
@@ -38,6 +39,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null)
       setLoading(false)
+
+      // Handle OAuth sign-in by creating/updating profile
+      if (event === "SIGNED_IN" && session?.user) {
+        await createOrUpdateProfile(session.user)
+      }
     })
 
     return () => subscription.unsubscribe()

@@ -4,7 +4,14 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
 export const isSupabaseConfigured = () => {
-  return !!(supabaseUrl && supabaseAnonKey)
+  // This is the problematic line - it's checking at build time, not runtime
+  // return !!(supabaseUrl && supabaseAnonKey)
+
+  // Fix: Check environment variables at runtime instead
+  if (typeof window !== "undefined") {
+    return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  }
+  return false
 }
 
 // Create a mock client for when Supabase is not configured
