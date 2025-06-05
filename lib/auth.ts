@@ -44,13 +44,16 @@ export async function signInWithGoogle() {
     return { data: null, error: { message: "Supabase not configured. Please add environment variables." } }
   }
 
-  // Get the current origin (works for both localhost and Vercel)
-  const origin = typeof window !== "undefined" ? window.location.origin : ""
+  // Use the custom domain for redirects
+  const redirectTo =
+    process.env.NODE_ENV === "production"
+      ? "https://parkalgo.com/auth/callback"
+      : `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${origin}/`,
+      redirectTo,
     },
   })
   return { data, error }
