@@ -36,7 +36,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoadingTimeout(true)
-    }, 5000) // 5 seconds timeout
+    }, 3000) // Reduced from 5000 to 3000ms
 
     return () => clearTimeout(timer)
   }, [])
@@ -54,7 +54,8 @@ export default function DashboardPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Loading your dashboard...</p>
+          <p className="text-sm text-gray-500 mt-2">Connecting to database...</p>
         </div>
       </div>
     )

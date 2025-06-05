@@ -36,6 +36,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      setLoading(true)
+      setError(null) // Clear any previous errors
+
       const { data, error } = await supabase.auth.getSession()
 
       if (error) {
@@ -44,13 +47,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null)
       } else {
         setUser(data.session?.user ?? null)
+        setError(null)
 
         // If user exists, ensure profile exists
         if (data.session?.user) {
           try {
-            await createOrUpdateProfile(data.session.user)
+            const profileResult = await createOrUpdateProfile(data.session.user)
+            if (profileResult.error) {
+              console.warn("Profile update warning:", profileResult.error.message)
+              // Don't set this as a fatal error since user is still authenticated
+            }
           } catch (profileError) {
             console.error("Error updating profile:", profileError)
+            // Don't block authentication for profile errors
           }
         }
       }
@@ -71,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event)
       setUser(session?.user ?? null)
+      setLoading(false)
 
       // Handle OAuth sign-in by creating/updating profile
       if (event === "SIGNED_IN" && session?.user) {
@@ -95,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setError(error.message)
         } else {
           setUser(null)
+          setError(null)
         }
       }
     } catch (err) {
