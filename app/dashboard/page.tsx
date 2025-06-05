@@ -14,8 +14,9 @@ import { FirebaseUserProfile } from "@/components/dashboard/firebase-user-profil
 import { NotificationTest } from "@/components/firebase/notification-test"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings } from "lucide-react"
+import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug } from "lucide-react"
 import Link from "next/link"
+import { AuthDebug } from "@/components/debug/auth-debug"
 
 export default function DashboardPage() {
   const { user: supabaseUser, loading: supabaseLoading, signOut: supabaseSignOut } = useAuth()
@@ -23,19 +24,32 @@ export default function DashboardPage() {
   const router = useRouter()
   const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("map")
+  const [showDebug, setShowDebug] = useState(false)
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
 
   // Use Firebase user if available, otherwise Supabase user
   const user = firebaseUser || supabaseUser
-  const loading = firebaseLoading || supabaseLoading
+  const loading = (firebaseLoading || supabaseLoading) && !loadingTimeout
   const signOut = firebaseUser ? firebaseSignOut : supabaseSignOut
 
+  // Add a timeout to prevent infinite loading
   useEffect(() => {
-    if (!loading && !user) {
+    const timer = setTimeout(() => {
+      setLoadingTimeout(true)
+    }, 5000) // 5 seconds timeout
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    // Only redirect if we're sure the user is not authenticated
+    if (!loading && !user && !loadingTimeout) {
       router.push("/")
     }
-  }, [user, loading, router])
+  }, [user, loading, router, loadingTimeout])
 
-  if (loading) {
+  // If still loading and not timed out, show loading state
+  if (loading && !loadingTimeout) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -46,8 +60,36 @@ export default function DashboardPage() {
     )
   }
 
-  if (!user) {
-    return null
+  // If loading timed out or there's an auth issue, show debug info
+  if (loadingTimeout || (!user && !loading)) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="container mx-auto max-w-4xl py-8">
+          <div className="text-center mb-8">
+            <MapPin className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-2">Authentication Issue Detected</h1>
+            <p className="text-gray-600 mb-6">
+              We're having trouble loading your dashboard. Let's troubleshoot the issue.
+            </p>
+          </div>
+
+          <AuthDebug />
+
+          <div className="mt-8 text-center">
+            <p className="mb-4 text-gray-600">You can try these options:</p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+              <Button variant="outline" onClick={() => router.push("/auth/login")}>
+                Sign In Again
+              </Button>
+              <Button variant="outline" onClick={() => router.push("/")}>
+                Return Home
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const getUserDisplayName = () => {
@@ -79,6 +121,11 @@ export default function DashboardPage() {
             </Link>
 
             <div className="flex items-center space-x-4">
+              <Button variant="ghost" size="sm" onClick={() => setShowDebug(!showDebug)} className="text-orange-500">
+                <Bug className="w-4 h-4 mr-2" />
+                Debug
+              </Button>
+
               <div className="flex items-center space-x-2">
                 <User className="w-5 h-5 text-gray-600" />
                 <span className="text-sm text-gray-700">{getUserDisplayName()}</span>
@@ -91,6 +138,12 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {showDebug && (
+        <div className="container mx-auto px-4 py-4">
+          <AuthDebug />
+        </div>
+      )}
 
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">

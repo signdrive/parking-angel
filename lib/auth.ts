@@ -29,11 +29,7 @@ export async function signUpWithEmail(email: string, password: string, fullName:
   })
 
   if (data.user && !error) {
-    await supabase.from("profiles").insert({
-      id: data.user.id,
-      email: data.user.email,
-      full_name: fullName,
-    })
+    await createOrUpdateProfile(data.user)
   }
 
   return { data, error }
@@ -75,7 +71,14 @@ export async function getCurrentUser(): Promise<User | null> {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser()
+
+  if (error) {
+    console.error("Error getting current user:", error)
+    return null
+  }
+
   return user
 }
 
@@ -94,36 +97,59 @@ export async function createOrUpdateProfile(user: User) {
     return { data: null, error: { message: "Supabase not configured" } }
   }
 
-  const { data: existingProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
-  if (existingProfile) {
-    // Update existing profile
-    const { data, error } = await supabase
+  try {
+    // First check if profile exists
+    const { data: existingProfile, error: checkError } = await supabase
       .from("profiles")
-      .update({
-        email: user.email,
-        full_name: user.user_metadata?.full_name || user.user_metadata?.name,
-        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture,
-        updated_at: new Date().toISOString(),
-      })
+      .select("*")
       .eq("id", user.id)
-      .select()
       .single()
 
-    return { data, error }
-  } else {
-    // Create new profile
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert({
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || user.user_metadata?.name,
-        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture,
-      })
-      .select()
-      .single()
+    if (checkError && checkError.code !== "PGRST116") {
+      // PGRST116 is "no rows returned" error
+      console.error("Error checking for existing profile:", checkError)
+      throw checkError
+    }
 
-    return { data, error }
+    if (existingProfile) {
+      // Update existing profile
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          email: user.email,
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name,
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } else {
+      // Create new profile
+      const { data, error } = await supabase
+        .from("profiles")
+        .insert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name,
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture,
+          reputation_score: 100,
+          total_reports: 0,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    }
+  } catch (error) {
+    console.error("Error in createOrUpdateProfile:", error)
+    return {
+      data: null,
+      error: error instanceof Error ? { message: error.message } : { message: "Unknown error" },
+    }
   }
 }
