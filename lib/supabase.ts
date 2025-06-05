@@ -4,17 +4,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
 export const isSupabaseConfigured = () => {
-  // This is the problematic line - it's checking at build time, not runtime
-  // return !!(supabaseUrl && supabaseAnonKey)
-
-  // Fix: Check environment variables at runtime instead
-  if (typeof window !== "undefined") {
-    return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  }
-  return false
+  return !!(supabaseUrl && supabaseAnonKey)
 }
 
-// Create a mock client for when Supabase is not configured
 const createMockClient = () => ({
   auth: {
     getSession: () => Promise.resolve({ data: { session: null }, error: null }),
@@ -22,6 +14,7 @@ const createMockClient = () => ({
     signInWithPassword: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
     signUp: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
     signOut: () => Promise.resolve({ error: null }),
+    signInWithOAuth: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
   },
   from: () => ({
@@ -55,7 +48,6 @@ const createMockClient = () => ({
   removeChannel: () => {},
 })
 
-// Only create the real client if properly configured
 export const supabase = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : (createMockClient() as any)

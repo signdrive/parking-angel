@@ -22,13 +22,9 @@ export default function AuthCallbackPage() {
         }
 
         if (data.session?.user) {
-          // Create or update user profile
           await createOrUpdateProfile(data.session.user)
-
-          // Redirect to dashboard
           router.push("/dashboard")
         } else {
-          // No session, redirect to login
           router.push("/auth/login")
         }
       } catch (error) {

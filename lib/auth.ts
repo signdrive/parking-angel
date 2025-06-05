@@ -82,7 +82,6 @@ export async function getUserProfile(userId: string) {
   return { data, error }
 }
 
-// Create or update user profile after OAuth login
 export async function createOrUpdateProfile(user: User) {
   if (!isSupabaseConfigured()) {
     return { data: null, error: { message: "Supabase not configured" } }
@@ -91,7 +90,6 @@ export async function createOrUpdateProfile(user: User) {
   const { data: existingProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
   if (existingProfile) {
-    // Update existing profile
     const { data, error } = await supabase
       .from("profiles")
       .update({
@@ -106,7 +104,6 @@ export async function createOrUpdateProfile(user: User) {
 
     return { data, error }
   } else {
-    // Create new profile
     const { data, error } = await supabase
       .from("profiles")
       .insert({

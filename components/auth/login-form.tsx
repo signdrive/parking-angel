@@ -61,7 +61,7 @@ export function LoginForm() {
           </Alert>
         )}
 
-        {/* Google Sign In - ALWAYS SHOW */}
+        {/* Google Sign In */}
         <Button onClick={handleGoogleSignIn} disabled={googleLoading || loading} variant="outline" className="w-full">
           {googleLoading ? (
             <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mr-2" />

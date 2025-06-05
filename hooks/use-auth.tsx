@@ -40,7 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null)
       setLoading(false)
 
-      // Handle OAuth sign-in by creating/updating profile
       if (event === "SIGNED_IN" && session?.user) {
         await createOrUpdateProfile(session.user)
       }

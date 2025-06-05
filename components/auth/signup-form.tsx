@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,15 +20,7 @@ export function SignUpForm() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [supabaseConfigured, setSupabaseConfigured] = useState(false)
   const router = useRouter()
-
-  useEffect(() => {
-    setMounted(true)
-    // Check Supabase configuration at runtime
-    setSupabaseConfigured(!!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY))
-  }, [])
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,17 +49,6 @@ export function SignUpForm() {
       setError(error.message)
       setGoogleLoading(false)
     }
-    // Note: If successful, user will be redirected to Google, so we don't set loading to false
-  }
-
-  if (!mounted) {
-    return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardContent className="pt-6">
-          <div className="text-center">Loading...</div>
-        </CardContent>
-      </Card>
-    )
   }
 
   if (success) {
@@ -95,7 +76,7 @@ export function SignUpForm() {
           </Alert>
         )}
 
-        {/* Always show Google Sign Up for testing */}
+        {/* Google Sign Up */}
         <Button onClick={handleGoogleSignIn} disabled={googleLoading || loading} variant="outline" className="w-full">
           {googleLoading ? (
             <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mr-2" />
@@ -121,6 +102,7 @@ export function SignUpForm() {
             <Input
               id="fullName"
               type="text"
+              autoComplete="name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
@@ -133,6 +115,7 @@ export function SignUpForm() {
             <Input
               id="email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -145,6 +128,7 @@ export function SignUpForm() {
             <Input
               id="password"
               type="password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

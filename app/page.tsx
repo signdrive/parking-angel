@@ -16,7 +16,6 @@ export default function HomePage() {
 
   useEffect(() => {
     setMounted(true)
-    // Show setup if Supabase is not configured
     setShowSetup(!isSupabaseConfigured())
   }, [])
 

@@ -70,7 +70,22 @@ BEGIN
     UPDATE public.profiles 
     SET 
         reputation_score = GREATEST(0, reputation_score + reputation_change),
+        total_reports = total_reports + 1,
         updated_at = NOW()
     WHERE id = user_id;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Trigger to automatically set the location field from latitude and longitude
+CREATE OR REPLACE FUNCTION set_location_from_lat_lng()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.location = ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude), 4326)::geography;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_parking_spot_location
+BEFORE INSERT OR UPDATE ON public.parking_spots
+FOR EACH ROW
+EXECUTE FUNCTION set_location_from_lat_lng();
