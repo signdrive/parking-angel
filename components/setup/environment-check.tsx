@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, XCircle, AlertCircle, Copy, Check } from "lucide-react"
+import { CheckCircle, XCircle, AlertCircle, ExternalLink, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { isSupabaseConfigured } from "@/lib/supabase"
 
@@ -74,7 +74,7 @@ export function EnvironmentCheck() {
       key: "MAPBOX_ACCESS_TOKEN",
       configured: mapboxConfigured,
       required: true,
-      example: "pk.eyJ1Ijoic3VyZmVhc3lhcHAiLCJhIjoiY21hdGtlODlnMG1jaDJsczQ2YmNtZmdxbyJ9.QVy8Bx_v_4GH6B_RBqGoCA",
+      example: "pk.eyJ1IjoieW91ci11c2VybmFtZSIsImEiOiJjbGV...",
       checking: checkingMapbox,
     },
   ]
@@ -163,11 +163,7 @@ export function EnvironmentCheck() {
                     <code className="text-xs flex-1 font-mono">
                       {check.key}={check.example}
                     </code>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => copyToClipboard(`${check.key}=${check.example}`, check.key)}
-                    >
+                    <Button size="sm" variant="ghost" onClick={() => copyToClipboard(`${check.key}=`, check.key)}>
                       {copied === check.key ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     </Button>
                   </div>
@@ -180,29 +176,21 @@ export function EnvironmentCheck() {
         {supabaseConfigured && !mapboxConfigured && !checkingMapbox && (
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
             <h4 className="font-medium text-blue-900 mb-2">✅ Supabase Configured!</h4>
-            <p className="text-sm text-blue-800 mb-3">
-              Great! Your Supabase database is connected. Now add your Mapbox token:
-            </p>
-            <div className="bg-white p-3 rounded border">
-              <p className="text-sm font-medium mb-2">Add this to your environment variables:</p>
-              <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                <code className="text-xs flex-1 font-mono">
-                  MAPBOX_ACCESS_TOKEN=pk.eyJ1Ijoic3VyZmVhc3lhcHAiLCJhIjoiY21hdGtlODlnMG1jaDJsczQ2YmNtZmdxbyJ9.QVy8Bx_v_4GH6B_RBqGoCA
-                </code>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    copyToClipboard(
-                      "MAPBOX_ACCESS_TOKEN=pk.eyJ1Ijoic3VyZmVhc3lhcHAiLCJhIjoiY21hdGtlODlnMG1jaDJsczQ2YmNtZmdxbyJ9.QVy8Bx_v_4GH6B_RBqGoCA",
-                      "mapbox",
-                    )
-                  }
-                >
-                  {copied === "mapbox" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                </Button>
-              </div>
-            </div>
+            <p className="text-sm text-blue-800 mb-3">Great! Your Supabase database is connected. Now you need to:</p>
+            <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside mb-3">
+              <li>Add the MAPBOX_ACCESS_TOKEN environment variable</li>
+              <li>Run the database setup scripts</li>
+            </ol>
+            <Button size="sm" variant="outline" asChild>
+              <a
+                href="https://account.mapbox.com/access-tokens/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2"
+              >
+                Get Mapbox Token <ExternalLink className="w-3 h-3" />
+              </a>
+            </Button>
           </div>
         )}
 

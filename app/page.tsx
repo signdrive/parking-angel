@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapPin, Users, Clock, Star, AlertCircle } from "lucide-react"
-import { isSupabaseConfigured } from "@/lib/supabase"
+import { isSupabaseConfigured, supabase } from "@/lib/supabase"
+import { createOrUpdateProfile } from "@/lib/auth"
 import { EnvironmentCheck } from "@/components/setup/environment-check"
 import { ConnectionTest } from "@/components/setup/connection-test"
 import { ComprehensiveTest } from "@/components/setup/comprehensive-test"
@@ -13,11 +15,58 @@ import { ComprehensiveTest } from "@/components/setup/comprehensive-test"
 export default function HomePage() {
   const [mounted, setMounted] = useState(false)
   const [showSetup, setShowSetup] = useState(false)
+  const [processingAuth, setProcessingAuth] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
+    // Show setup if Supabase is not configured
     setShowSetup(!isSupabaseConfigured())
   }, [])
+
+  // Handle OAuth callback on homepage
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      // Check if we have auth tokens in the URL hash
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const accessToken = hashParams.get("access_token")
+      const refreshToken = hashParams.get("refresh_token")
+
+      if (accessToken && refreshToken && !processingAuth) {
+        setProcessingAuth(true)
+
+        try {
+          // Set the session using the tokens
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (error) {
+            console.error("Error setting session:", error)
+            return
+          }
+
+          if (data.user) {
+            // Create or update profile
+            await createOrUpdateProfile(data.user)
+
+            // Clean up URL and redirect to dashboard
+            window.history.replaceState({}, document.title, window.location.pathname)
+            router.push("/dashboard")
+          }
+        } catch (error) {
+          console.error("Error processing auth callback:", error)
+        } finally {
+          setProcessingAuth(false)
+        }
+      }
+    }
+
+    if (mounted && isSupabaseConfigured()) {
+      handleAuthCallback()
+    }
+  }, [mounted, router, processingAuth])
 
   if (!mounted) {
     return (
@@ -25,6 +74,17 @@ export default function HomePage() {
         <div className="text-center">
           <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
           <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (processingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-600">Completing sign in...</p>
         </div>
       </div>
     )

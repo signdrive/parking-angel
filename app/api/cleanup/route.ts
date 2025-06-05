@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
+    // This endpoint should be called by a cron job every 5 minutes
     const { data, error } = await supabase.rpc("cleanup_expired_spots")
 
     if (error) {

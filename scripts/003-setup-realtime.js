@@ -1,3 +1,4 @@
+// Setup real-time subscriptions and triggers for Supabase
 const { createClient } = require("@supabase/supabase-js")
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -14,6 +15,7 @@ async function setupRealtimeFeatures() {
   try {
     console.log("Setting up real-time features...")
 
+    // Enable real-time for parking_spots table
     const { error: realtimeError } = await supabase.from("parking_spots").select("*").limit(1)
 
     if (realtimeError) {
@@ -23,6 +25,7 @@ async function setupRealtimeFeatures() {
 
     console.log("✅ Real-time subscriptions enabled for parking_spots")
 
+    // Test the cleanup function
     const { data: cleanupResult, error: cleanupError } = await supabase.rpc("cleanup_expired_spots")
 
     if (cleanupError) {
@@ -31,6 +34,7 @@ async function setupRealtimeFeatures() {
       console.log(`✅ Cleanup function working. Removed ${cleanupResult} expired spots`)
     }
 
+    // Test the nearby spots function
     const { data: nearbySpots, error: nearbyError } = await supabase.rpc("find_nearby_spots", {
       user_lat: 37.7749,
       user_lng: -122.4194,

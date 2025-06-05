@@ -12,6 +12,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const body = await request.json()
     const { is_available, report_type, notes } = body
 
+    // Update the parking spot
     const { data: spot, error: updateError } = await supabase
       .from("parking_spots")
       .update({
@@ -27,6 +28,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: "Failed to update parking spot" }, { status: 500 })
     }
 
+    // Create a spot report
     if (report_type) {
       await supabase.from("spot_reports").insert({
         spot_id: params.id,
@@ -35,6 +37,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         notes: notes || null,
       })
 
+      // Update user reputation based on report type
       const reputationChange = report_type === "taken" ? 2 : report_type === "invalid" ? -1 : 1
       await supabase.rpc("update_user_reputation", {
         user_id: user.id,
@@ -56,12 +59,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // Check if user owns the spot or has admin privileges
     const { data: spot } = await supabase.from("parking_spots").select("reported_by").eq("id", params.id).single()
 
     if (!spot || spot.reported_by !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    // Delete the parking spot
     const { error: deleteError } = await supabase.from("parking_spots").delete().eq("id", params.id)
 
     if (deleteError) {
