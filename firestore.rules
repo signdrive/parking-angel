@@ -1,0 +1,181 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isValidUser() {
+      return isAuthenticated() && 
+        request.auth.uid.matches('^[a-zA-Z0-9_-]+$');
+    }
+    
+    // Users collection - user profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isValidUser();
+      allow create: if isOwner(userId) && isValidUser() && 
+        request.resource.data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        request.resource.data.uid == request.auth.uid;
+      allow update: if isOwner(userId) && isValidUser() &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.createdAt == resource.data.createdAt;
+    }
+    
+    // Parking spots collection
+    match /parking_spots/{spotId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        request.resource.data.reportedBy == request.auth.uid &&
+        request.resource.data.keys().hasAll(['location', 'isAvailable', 'createdAt', 'expiresAt']) &&
+        request.resource.data.isAvailable == true &&
+        request.resource.data.expiresAt > request.time;
+      allow update: if isAuthenticated() && 
+        (resource.data.reportedBy == request.auth.uid || 
+         request.resource.data.reportedBy == request.auth.uid) &&
+        request.resource.data.reportedBy == resource.data.reportedBy;
+      allow delete: if isAuthenticated() && 
+        (resource.data.reportedBy == request.auth.uid || isAdmin());
+    }
+    
+    // Spot reports collection
+    match /spot_reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['spotId', 'reporterId', 'reportType', 'createdAt']) &&
+        request.resource.data.reportType in ['available', 'taken', 'invalid'];
+      allow update: if isOwner(resource.data.reporterId);
+      allow delete: if isOwner(resource.data.reporterId) || isAdmin();
+    }
+    
+    // User activities collection - for analytics
+    match /user_activities/{activityId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['userId', 'activityType', 'timestamp']);
+      allow update: if false; // Activities are immutable
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // AI predictions collection - read-only for users
+    match /ai_predictions/{predictionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(); // Only admins/server can write predictions
+    }
+    
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['userId', 'type', 'message', 'createdAt']);
+      allow update: if isOwner(resource.data.userId) &&
+        request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // FCM tokens collection - for push notifications
+    match /fcm_tokens/{tokenId} {
+      allow read: if isOwner(resource.data.userId);
+      allow write: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // Analytics collection - aggregated data
+    match /analytics/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Reviews collection - for spot reviews
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        request.resource.data.reviewerId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['spotId', 'reviewerId', 'rating', 'createdAt']) &&
+        request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+      allow update: if isOwner(resource.data.reviewerId) &&
+        request.resource.data.reviewerId == resource.data.reviewerId &&
+        request.resource.data.spotId == resource.data.spotId;
+      allow delete: if isOwner(resource.data.reviewerId) || isAdmin();
+    }
+    
+    // Subscriptions collection - for premium features
+    match /subscriptions/{subscriptionId} {
+      allow read: if isOwner(resource.data.userId);
+      allow write: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // Admin collection - restricted access
+    match /admin/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    
+    // System configuration - read-only for users
+    match /config/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Chat/Support messages
+    match /support_messages/{messageId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Geofences collection - for location-based features
+    match /geofences/{geofenceId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Events collection - for special events affecting parking
+    match /events/{eventId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Feedback collection
+    match /feedback/{feedbackId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId);
+      allow delete: if isAdmin();
+    }
+    
+    // Rate limiting collection - to prevent spam
+    match /rate_limits/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) || isAdmin();
+    }
+    
+    // Temporary data collection - for short-lived data
+    match /temp_data/{tempId} {
+      allow read, write: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        resource.data.expiresAt > request.time;
+    }
+  }
+}

@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapPin, Users, Clock, Star, AlertCircle } from "lucide-react"
-import { isSupabaseConfigured, supabase } from "@/lib/supabase"
-import { createOrUpdateProfile } from "@/lib/auth"
+import { isSupabaseConfigured } from "@/lib/supabase"
 import { EnvironmentCheck } from "@/components/setup/environment-check"
 import { ConnectionTest } from "@/components/setup/connection-test"
 import { ComprehensiveTest } from "@/components/setup/comprehensive-test"
@@ -15,8 +13,6 @@ import { ComprehensiveTest } from "@/components/setup/comprehensive-test"
 export default function HomePage() {
   const [mounted, setMounted] = useState(false)
   const [showSetup, setShowSetup] = useState(false)
-  const [processingAuth, setProcessingAuth] = useState(false)
-  const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
@@ -24,67 +20,12 @@ export default function HomePage() {
     setShowSetup(!isSupabaseConfigured())
   }, [])
 
-  // Handle OAuth callback on homepage
-  useEffect(() => {
-    const handleAuthCallback = async () => {
-      // Check if we have auth tokens in the URL hash
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      const accessToken = hashParams.get("access_token")
-      const refreshToken = hashParams.get("refresh_token")
-
-      if (accessToken && refreshToken && !processingAuth) {
-        setProcessingAuth(true)
-
-        try {
-          // Set the session using the tokens
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          })
-
-          if (error) {
-            console.error("Error setting session:", error)
-            return
-          }
-
-          if (data.user) {
-            // Create or update profile
-            await createOrUpdateProfile(data.user)
-
-            // Clean up URL and redirect to dashboard
-            window.history.replaceState({}, document.title, window.location.pathname)
-            router.push("/dashboard")
-          }
-        } catch (error) {
-          console.error("Error processing auth callback:", error)
-        } finally {
-          setProcessingAuth(false)
-        }
-      }
-    }
-
-    if (mounted && isSupabaseConfigured()) {
-      handleAuthCallback()
-    }
-  }, [mounted, router, processingAuth])
-
   if (!mounted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
           <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (processingAuth) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Completing sign in...</p>
         </div>
       </div>
     )
@@ -142,13 +83,19 @@ export default function HomePage() {
           <div className="flex items-center space-x-2">
             <MapPin className="w-8 h-8 text-blue-600" />
             <span className="text-2xl font-bold text-gray-900">Parking Angel</span>
+            <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              FIREBASE
+            </span>
           </div>
           <div className="space-x-4">
-            <Link href="/auth/login">
+            <Link href="/auth/firebase-login">
               <Button variant="ghost">Sign In</Button>
             </Link>
-            <Link href="/auth/signup">
+            <Link href="/auth/firebase-signup">
               <Button>Get Started</Button>
+            </Link>
+            <Link href="/auth/login">
+              <Button variant="outline">Supabase Login</Button>
             </Link>
             {!isSupabaseConfigured() && (
               <Button onClick={() => setShowSetup(true)} variant="outline">
@@ -162,16 +109,16 @@ export default function HomePage() {
       <main className="container mx-auto px-4 py-12">
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Find Parking Spots in <span className="text-blue-600">Real-Time</span>
+            Find Parking Spots with <span className="text-blue-600">AI & Firebase</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Join thousands of drivers helping each other find parking. Report spots when you leave, discover available
-            spaces when you arrive.
+            Join thousands of drivers using our AI-powered platform with Firebase authentication, real-time analytics,
+            and smart notifications.
           </p>
           <div className="space-x-4">
-            <Link href="/auth/signup">
+            <Link href="/auth/firebase-signup">
               <Button size="lg" className="px-8 py-3">
-                Start Finding Spots
+                Start with Firebase
               </Button>
             </Link>
             <Link href="/dashboard">
@@ -186,11 +133,11 @@ export default function HomePage() {
           <Card>
             <CardHeader className="text-center">
               <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-              <CardTitle>Real-Time Updates</CardTitle>
+              <CardTitle>Firebase Powered</CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription className="text-center">
-                See available parking spots updated in real-time by the community
+                Secure authentication, real-time database, and advanced analytics with Firebase
               </CardDescription>
             </CardContent>
           </Card>
@@ -198,11 +145,11 @@ export default function HomePage() {
           <Card>
             <CardHeader className="text-center">
               <Users className="w-12 h-12 text-green-600 mx-auto mb-4" />
-              <CardTitle>Community Driven</CardTitle>
+              <CardTitle>Google Integration</CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription className="text-center">
-                Help fellow drivers by reporting when you leave a parking spot
+                Seamless Google login with your Firebase project for enhanced user experience
               </CardDescription>
             </CardContent>
           </Card>
@@ -210,11 +157,11 @@ export default function HomePage() {
           <Card>
             <CardHeader className="text-center">
               <Clock className="w-12 h-12 text-orange-600 mx-auto mb-4" />
-              <CardTitle>Save Time</CardTitle>
+              <CardTitle>Real-time Sync</CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription className="text-center">
-                Stop circling blocks looking for parking. Find spots instantly
+                Live parking updates across all devices with Firebase Firestore real-time database
               </CardDescription>
             </CardContent>
           </Card>
@@ -222,51 +169,33 @@ export default function HomePage() {
           <Card>
             <CardHeader className="text-center">
               <Star className="w-12 h-12 text-purple-600 mx-auto mb-4" />
-              <CardTitle>Reputation System</CardTitle>
+              <CardTitle>Smart Analytics</CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription className="text-center">
-                Build your reputation by providing accurate parking information
+                Advanced user behavior tracking and insights with Firebase Analytics
               </CardDescription>
             </CardContent>
           </Card>
         </div>
 
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8">How It Works</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="space-y-4">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                <span className="text-2xl font-bold text-blue-600">1</span>
-              </div>
-              <h3 className="text-xl font-semibold">Report When Leaving</h3>
-              <p className="text-gray-600">Tap the report button when you're about to leave a parking spot</p>
-            </div>
-            <div className="space-y-4">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                <span className="text-2xl font-bold text-green-600">2</span>
-              </div>
-              <h3 className="text-xl font-semibold">Find Available Spots</h3>
-              <p className="text-gray-600">View real-time available spots on the interactive map</p>
-            </div>
-            <div className="space-y-4">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto">
-                <span className="text-2xl font-bold text-purple-600">3</span>
-              </div>
-              <h3 className="text-xl font-semibold">Build Reputation</h3>
-              <p className="text-gray-600">Earn points for accurate reports and help the community grow</p>
-            </div>
-          </div>
-        </div>
-
         <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready to Never Circle for Parking Again?</h2>
-          <p className="text-gray-600 mb-6">Join the community of drivers making parking easier for everyone.</p>
-          <Link href="/auth/signup">
-            <Button size="lg" className="px-8 py-3">
-              Get Started Free
-            </Button>
-          </Link>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready for Firebase-Powered Parking?</h2>
+          <p className="text-gray-600 mb-6">
+            Experience the next generation of parking apps with Firebase authentication and real-time features.
+          </p>
+          <div className="space-x-4">
+            <Link href="/auth/firebase-signup">
+              <Button size="lg" className="px-8 py-3">
+                Get Started with Firebase
+              </Button>
+            </Link>
+            <Link href="/auth/firebase-login">
+              <Button size="lg" variant="outline" className="px-8 py-3">
+                Sign In
+              </Button>
+            </Link>
+          </div>
         </div>
       </main>
 
@@ -275,8 +204,11 @@ export default function HomePage() {
           <div className="flex items-center space-x-2">
             <MapPin className="w-6 h-6 text-blue-600" />
             <span className="font-semibold text-gray-900">Parking Angel</span>
+            <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              FIREBASE
+            </span>
           </div>
-          <p className="text-gray-600">© 2024 Parking Angel. All rights reserved.</p>
+          <p className="text-gray-600">© 2024 Parking Angel. Powered by Firebase.</p>
         </div>
       </footer>
     </div>

@@ -5,14 +5,16 @@ import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { AnalyticsProvider } from "@/components/firebase/analytics-provider"
+import { Suspense } from "react"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Parking Angel - Find Parking Spots in Real-Time",
-  description: "Crowdsourced real-time parking spot finder. Report and find available parking spots in your area.",
-  keywords: "parking, spots, real-time, crowdsourced, navigation, city parking",
-    generator: 'v0.dev'
+  title: "Parking Angel - AI-Powered Parking Solutions",
+  description: "Find parking spots in real-time with AI-powered predictions and smart recommendations.",
+  keywords: "parking, AI, real-time, smart parking, machine learning, predictions",
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -25,8 +27,10 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
-            {children}
-            <Toaster />
+            <AnalyticsProvider>
+              <Suspense fallback={null}>{children}</Suspense>
+              <Toaster />
+            </AnalyticsProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
+import { useFirebaseAuth } from "@/hooks/use-firebase-auth"
 import { useRouter } from "next/navigation"
 import { ParkingMap } from "@/components/map/parking-map"
 import { StatsCards } from "@/components/dashboard/stats-cards"
@@ -9,20 +10,28 @@ import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { AIAssistant } from "@/components/ai/ai-assistant"
 import { PredictiveAnalytics } from "@/components/analytics/predictive-analytics"
 import { SmartNotifications } from "@/components/notifications/smart-notifications"
+import { FirebaseUserProfile } from "@/components/dashboard/firebase-user-profile"
+import { NotificationTest } from "@/components/firebase/notification-test"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap } from "lucide-react"
+import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings } from "lucide-react"
 import Link from "next/link"
 
 export default function DashboardPage() {
-  const { user, loading, signOut } = useAuth()
+  const { user: supabaseUser, loading: supabaseLoading, signOut: supabaseSignOut } = useAuth()
+  const { user: firebaseUser, loading: firebaseLoading, signOut: firebaseSignOut } = useFirebaseAuth()
   const router = useRouter()
   const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("map")
 
+  // Use Firebase user if available, otherwise Supabase user
+  const user = firebaseUser || supabaseUser
+  const loading = firebaseLoading || supabaseLoading
+  const signOut = firebaseUser ? firebaseSignOut : supabaseSignOut
+
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/auth/login")
+      router.push("/")
     }
   }, [user, loading, router])
 
@@ -41,6 +50,18 @@ export default function DashboardPage() {
     return null
   }
 
+  const getUserDisplayName = () => {
+    if (firebaseUser) {
+      return firebaseUser.displayName || firebaseUser.email
+    }
+    return supabaseUser?.user_metadata?.full_name || supabaseUser?.email
+  }
+
+  const getAuthProvider = () => {
+    if (firebaseUser) return "Firebase"
+    return "Supabase"
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -52,12 +73,15 @@ export default function DashboardPage() {
               <span className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold">
                 AI POWERED
               </span>
+              <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                {getAuthProvider()}
+              </span>
             </Link>
 
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <User className="w-5 h-5 text-gray-600" />
-                <span className="text-sm text-gray-700">{user.user_metadata?.full_name || user.email}</span>
+                <span className="text-sm text-gray-700">{getUserDisplayName()}</span>
               </div>
               <Button variant="outline" size="sm" onClick={signOut}>
                 <LogOut className="w-4 h-4 mr-2" />
@@ -74,7 +98,7 @@ export default function DashboardPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="map" className="flex items-center gap-2">
               <MapPin className="w-4 h-4" />
               Live Map
@@ -95,13 +119,19 @@ export default function DashboardPage() {
               <Zap className="w-4 h-4" />
               Premium
             </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Settings
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="map" className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm border h-[600px]">
               <div className="p-4 border-b">
                 <h2 className="text-lg font-semibold text-gray-900">AI-Enhanced Live Parking Map</h2>
-                <p className="text-sm text-gray-600">Smart predictions • Real-time updates • Community-driven data</p>
+                <p className="text-sm text-gray-600">
+                  Smart predictions • Real-time updates • {getAuthProvider()} powered
+                </p>
               </div>
               <div className="h-[calc(600px-80px)]">
                 <ParkingMap onSpotSelect={setSelectedSpot} />
@@ -118,7 +148,10 @@ export default function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">
-            <SmartNotifications />
+            <div className="grid gap-6 md:grid-cols-2">
+              <SmartNotifications />
+              {firebaseUser && <NotificationTest />}
+            </div>
           </TabsContent>
 
           <TabsContent value="premium" className="space-y-6">
@@ -130,7 +163,7 @@ export default function DashboardPage() {
                   <li>• Priority spot notifications</li>
                   <li>• Advanced analytics dashboard</li>
                   <li>• Custom route optimization</li>
-                  <li>• API access for businesses</li>
+                  <li>• Firebase real-time features</li>
                 </ul>
                 <Button className="w-full bg-white text-purple-600 hover:bg-gray-100">Upgrade Now - $9.99/month</Button>
               </div>
@@ -139,7 +172,7 @@ export default function DashboardPage() {
                 <h3 className="text-xl font-bold mb-4">Enterprise Features</h3>
                 <ul className="space-y-2 mb-6">
                   <li>• White-label solution</li>
-                  <li>• Custom integrations</li>
+                  <li>• Custom Firebase integration</li>
                   <li>• Dedicated support</li>
                   <li>• Advanced reporting</li>
                   <li>• Multi-city deployment</li>
@@ -150,11 +183,14 @@ export default function DashboardPage() {
               </div>
             </div>
           </TabsContent>
-        </Tabs>
 
-        <div className="mt-8 grid gap-6 md:grid-cols-2">
-          <RecentActivity activities={[]} />
-        </div>
+          <TabsContent value="settings" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              {firebaseUser && <FirebaseUserProfile />}
+              <RecentActivity activities={[]} />
+            </div>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   )
