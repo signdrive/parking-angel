@@ -14,12 +14,18 @@ import { FirebaseUserProfile } from "@/components/dashboard/firebase-user-profil
 import { NotificationTest } from "@/components/firebase/notification-test"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug } from "lucide-react"
+import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { AuthDebug } from "@/components/debug/auth-debug"
 
 export default function DashboardPage() {
-  const { user: supabaseUser, loading: supabaseLoading, signOut: supabaseSignOut } = useAuth()
+  const {
+    user: supabaseUser,
+    loading: supabaseLoading,
+    signOut: supabaseSignOut,
+    error: supabaseError,
+    refreshUser,
+  } = useAuth()
   const { user: firebaseUser, loading: firebaseLoading, signOut: firebaseSignOut } = useFirebaseAuth()
   const router = useRouter()
   const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
@@ -35,7 +41,7 @@ export default function DashboardPage() {
   // Debug logging
   useEffect(() => {
     const info = `
-      Supabase: user=${!!supabaseUser}, loading=${supabaseLoading}
+      Supabase: user=${!!supabaseUser}, loading=${supabaseLoading}, error=${supabaseError}
       Firebase: user=${!!firebaseUser}, loading=${firebaseLoading}
       Combined: user=${!!user}, loading=${loading}
     `
@@ -43,20 +49,21 @@ export default function DashboardPage() {
     console.log("Dashboard state:", {
       supabaseUser: !!supabaseUser,
       supabaseLoading,
+      supabaseError,
       firebaseUser: !!firebaseUser,
       firebaseLoading,
       user: !!user,
       loading,
     })
-  }, [supabaseUser, supabaseLoading, firebaseUser, firebaseLoading, user, loading])
+  }, [supabaseUser, supabaseLoading, supabaseError, firebaseUser, firebaseLoading, user, loading])
 
   useEffect(() => {
     // Only redirect if we're sure the user is not authenticated and not loading
-    if (!loading && !user) {
+    if (!loading && !user && !supabaseError?.includes("timed out")) {
       console.log("Redirecting to home - no user and not loading")
       router.push("/")
     }
-  }, [user, loading, router])
+  }, [user, loading, router, supabaseError])
 
   // Show loading state only while actually loading
   if (loading) {
@@ -69,16 +76,28 @@ export default function DashboardPage() {
           <div className="mt-4 p-4 bg-gray-100 rounded text-xs text-left max-w-md">
             <pre>{debugInfo}</pre>
           </div>
-          <Button onClick={() => setShowDebug(true)} variant="outline" size="sm" className="mt-4">
-            Force Show Dashboard
-          </Button>
+          <div className="mt-4 space-x-2">
+            <Button onClick={() => setShowDebug(true)} variant="outline" size="sm">
+              Force Show Dashboard
+            </Button>
+            <Button onClick={refreshUser} variant="outline" size="sm">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry Auth
+            </Button>
+          </div>
         </div>
       </div>
     )
   }
 
-  // If no user and not loading, redirect (this should not show)
-  if (!user) {
+  // If there's a timeout error but we're not loading, show the dashboard anyway
+  if (!user && supabaseError?.includes("timed out")) {
+    console.log("Auth timed out but showing dashboard anyway")
+    // Continue to show dashboard with limited functionality
+  }
+
+  // If no user and not loading and no timeout error, redirect
+  if (!user && !supabaseError?.includes("timed out")) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -92,13 +111,19 @@ export default function DashboardPage() {
     if (firebaseUser) {
       return firebaseUser.displayName || firebaseUser.email
     }
-    return supabaseUser?.user_metadata?.full_name || supabaseUser?.email
+    if (supabaseUser) {
+      return supabaseUser.user_metadata?.full_name || supabaseUser.email
+    }
+    return "Guest User"
   }
 
   const getAuthProvider = () => {
     if (firebaseUser) return "Firebase"
-    return "Supabase"
+    if (supabaseUser) return "Supabase"
+    return "Guest"
   }
+
+  const isGuestMode = !user && supabaseError?.includes("timed out")
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -111,8 +136,14 @@ export default function DashboardPage() {
               <span className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold">
                 AI POWERED
               </span>
-              <span className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
-                {getAuthProvider()}
+              <span
+                className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                  isGuestMode
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white"
+                    : "bg-gradient-to-r from-green-500 to-blue-500 text-white"
+                }`}
+              >
+                {isGuestMode ? "GUEST MODE" : getAuthProvider()}
               </span>
             </Link>
 
@@ -122,14 +153,30 @@ export default function DashboardPage() {
                 Debug
               </Button>
 
-              <div className="flex items-center space-x-2">
-                <User className="w-5 h-5 text-gray-600" />
-                <span className="text-sm text-gray-700">{getUserDisplayName()}</span>
-              </div>
-              <Button variant="outline" size="sm" onClick={signOut}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </Button>
+              {!isGuestMode && (
+                <>
+                  <div className="flex items-center space-x-2">
+                    <User className="w-5 h-5 text-gray-600" />
+                    <span className="text-sm text-gray-700">{getUserDisplayName()}</span>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={signOut}>
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </Button>
+                </>
+              )}
+
+              {isGuestMode && (
+                <div className="flex items-center space-x-2">
+                  <Button onClick={refreshUser} variant="outline" size="sm">
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry Login
+                  </Button>
+                  <Button onClick={() => router.push("/auth/login")} size="sm">
+                    Sign In
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -148,9 +195,21 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-6 mb-6">
-            <h1 className="text-2xl font-bold mb-2">Welcome back, {getUserDisplayName()}! 🎉</h1>
-            <p className="text-blue-100">Your dashboard is ready. Everything is working perfectly!</p>
+          <div
+            className={`rounded-lg p-6 mb-6 ${
+              isGuestMode
+                ? "bg-gradient-to-r from-orange-600 to-red-600 text-white"
+                : "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+            }`}
+          >
+            <h1 className="text-2xl font-bold mb-2">
+              {isGuestMode ? "Welcome to Parking Angel! 🚗" : `Welcome back, ${getUserDisplayName()}! 🎉`}
+            </h1>
+            <p className={isGuestMode ? "text-orange-100" : "text-blue-100"}>
+              {isGuestMode
+                ? "You're in guest mode. Some features may be limited. Try signing in for full access!"
+                : "Your dashboard is ready. Everything is working perfectly!"}
+            </p>
           </div>
 
           <StatsCards totalSpots={0} activeUsers={1} averageRating={4.8} responseTime="2.3s" />

@@ -22,6 +22,16 @@ const AuthContext = createContext<AuthContextType>({
   error: null,
 })
 
+// Helper function to add timeout to promises
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs),
+    ),
+  ])
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,9 +50,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       setError(null)
-      console.log("Supabase: Getting session...")
+      console.log("Supabase: Getting session with timeout...")
 
-      const { data, error } = await supabase.auth.getSession()
+      // Add a 3-second timeout to the session call
+      const { data, error } = await withTimeout(supabase.auth.getSession(), 3000)
+
       console.log("Supabase: Session result:", { user: !!data.session?.user, error: !!error })
 
       if (error) {
@@ -62,9 +74,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (err) {
-      console.error("Supabase: Unexpected auth error:", err)
-      setError(err instanceof Error ? err.message : "Unknown authentication error")
-      setUser(null)
+      console.error("Supabase: Auth error (possibly timeout):", err)
+
+      // If it's a timeout, don't treat it as a fatal error
+      if (err instanceof Error && err.message.includes("timed out")) {
+        console.log("Supabase: Session call timed out, assuming no user")
+        setUser(null)
+        setError("Session check timed out")
+      } else {
+        setError(err instanceof Error ? err.message : "Unknown authentication error")
+        setUser(null)
+      }
     } finally {
       console.log("Supabase: Setting loading to false")
       setLoading(false)
@@ -74,11 +94,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log("Supabase: Auth hook initializing...")
 
-    // Set a timeout to ensure loading doesn't stay true forever
+    // Set a backup timeout to ensure loading doesn't stay true forever
     const loadingTimeout = setTimeout(() => {
-      console.log("Supabase: Loading timeout reached, forcing loading to false")
+      console.log("Supabase: Backup loading timeout reached, forcing loading to false")
       setLoading(false)
-    }, 5000)
+    }, 6000) // Slightly longer than the session timeout
 
     // Initial session check
     refreshUser().finally(() => {
