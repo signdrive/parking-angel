@@ -33,7 +33,7 @@ export const metadata: Metadata = {
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
       { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512.png", type: "image/png" },
     ],
     apple: [
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
@@ -86,7 +86,7 @@ export default function RootLayout({
         <meta name="msapplication-tap-highlight" content="no" />
 
         {/* Preload Critical Resources */}
-        <link rel="preload" href="/icons/icon-192x192.png" as="image" type="image/png" />
+        <link rel="preload" href="/icon-192x192.png" as="image" type="image/png" />
         <link rel="preload" href="/apple-touch-icon.png" as="image" type="image/png" />
       </head>
       <body className={inter.className}>
@@ -109,6 +109,26 @@ export default function RootLayout({
               manifest.crossOrigin = 'use-credentials';
               document.head.appendChild(manifest);
             }
+          `}
+        </Script>
+        {/* Add this script tag with error handling */}
+        <Script id="gtag-error-handler" strategy="beforeInteractive">
+          {`
+            // Handle Google Analytics loading errors gracefully
+            window.addEventListener('error', function(e) {
+              if (e.filename && e.filename.includes('googletagmanager.com')) {
+                console.warn('Google Analytics failed to load - continuing without analytics');
+                e.preventDefault();
+              }
+            });
+            
+            // Handle unhandled promise rejections from external scripts
+            window.addEventListener('unhandledrejection', function(e) {
+              if (e.reason && e.reason.toString().includes('gtag')) {
+                console.warn('Google Analytics promise rejection - continuing without analytics');
+                e.preventDefault();
+              }
+            });
           `}
         </Script>
 

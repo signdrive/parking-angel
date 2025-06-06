@@ -1,8 +1,8 @@
-// Production-grade Service Worker with Self-Healing Capabilities
-const CACHE_NAME = "parking-angel-v5"
-const STATIC_CACHE = "parking-angel-static-v5"
-const ICON_CACHE = "parking-angel-icons-v5"
-const API_CACHE = "parking-angel-api-v5"
+// Production-grade Service Worker with Comprehensive Error Handling
+const CACHE_NAME = "parking-angel-v6"
+const STATIC_CACHE = "parking-angel-static-v6"
+const ICON_CACHE = "parking-angel-icons-v6"
+const API_CACHE = "parking-angel-api-v6"
 
 // Essential files for offline functionality
 const ESSENTIAL_FILES = ["/", "/dashboard", "/manifest.webmanifest", "/offline.html"]
@@ -13,83 +13,147 @@ const ICON_FILES = [
   "/apple-touch-icon.png",
   "/favicon-32x32.png",
   "/favicon-16x16.png",
-  "/icons/icon-180x180.png",
-  "/icons/icon-192x192.png",
-  "/icons/icon-512x512.png",
-  "/icons/legacy-icon.png",
+  "/icon-192x192.png",
+  "/icon-512x512.png",
 ]
 
-// API endpoints to cache
-const API_ENDPOINTS = ["/api/spots/nearby", "/api/mapbox/token", "/api/mapbox/status"]
+// External domains to ignore (don't cache)
+const EXTERNAL_DOMAINS = [
+  "googletagmanager.com",
+  "google-analytics.com",
+  "googleapis.com",
+  "googleusercontent.com",
+  "gstatic.com",
+]
 
-// Install event - comprehensive caching with error handling
+// Install event with better error handling
 self.addEventListener("install", (event) => {
-  console.log("Service Worker: Installing with self-healing capabilities...")
+  console.log("Service Worker: Installing v6 with enhanced error handling...")
 
   event.waitUntil(
     Promise.allSettled([
       // Cache essential files
-      caches
-        .open(STATIC_CACHE)
-        .then((cache) => {
-          console.log("Service Worker: Caching essential files")
-          return Promise.allSettled(
-            ESSENTIAL_FILES.map((url) =>
-              fetch(url)
-                .then((response) => (response.ok ? cache.put(url, response) : Promise.reject()))
-                .catch(() => console.warn(`Failed to cache: ${url}`)),
-            ),
-          )
-        }),
-
-      // Cache all icon files with fallbacks
-      caches
-        .open(ICON_CACHE)
-        .then((cache) => {
-          console.log("Service Worker: Caching icon files")
-          return Promise.allSettled(
-            ICON_FILES.map((iconUrl) =>
-              fetch(iconUrl)
-                .then((response) => {
-                  if (response.ok) {
-                    return cache.put(iconUrl, response)
-                  }
-                  console.warn(`Service Worker: Failed to cache icon ${iconUrl}`)
-                })
-                .catch((error) => {
-                  console.warn(`Service Worker: Error caching icon ${iconUrl}:`, error)
-                }),
-            ),
-          )
-        }),
-
-      // Pre-cache API endpoints
-      caches
-        .open(API_CACHE)
-        .then((cache) => {
-          console.log("Service Worker: Pre-caching API endpoints")
-          return Promise.allSettled(
-            API_ENDPOINTS.map((endpoint) =>
-              fetch(endpoint)
-                .then((response) => (response.ok ? cache.put(endpoint, response) : Promise.reject()))
-                .catch(() => console.warn(`Failed to pre-cache API: ${endpoint}`)),
-            ),
-          )
-        }),
+      cacheEssentialFiles(),
+      // Cache icon files
+      cacheIconFiles(),
     ])
-      .then(() => {
-        console.log("Service Worker: Installation complete with self-healing system")
+      .then((results) => {
+        const failures = results.filter((result) => result.status === "rejected")
+        if (failures.length > 0) {
+          console.warn("Service Worker: Some resources failed to cache:", failures)
+        }
+        console.log("Service Worker: Installation complete")
         return self.skipWaiting()
       })
       .catch((error) => {
-        console.error("Service Worker: Installation failed", error)
+        console.error("Service Worker: Installation failed:", error)
+        // Continue anyway - don't block installation
+        return self.skipWaiting()
       }),
   )
 })
 
-// Activate event - clean up old caches
+// Cache essential files with individual error handling
+async function cacheEssentialFiles() {
+  try {
+    const cache = await caches.open(STATIC_CACHE)
+    const results = await Promise.allSettled(
+      ESSENTIAL_FILES.map(async (url) => {
+        try {
+          const response = await fetch(url)
+          if (response.ok) {
+            await cache.put(url, response)
+            console.log(`Service Worker: Cached ${url}`)
+          } else {
+            console.warn(`Service Worker: Failed to cache ${url} - HTTP ${response.status}`)
+          }
+        } catch (error) {
+          console.warn(`Service Worker: Error caching ${url}:`, error.message)
+        }
+      }),
+    )
+    return results
+  } catch (error) {
+    console.error("Service Worker: Error opening static cache:", error)
+    throw error
+  }
+}
+
+// Cache icon files with fallback generation
+async function cacheIconFiles() {
+  try {
+    const cache = await caches.open(ICON_CACHE)
+
+    // First, generate and cache fallback icons
+    await generateAndCacheFallbackIcons(cache)
+
+    // Then try to cache real icons
+    const results = await Promise.allSettled(
+      ICON_FILES.map(async (iconUrl) => {
+        try {
+          const response = await fetch(iconUrl)
+          if (response.ok && response.headers.get("content-type")?.includes("image")) {
+            await cache.put(iconUrl, response)
+            console.log(`Service Worker: Cached icon ${iconUrl}`)
+          } else {
+            console.warn(`Service Worker: Invalid icon response for ${iconUrl}`)
+          }
+        } catch (error) {
+          console.warn(`Service Worker: Error caching icon ${iconUrl}:`, error.message)
+        }
+      }),
+    )
+    return results
+  } catch (error) {
+    console.error("Service Worker: Error caching icons:", error)
+    throw error
+  }
+}
+
+// Generate fallback icons as SVG
+async function generateAndCacheFallbackIcons(cache) {
+  const iconSizes = [
+    { size: 192, path: "/icon-192x192.png" },
+    { size: 512, path: "/icon-512x512.png" },
+    { size: 180, path: "/apple-touch-icon.png" },
+    { size: 32, path: "/favicon-32x32.png" },
+    { size: 16, path: "/favicon-16x16.png" },
+  ]
+
+  for (const { size, path } of iconSizes) {
+    try {
+      const svgIcon = generateSVGIcon(size)
+      const response = new Response(svgIcon, {
+        headers: {
+          "Content-Type": "image/svg+xml",
+          "Cache-Control": "public, max-age=31536000",
+        },
+      })
+      await cache.put(path, response)
+      console.log(`Service Worker: Generated fallback icon ${path}`)
+    } catch (error) {
+      console.warn(`Service Worker: Error generating fallback icon ${path}:`, error)
+    }
+  }
+}
+
+// Generate SVG icon
+function generateSVGIcon(size) {
+  return `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}">
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
+      </linearGradient>
+    </defs>
+    <rect width="${size}" height="${size}" fill="url(#grad)" rx="${size * 0.1}"/>
+    <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="${size * 0.3}" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">PA</text>
+  </svg>`
+}
+
+// Activate event
 self.addEventListener("activate", (event) => {
-  console.log("Service Worker: Activating...")
+  console.log("Service Worker: Activating v6...")
 
   event.waitUntil(
     caches
@@ -110,39 +174,42 @@ self.addEventListener("activate", (event) => {
         )
       })
       .then(() => {
-        console.log("Service Worker: Activated with self-healing system")
+        console.log("Service Worker: Activated v6")
         return self.clients.claim()
+      })
+      .catch((error) => {
+        console.error("Service Worker: Activation error:", error)
       }),
   )
 })
 
-// Fetch event with comprehensive error handling and fallbacks
+// Fetch event with comprehensive error handling
 self.addEventListener("fetch", (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Only handle GET requests
+  // Skip non-GET requests
   if (request.method !== "GET") {
     return
   }
 
-  // Special handling for icon requests
+  // Skip external domains that we don't want to cache
+  if (EXTERNAL_DOMAINS.some((domain) => url.hostname.includes(domain))) {
+    // Let external requests fail naturally without intervention
+    return
+  }
+
+  // Handle different types of requests
   if (isIconRequest(url.pathname)) {
     event.respondWith(handleIconRequest(request))
-    return
-  }
-
-  // Special handling for API requests
-  if (isApiRequest(url.pathname)) {
+  } else if (isApiRequest(url.pathname)) {
     event.respondWith(handleApiRequest(request))
-    return
+  } else {
+    event.respondWith(handleRegularRequest(request))
   }
-
-  // Regular fetch handling with fallbacks
-  event.respondWith(handleRegularRequest(request))
 })
 
-// Icon request handler with comprehensive fallback system
+// Icon request handler with guaranteed fallback
 async function handleIconRequest(request) {
   const url = new URL(request.url)
 
@@ -157,34 +224,61 @@ async function handleIconRequest(request) {
     }
 
     // Try to fetch the requested icon
-    const response = await fetch(request)
-    if (response.ok) {
-      const responseClone = response.clone()
-      iconCache.put(request, responseClone)
-      console.log(`Service Worker: Fetched and cached icon: ${url.pathname}`)
-      return response
+    try {
+      const response = await fetch(request, { timeout: 5000 })
+      if (response.ok && response.headers.get("content-type")?.includes("image")) {
+        const responseClone = response.clone()
+        iconCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
+        console.log(`Service Worker: Fetched and cached icon: ${url.pathname}`)
+        return response
+      }
+    } catch (fetchError) {
+      console.warn(`Service Worker: Fetch failed for icon ${url.pathname}:`, fetchError.message)
     }
 
-    // Fallback to alternative icons
-    return await getFallbackIcon(url.pathname, iconCache)
+    // Generate fallback icon
+    console.log(`Service Worker: Generating fallback for ${url.pathname}`)
+    return generateFallbackIconResponse(url.pathname)
   } catch (error) {
     console.error(`Service Worker: Error handling icon request for ${url.pathname}:`, error)
-    const iconCache = await caches.open(ICON_CACHE)
-    return await getFallbackIcon(url.pathname, iconCache)
+    return generateFallbackIconResponse(url.pathname)
   }
 }
 
-// API request handler with caching and fallbacks
-async function handleApiRequest(request) {
-  const apiCache = await caches.open(API_CACHE)
+// Generate fallback icon response
+function generateFallbackIconResponse(pathname) {
+  // Determine size from pathname
+  let size = 192
+  if (pathname.includes("512")) size = 512
+  else if (pathname.includes("180")) size = 180
+  else if (pathname.includes("32")) size = 32
+  else if (pathname.includes("16")) size = 16
 
+  const svgIcon = generateSVGIcon(size)
+  return new Response(svgIcon, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "public, max-age=31536000",
+    },
+  })
+}
+
+// API request handler with better error handling
+async function handleApiRequest(request) {
   try {
+    const apiCache = await caches.open(API_CACHE)
+
     // Try network first for fresh data
-    const response = await fetch(request)
-    if (response.ok) {
-      const responseClone = response.clone()
-      apiCache.put(request, responseClone)
-      return response
+    try {
+      const response = await fetch(request, { timeout: 10000 })
+      if (response.ok) {
+        const responseClone = response.clone()
+        apiCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
+        return response
+      }
+    } catch (fetchError) {
+      console.warn("Service Worker: API fetch failed, trying cache:", fetchError.message)
     }
 
     // Fallback to cache
@@ -194,121 +288,106 @@ async function handleApiRequest(request) {
       return cachedResponse
     }
 
-    throw new Error("No cached response available")
-  } catch (error) {
-    console.warn("Service Worker: API request failed, trying cache", error)
-
-    const cachedResponse = await apiCache.match(request)
-    if (cachedResponse) {
-      return cachedResponse
-    }
-
     // Return offline response for API failures
     return new Response(
       JSON.stringify({
         error: "Offline",
         message: "This feature is not available offline",
+        timestamp: new Date().toISOString(),
       }),
       {
         status: 503,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
+      },
+    )
+  } catch (error) {
+    console.error("Service Worker: API request error:", error)
+    return new Response(
+      JSON.stringify({
+        error: "Service Worker Error",
+        message: "An error occurred processing your request",
+      }),
+      {
+        status: 500,
         headers: { "Content-Type": "application/json" },
       },
     )
   }
 }
 
-// Regular request handler
+// Regular request handler with better error handling
 async function handleRegularRequest(request) {
   try {
-    const cachedResponse = await caches.match(request)
+    const staticCache = await caches.open(STATIC_CACHE)
 
+    // Try cache first for better performance
+    const cachedResponse = await staticCache.match(request)
     if (cachedResponse) {
       // Serve from cache and update in background
-      fetchAndCache(request)
+      updateCacheInBackground(request, staticCache)
       return cachedResponse
     }
 
     // Try network
-    const response = await fetch(request)
-    if (response.ok) {
-      // Cache successful responses
-      const responseClone = response.clone()
-      const cache = await caches.open(STATIC_CACHE)
-      cache.put(request, responseClone)
-      return response
-    }
-
-    throw new Error(`HTTP ${response.status}`)
-  } catch (error) {
-    console.warn("Service Worker: Request failed", error)
-
-    // Try cache again
-    const cachedResponse = await caches.match(request)
-    if (cachedResponse) {
-      return cachedResponse
-    }
-
-    // Return offline page for navigation requests
-    if (request.mode === "navigate") {
-      const offlinePage = await caches.match("/offline.html")
-      if (offlinePage) {
-        return offlinePage
-      }
-    }
-
-    throw error
-  }
-}
-
-// Background fetch and cache
-async function fetchAndCache(request) {
-  try {
-    const response = await fetch(request)
-    if (response.ok) {
-      const cache = await caches.open(STATIC_CACHE)
-      cache.put(request, response)
-    }
-  } catch (error) {
-    console.warn("Service Worker: Background fetch failed", error)
-  }
-}
-
-// Fallback icon system with multiple options
-async function getFallbackIcon(requestedPath, iconCache) {
-  const fallbackOrder = [
-    "/apple-touch-icon.png",
-    "/icons/icon-192x192.png",
-    "/icons/icon-180x180.png",
-    "/icons/legacy-icon.png",
-    "/favicon.ico",
-  ]
-
-  for (const fallbackPath of fallbackOrder) {
     try {
-      const fallbackIcon = await iconCache.match(fallbackPath)
-      if (fallbackIcon) {
-        console.log(`Service Worker: Using fallback icon ${fallbackPath} for ${requestedPath}`)
-        return fallbackIcon
+      const response = await fetch(request, { timeout: 10000 })
+      if (response.ok) {
+        // Cache successful responses
+        const responseClone = response.clone()
+        staticCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
+        return response
+      } else {
+        console.warn(`Service Worker: HTTP ${response.status} for ${request.url}`)
+        throw new Error(`HTTP ${response.status}`)
       }
-    } catch (error) {
-      console.warn(`Service Worker: Fallback icon ${fallbackPath} not available`)
+    } catch (fetchError) {
+      console.warn("Service Worker: Network request failed:", fetchError.message)
+
+      // Try cache again as final fallback
+      const fallbackResponse = await staticCache.match(request)
+      if (fallbackResponse) {
+        return fallbackResponse
+      }
+
+      // Return offline page for navigation requests
+      if (request.mode === "navigate") {
+        const offlinePage = await staticCache.match("/offline.html")
+        if (offlinePage) {
+          return offlinePage
+        }
+      }
+
+      // Return a proper error response instead of throwing
+      return new Response("Service Unavailable", {
+        status: 503,
+        statusText: "Service Unavailable",
+        headers: { "Content-Type": "text/plain" },
+      })
     }
+  } catch (error) {
+    console.error("Service Worker: Request handling error:", error)
+    return new Response("Internal Error", {
+      status: 500,
+      statusText: "Internal Server Error",
+      headers: { "Content-Type": "text/plain" },
+    })
   }
+}
 
-  // Generate a minimal SVG icon as ultimate fallback
-  const svgIcon = `
-    <svg width="180" height="180" xmlns="http://www.w3.org/2000/svg">
-      <rect width="180" height="180" fill="#3b82f6"/>
-      <text x="90" y="100" font-family="Arial" font-size="60" fill="white" text-anchor="middle">PA</text>
-    </svg>
-  `
-
-  return new Response(svgIcon, {
-    headers: {
-      "Content-Type": "image/svg+xml",
-      "Cache-Control": "public, max-age=86400",
-    },
-  })
+// Background cache update
+async function updateCacheInBackground(request, cache) {
+  try {
+    const response = await fetch(request, { timeout: 5000 })
+    if (response.ok) {
+      await cache.put(request, response)
+    }
+  } catch (error) {
+    // Silently fail background updates
+    console.warn("Service Worker: Background update failed:", error.message)
+  }
 }
 
 // Utility functions
@@ -316,9 +395,9 @@ function isIconRequest(pathname) {
   return (
     pathname.includes("apple-touch-icon") ||
     pathname.includes("favicon") ||
-    pathname.includes("/icons/") ||
+    pathname.includes("icon-") ||
     pathname.endsWith(".ico") ||
-    (pathname.endsWith(".png") && pathname.includes("icon"))
+    (pathname.endsWith(".png") && (pathname.includes("icon") || pathname.includes("favicon")))
   )
 }
 
@@ -326,64 +405,80 @@ function isApiRequest(pathname) {
   return pathname.startsWith("/api/")
 }
 
-// Push notification event with icon handling
+// Enhanced error handling for unhandled promise rejections
+self.addEventListener("unhandledrejection", (event) => {
+  console.error("Service Worker: Unhandled promise rejection:", event.reason)
+  event.preventDefault() // Prevent the error from being logged to console repeatedly
+})
+
+// Enhanced error handling for general errors
+self.addEventListener("error", (event) => {
+  console.error("Service Worker: General error:", event.error)
+})
+
+// Push notification event with error handling
 self.addEventListener("push", (event) => {
   console.log("Service Worker: Push notification received")
 
-  const title = "Parking Angel"
-  const options = {
-    body: "New parking update available!",
-    icon: "/apple-touch-icon.png",
-    badge: "/favicon.ico",
-    tag: "parking-update",
-    data: { url: "/dashboard" },
-    actions: [
-      {
-        action: "view",
-        title: "View Details",
-        icon: "/icons/icon-192x192.png",
-      },
-    ],
-  }
-
-  if (event.data) {
-    try {
-      const payload = event.data.json()
-      options.body = payload.body || options.body
-      options.data = { ...options.data, ...payload.data }
-    } catch (error) {
-      console.warn("Service Worker: Error parsing push data", error)
+  try {
+    const title = "Parking Angel"
+    const options = {
+      body: "New parking update available!",
+      icon: "/icon-192x192.png",
+      badge: "/favicon.ico",
+      tag: "parking-update",
+      data: { url: "/dashboard" },
+      requireInteraction: false,
+      silent: false,
     }
-  }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+    if (event.data) {
+      try {
+        const payload = event.data.json()
+        options.body = payload.body || options.body
+        options.data = { ...options.data, ...payload.data }
+      } catch (parseError) {
+        console.warn("Service Worker: Error parsing push data:", parseError)
+      }
+    }
+
+    event.waitUntil(
+      self.registration
+        .showNotification(title, options)
+        .catch((error) => console.error("Service Worker: Notification error:", error)),
+    )
+  } catch (error) {
+    console.error("Service Worker: Push event error:", error)
+  }
 })
 
-// Notification click event
+// Notification click event with error handling
 self.addEventListener("notificationclick", (event) => {
   console.log("Service Worker: Notification clicked")
-  event.notification.close()
 
-  const urlToOpen = event.notification.data?.url || "/dashboard"
+  try {
+    event.notification.close()
 
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(urlToOpen) && "focus" in client) {
-          return client.focus()
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen)
-      }
-    }),
-  )
+    const urlToOpen = event.notification.data?.url || "/dashboard"
+
+    event.waitUntil(
+      clients
+        .matchAll({ type: "window", includeUncontrolled: true })
+        .then((clientList) => {
+          for (const client of clientList) {
+            if (client.url.includes(urlToOpen) && "focus" in client) {
+              return client.focus()
+            }
+          }
+          if (clients.openWindow) {
+            return clients.openWindow(urlToOpen)
+          }
+        })
+        .catch((error) => console.error("Service Worker: Client handling error:", error)),
+    )
+  } catch (error) {
+    console.error("Service Worker: Notification click error:", error)
+  }
 })
 
-// Error handling for unhandled promise rejections
-self.addEventListener("unhandledrejection", (event) => {
-  console.error("Service Worker: Unhandled promise rejection", event.reason)
-  event.preventDefault()
-})
-
-console.log("Service Worker: Loaded with comprehensive self-healing system")
+console.log("Service Worker v6: Loaded with comprehensive error handling and fallback icons")
