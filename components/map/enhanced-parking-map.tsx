@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapPin, Plus, Navigation, DollarSign, Car } from "lucide-react"
 import { ParkingDataService, type RealParkingSpot } from "@/lib/parking-data-service"
 import { SpotReportDialog } from "./spot-report-dialog"
+import { MapAIAssistant } from "@/components/ai/map-ai-assistant"
 
 interface EnhancedParkingMapProps {
   onSpotSelect?: (spot: RealParkingSpot) => void
@@ -311,6 +312,9 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
       >
         <Navigation className="w-6 h-6" />
       </Button>
+
+      {/* AI Assistant */}
+      <MapAIAssistant />
 
       <SpotReportDialog open={showReportDialog} onOpenChange={setShowReportDialog} location={reportLocation} />
 

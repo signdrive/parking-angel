@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, MapPin, Shield, AlertTriangle, DollarSign, Eye, Mail } from "lucide-react"
+import { Users, MapPin, Shield, AlertTriangle, DollarSign, Eye, Mail, Star } from "lucide-react"
 import Link from "next/link"
+import { Input } from "@/components/ui/input"
 
 export default function AdminDashboard() {
   const { user, loading } = useAuth()
@@ -248,11 +249,63 @@ export default function AdminDashboard() {
           <TabsContent value="users" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage user accounts and permissions</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>User Management</CardTitle>
+                    <CardDescription>Manage user accounts and permissions</CardDescription>
+                  </div>
+                  <Button>
+                    <Users className="w-4 h-4 mr-2" />
+                    Add User
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">User management features coming soon...</p>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-4">
+                    <Input
+                      placeholder="Search users..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="max-w-sm"
+                    />
+                    <Button variant="outline">Filter</Button>
+                    <Button variant="outline">Export</Button>
+                  </div>
+
+                  <div className="border rounded-lg">
+                    <div className="grid grid-cols-6 gap-4 p-4 border-b bg-gray-50 font-medium text-sm">
+                      <div>User</div>
+                      <div>Email</div>
+                      <div>Status</div>
+                      <div>Join Date</div>
+                      <div>Spots Reported</div>
+                      <div>Actions</div>
+                    </div>
+                    {recentUsers.map((user) => (
+                      <div key={user.id} className="grid grid-cols-6 gap-4 p-4 border-b items-center hover:bg-gray-50">
+                        <div>
+                          <p className="font-medium">{user.name}</p>
+                          <p className="text-sm text-gray-500">ID: {user.id}</p>
+                        </div>
+                        <div className="text-sm">{user.email}</div>
+                        <div>
+                          <Badge variant={user.status === "active" ? "default" : "destructive"}>{user.status}</Badge>
+                        </div>
+                        <div className="text-sm text-gray-600">{user.joinDate}</div>
+                        <div className="text-sm">{user.spots}</div>
+                        <div className="flex items-center space-x-2">
+                          <Button variant="outline" size="sm">
+                            Edit
+                          </Button>
+                          <Button variant="outline" size="sm" className="text-red-600">
+                            {user.status === "active" ? "Suspend" : "Activate"}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -260,23 +313,196 @@ export default function AdminDashboard() {
           <TabsContent value="spots" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Parking Spot Management</CardTitle>
-                <CardDescription>Monitor and manage parking spots</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Parking Spot Management</CardTitle>
+                    <CardDescription>Monitor and manage parking spots</CardDescription>
+                  </div>
+                  <Button>
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Add Spot
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Parking spot management features coming soon...</p>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-4">
+                    <Input placeholder="Search spots..." className="max-w-sm" />
+                    <Button variant="outline">Filter by Status</Button>
+                    <Button variant="outline">Export Data</Button>
+                  </div>
+
+                  <div className="border rounded-lg">
+                    <div className="grid grid-cols-6 gap-4 p-4 border-b bg-gray-50 font-medium text-sm">
+                      <div>Location</div>
+                      <div>Reporter</div>
+                      <div>Status</div>
+                      <div>Reports</div>
+                      <div>Rating</div>
+                      <div>Actions</div>
+                    </div>
+                    {recentSpots.map((spot) => (
+                      <div key={spot.id} className="grid grid-cols-6 gap-4 p-4 border-b items-center hover:bg-gray-50">
+                        <div>
+                          <p className="font-medium">{spot.address}</p>
+                          <p className="text-sm text-gray-500">ID: {spot.id}</p>
+                        </div>
+                        <div className="text-sm">{spot.reporter}</div>
+                        <div>
+                          <Badge
+                            variant={
+                              spot.status === "active"
+                                ? "default"
+                                : spot.status === "flagged"
+                                  ? "destructive"
+                                  : "secondary"
+                            }
+                          >
+                            {spot.status}
+                          </Badge>
+                        </div>
+                        <div className="text-sm">{spot.reports}</div>
+                        <div className="flex items-center">
+                          <Star className="w-4 h-4 text-yellow-400 mr-1" />
+                          <span className="text-sm">{spot.rating}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button variant="outline" size="sm">
+                            View
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            Edit
+                          </Button>
+                          {spot.status === "flagged" && (
+                            <Button variant="outline" size="sm" className="text-red-600">
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Daily Active Users</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">892</div>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="text-green-600">+5.2%</span> from yesterday
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Spots Created Today</CardTitle>
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">47</div>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="text-green-600">+12%</span> from yesterday
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Revenue Today</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">$1,234</div>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="text-green-600">+8.1%</span> from yesterday
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Avg Session Time</CardTitle>
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">12m 34s</div>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="text-red-600">-2.1%</span> from yesterday
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>User Growth</CardTitle>
+                  <CardDescription>Monthly user registration trends</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
+                    <p className="text-gray-500">Chart: User growth over time</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Popular Locations</CardTitle>
+                  <CardDescription>Most searched parking areas</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span>Downtown District</span>
+                      <span className="text-sm text-gray-600">1,234 searches</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Business Center</span>
+                      <span className="text-sm text-gray-600">987 searches</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Shopping Mall</span>
+                      <span className="text-sm text-gray-600">756 searches</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>University Area</span>
+                      <span className="text-sm text-gray-600">543 searches</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
               <CardHeader>
-                <CardTitle>Analytics Dashboard</CardTitle>
-                <CardDescription>View detailed analytics and insights</CardDescription>
+                <CardTitle>System Performance</CardTitle>
+                <CardDescription>Real-time system metrics</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Analytics features coming soon...</p>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-600">99.9%</p>
+                    <p className="text-sm text-gray-600">Uptime</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">142ms</p>
+                    <p className="text-sm text-gray-600">Avg Response Time</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-purple-600">1,247</p>
+                    <p className="text-sm text-gray-600">Active Connections</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -285,22 +511,255 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>System Reports</CardTitle>
-                <CardDescription>Generate and download reports</CardDescription>
+                <CardDescription>Generate and download comprehensive reports</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Reporting features coming soon...</p>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    <h3 className="font-medium">User Reports</h3>
+                    <div className="space-y-2">
+                      <Button variant="outline" className="w-full justify-start">
+                        <Users className="w-4 h-4 mr-2" />
+                        User Activity Report
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <Users className="w-4 h-4 mr-2" />
+                        User Registration Report
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <Users className="w-4 h-4 mr-2" />
+                        User Engagement Report
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Parking Reports</h3>
+                    <div className="space-y-2">
+                      <Button variant="outline" className="w-full justify-start">
+                        <MapPin className="w-4 h-4 mr-2" />
+                        Spot Usage Report
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <MapPin className="w-4 h-4 mr-2" />
+                        Popular Locations Report
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <MapPin className="w-4 h-4 mr-2" />
+                        Spot Quality Report
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Financial Reports</h3>
+                    <div className="space-y-2">
+                      <Button variant="outline" className="w-full justify-start">
+                        <DollarSign className="w-4 h-4 mr-2" />
+                        Revenue Report
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <DollarSign className="w-4 h-4 mr-2" />
+                        Transaction Report
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <DollarSign className="w-4 h-4 mr-2" />
+                        Subscription Report
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">System Reports</h3>
+                    <div className="space-y-2">
+                      <Button variant="outline" className="w-full justify-start">
+                        <AlertTriangle className="w-4 h-4 mr-2" />
+                        Error Log Report
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <Eye className="w-4 h-4 mr-2" />
+                        Performance Report
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <Shield className="w-4 h-4 mr-2" />
+                        Security Report
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                  <h4 className="font-medium mb-2">Custom Report Generator</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Generate custom reports with specific date ranges and filters
+                  </p>
+                  <div className="flex items-center space-x-4">
+                    <Input type="date" className="w-auto" />
+                    <span className="text-sm text-gray-500">to</span>
+                    <Input type="date" className="w-auto" />
+                    <Button>Generate Custom Report</Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>General Settings</CardTitle>
+                  <CardDescription>Configure basic system preferences</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Maintenance Mode</p>
+                      <p className="text-sm text-gray-600">Enable maintenance mode for system updates</p>
+                    </div>
+                    <input type="checkbox" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">User Registration</p>
+                      <p className="text-sm text-gray-600">Allow new user registrations</p>
+                    </div>
+                    <input type="checkbox" defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Email Notifications</p>
+                      <p className="text-sm text-gray-600">Send system email notifications</p>
+                    </div>
+                    <input type="checkbox" defaultChecked />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Security Settings</CardTitle>
+                  <CardDescription>Configure security and access controls</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Two-Factor Authentication</p>
+                      <p className="text-sm text-gray-600">Require 2FA for admin accounts</p>
+                    </div>
+                    <input type="checkbox" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Session Timeout</p>
+                      <p className="text-sm text-gray-600">Auto-logout after inactivity</p>
+                    </div>
+                    <select className="text-sm border rounded px-2 py-1">
+                      <option>30 minutes</option>
+                      <option>1 hour</option>
+                      <option>2 hours</option>
+                      <option>Never</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">API Rate Limiting</p>
+                      <p className="text-sm text-gray-600">Limit API requests per user</p>
+                    </div>
+                    <input type="checkbox" defaultChecked />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Parking Settings</CardTitle>
+                  <CardDescription>Configure parking-specific features</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Default Search Radius</label>
+                    <select className="w-full border rounded px-3 py-2">
+                      <option>0.5 miles</option>
+                      <option>1 mile</option>
+                      <option>2 miles</option>
+                      <option>5 miles</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Spot Verification</label>
+                    <select className="w-full border rounded px-3 py-2">
+                      <option>Automatic</option>
+                      <option>Manual Review</option>
+                      <option>Community Voting</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Real-time Updates</p>
+                      <p className="text-sm text-gray-600">Enable live spot availability updates</p>
+                    </div>
+                    <input type="checkbox" defaultChecked />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notification Settings</CardTitle>
+                  <CardDescription>Configure system notifications</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Push Notifications</p>
+                      <p className="text-sm text-gray-600">Send push notifications to users</p>
+                    </div>
+                    <input type="checkbox" defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">SMS Notifications</p>
+                      <p className="text-sm text-gray-600">Send SMS alerts for important updates</p>
+                    </div>
+                    <input type="checkbox" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Admin Alerts</p>
+                      <p className="text-sm text-gray-600">Notify admins of system issues</p>
+                    </div>
+                    <input type="checkbox" defaultChecked />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
               <CardHeader>
-                <CardTitle>System Settings</CardTitle>
-                <CardDescription>Configure system preferences</CardDescription>
+                <CardTitle>System Information</CardTitle>
+                <CardDescription>Current system status and version information</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">Settings features coming soon...</p>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Application Version</p>
+                    <p className="text-lg font-bold">v2.1.0</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Database Version</p>
+                    <p className="text-lg font-bold">PostgreSQL 15.2</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Last Backup</p>
+                    <p className="text-lg font-bold">2 hours ago</p>
+                  </div>
+                </div>
+                <div className="mt-6 flex space-x-4">
+                  <Button variant="outline">Backup Database</Button>
+                  <Button variant="outline">Clear Cache</Button>
+                  <Button variant="outline">Restart Services</Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
