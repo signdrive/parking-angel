@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useEffect } from "react"
-import { InstallPrompt } from "./install-prompt"
 
 export function PWAProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -12,45 +11,39 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       navigator.serviceWorker
         .register("/sw.js")
         .then((registration) => {
-          console.log("Service Worker registered successfully:", registration.scope)
-
-          // Check for updates
-          registration.addEventListener("updatefound", () => {
-            const newWorker = registration.installing
-            if (newWorker) {
-              newWorker.addEventListener("statechange", () => {
-                if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                  // New content is available
-                  console.log("New content available, please refresh")
-
-                  // Notify user about update
-                  if (window.confirm("New version available! Refresh to update?")) {
-                    window.location.reload()
-                  }
-                }
-              })
-            }
-          })
+          console.log("Service Worker registered successfully:", registration)
         })
         .catch((error) => {
           console.error("Service Worker registration failed:", error)
         })
     }
 
-    // Request notification permission on load
-    if ("Notification" in window && Notification.permission === "default") {
-      setTimeout(() => {
-        Notification.requestPermission().then((permission) => {
-          console.log("Notification permission:", permission)
-        })
-      }, 5000) // Wait 5 seconds before asking
+    // Handle PWA installation prompt
+    let deferredPrompt: any
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      console.log("PWA install prompt available")
+      e.preventDefault()
+      deferredPrompt = e
+
+      // Dispatch custom event for components to listen to
+      window.dispatchEvent(new CustomEvent("pwa-installable", { detail: deferredPrompt }))
+    }
+
+    const handleAppInstalled = () => {
+      console.log("PWA was installed")
+      deferredPrompt = null
+      window.dispatchEvent(new CustomEvent("pwa-installed"))
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
+    window.addEventListener("appinstalled", handleAppInstalled)
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
+      window.removeEventListener("appinstalled", handleAppInstalled)
     }
   }, [])
 
-  return (
-    <>
-      {children}
-      <InstallPrompt />
-    </>
-  )
+  return <>{children}</>
 }

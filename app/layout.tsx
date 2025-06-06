@@ -25,17 +25,6 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
-  openGraph: {
-    type: "website",
-    siteName: "Parking Angel",
-    title: "Parking Angel - AI-Powered Parking Solutions",
-    description: "Find parking spots in real-time with AI-powered predictions and smart recommendations.",
-  },
-  twitter: {
-    card: "summary",
-    title: "Parking Angel - AI-Powered Parking Solutions",
-    description: "Find parking spots in real-time with AI-powered predictions and smart recommendations.",
-  },
 }
 
 export const viewport: Viewport = {

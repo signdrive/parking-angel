@@ -1,34 +1,19 @@
-// Simple and reliable service worker
-const CACHE_NAME = "parking-angel-v2"
-const STATIC_CACHE = "parking-angel-static-v2"
+// Minimal service worker with no icon references
+const CACHE_NAME = "parking-angel-v3"
 
-// Only cache essential files that we know exist
-const ESSENTIAL_FILES = ["/", "/dashboard", "/manifest.json"]
+// Only cache essential files - NO ICONS
+const ESSENTIAL_FILES = ["/", "/dashboard"]
 
-// Install event - cache only essential files
+// Install event
 self.addEventListener("install", (event) => {
   console.log("Service Worker: Installing...")
 
   event.waitUntil(
     caches
-      .open(STATIC_CACHE)
+      .open(CACHE_NAME)
       .then((cache) => {
         console.log("Service Worker: Caching essential files")
-        // Cache files one by one to handle failures gracefully
-        return Promise.allSettled(
-          ESSENTIAL_FILES.map((url) =>
-            fetch(url)
-              .then((response) => {
-                if (response.ok) {
-                  return cache.put(url, response)
-                }
-                console.warn(`Service Worker: Failed to cache ${url}`)
-              })
-              .catch((error) => {
-                console.warn(`Service Worker: Error caching ${url}:`, error)
-              }),
-          ),
-        )
+        return cache.addAll(ESSENTIAL_FILES)
       })
       .then(() => {
         console.log("Service Worker: Installation complete")
@@ -40,7 +25,7 @@ self.addEventListener("install", (event) => {
   )
 })
 
-// Activate event - clean up old caches
+// Activate event
 self.addEventListener("activate", (event) => {
   console.log("Service Worker: Activating...")
 
@@ -50,7 +35,7 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== STATIC_CACHE && cacheName.startsWith("parking-angel")) {
+            if (cacheName !== CACHE_NAME && cacheName.startsWith("parking-angel")) {
               console.log("Service Worker: Deleting old cache", cacheName)
               return caches.delete(cacheName)
             }
@@ -64,64 +49,38 @@ self.addEventListener("activate", (event) => {
   )
 })
 
-// Fetch event - only cache GET requests
+// Fetch event - simple caching
 self.addEventListener("fetch", (event) => {
-  const { request } = event
-
   // Only handle GET requests
-  if (request.method !== "GET") {
-    return
-  }
-
-  // Skip caching for API requests that change data
-  if (
-    request.url.includes("/api/") &&
-    (request.url.includes("POST") || request.url.includes("PATCH") || request.url.includes("DELETE"))
-  ) {
+  if (event.request.method !== "GET") {
     return
   }
 
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse
-      }
-
-      return fetch(request)
-        .then((response) => {
-          // Only cache successful GET responses
-          if (response.status === 200 && request.method === "GET") {
-            const responseClone = response.clone()
-            caches
-              .open(STATIC_CACHE)
-              .then((cache) => {
-                cache.put(request, responseClone)
-              })
-              .catch((error) => {
-                console.warn("Service Worker: Cache put failed", error)
-              })
-          }
+    caches
+      .match(event.request)
+      .then((response) => {
+        if (response) {
           return response
-        })
-        .catch((error) => {
-          console.warn("Service Worker: Fetch failed", error)
-          // Return cached version if available
-          return caches.match(request)
-        })
-    }),
+        }
+        return fetch(event.request)
+      })
+      .catch(() => {
+        // Return cached version if available
+        return caches.match(event.request)
+      }),
   )
 })
 
-// Push notification event
+// Push notification event - NO ICON REFERENCES
 self.addEventListener("push", (event) => {
   console.log("Service Worker: Push notification received")
 
   const title = "Parking Angel"
   const options = {
     body: "New parking update available!",
-    icon: "/favicon.ico",
-    badge: "/favicon.ico",
     tag: "parking-update",
+    // NO ICON OR BADGE PROPERTIES
   }
 
   if (event.data) {
@@ -140,18 +99,15 @@ self.addEventListener("push", (event) => {
 // Notification click event
 self.addEventListener("notificationclick", (event) => {
   console.log("Service Worker: Notification clicked")
-
   event.notification.close()
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      // Focus existing window if available
       for (const client of clientList) {
         if (client.url.includes("/dashboard") && "focus" in client) {
           return client.focus()
         }
       }
-      // Open new window
       if (clients.openWindow) {
         return clients.openWindow("/dashboard")
       }
@@ -159,4 +115,4 @@ self.addEventListener("notificationclick", (event) => {
   )
 })
 
-console.log("Service Worker: Loaded successfully")
+console.log("Service Worker: Loaded successfully - NO ICONS")
