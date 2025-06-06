@@ -1,11 +1,11 @@
 // Production-grade Service Worker with Comprehensive Error Handling
-const CACHE_NAME = "parking-angel-v6"
-const STATIC_CACHE = "parking-angel-static-v6"
-const ICON_CACHE = "parking-angel-icons-v6"
-const API_CACHE = "parking-angel-api-v6"
+const CACHE_NAME = "parking-angel-v7"
+const STATIC_CACHE = "parking-angel-static-v7"
+const ICON_CACHE = "parking-angel-icons-v7"
+const API_CACHE = "parking-angel-api-v7"
 
 // Essential files for offline functionality
-const ESSENTIAL_FILES = ["/", "/dashboard", "/manifest.webmanifest", "/offline.html"]
+const ESSENTIAL_FILES = ["/", "/dashboard", "/offline.html"]
 
 // All icon files for comprehensive caching
 const ICON_FILES = [
@@ -26,134 +26,32 @@ const EXTERNAL_DOMAINS = [
   "gstatic.com",
 ]
 
-// Install event with better error handling
+// Install event with minimal caching
 self.addEventListener("install", (event) => {
-  console.log("Service Worker: Installing v6 with enhanced error handling...")
+  console.log("Service Worker: Installing v7...")
 
   event.waitUntil(
-    Promise.allSettled([
-      // Cache essential files
-      cacheEssentialFiles(),
-      // Cache icon files
-      cacheIconFiles(),
-    ])
-      .then((results) => {
-        const failures = results.filter((result) => result.status === "rejected")
-        if (failures.length > 0) {
-          console.warn("Service Worker: Some resources failed to cache:", failures)
-        }
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => {
+        console.log("Service Worker: Caching essential files only")
+        return cache.addAll(ESSENTIAL_FILES).catch((error) => {
+          console.warn("Service Worker: Some files failed to cache", error)
+        })
+      })
+      .then(() => {
         console.log("Service Worker: Installation complete")
         return self.skipWaiting()
       })
       .catch((error) => {
-        console.error("Service Worker: Installation failed:", error)
-        // Continue anyway - don't block installation
-        return self.skipWaiting()
+        console.error("Service Worker: Installation failed", error)
       }),
   )
 })
 
-// Cache essential files with individual error handling
-async function cacheEssentialFiles() {
-  try {
-    const cache = await caches.open(STATIC_CACHE)
-    const results = await Promise.allSettled(
-      ESSENTIAL_FILES.map(async (url) => {
-        try {
-          const response = await fetch(url)
-          if (response.ok) {
-            await cache.put(url, response)
-            console.log(`Service Worker: Cached ${url}`)
-          } else {
-            console.warn(`Service Worker: Failed to cache ${url} - HTTP ${response.status}`)
-          }
-        } catch (error) {
-          console.warn(`Service Worker: Error caching ${url}:`, error.message)
-        }
-      }),
-    )
-    return results
-  } catch (error) {
-    console.error("Service Worker: Error opening static cache:", error)
-    throw error
-  }
-}
-
-// Cache icon files with fallback generation
-async function cacheIconFiles() {
-  try {
-    const cache = await caches.open(ICON_CACHE)
-
-    // First, generate and cache fallback icons
-    await generateAndCacheFallbackIcons(cache)
-
-    // Then try to cache real icons
-    const results = await Promise.allSettled(
-      ICON_FILES.map(async (iconUrl) => {
-        try {
-          const response = await fetch(iconUrl)
-          if (response.ok && response.headers.get("content-type")?.includes("image")) {
-            await cache.put(iconUrl, response)
-            console.log(`Service Worker: Cached icon ${iconUrl}`)
-          } else {
-            console.warn(`Service Worker: Invalid icon response for ${iconUrl}`)
-          }
-        } catch (error) {
-          console.warn(`Service Worker: Error caching icon ${iconUrl}:`, error.message)
-        }
-      }),
-    )
-    return results
-  } catch (error) {
-    console.error("Service Worker: Error caching icons:", error)
-    throw error
-  }
-}
-
-// Generate fallback icons as SVG
-async function generateAndCacheFallbackIcons(cache) {
-  const iconSizes = [
-    { size: 192, path: "/icon-192x192.png" },
-    { size: 512, path: "/icon-512x512.png" },
-    { size: 180, path: "/apple-touch-icon.png" },
-    { size: 32, path: "/favicon-32x32.png" },
-    { size: 16, path: "/favicon-16x16.png" },
-  ]
-
-  for (const { size, path } of iconSizes) {
-    try {
-      const svgIcon = generateSVGIcon(size)
-      const response = new Response(svgIcon, {
-        headers: {
-          "Content-Type": "image/svg+xml",
-          "Cache-Control": "public, max-age=31536000",
-        },
-      })
-      await cache.put(path, response)
-      console.log(`Service Worker: Generated fallback icon ${path}`)
-    } catch (error) {
-      console.warn(`Service Worker: Error generating fallback icon ${path}:`, error)
-    }
-  }
-}
-
-// Generate SVG icon
-function generateSVGIcon(size) {
-  return `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}">
-    <defs>
-      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-        <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
-      </linearGradient>
-    </defs>
-    <rect width="${size}" height="${size}" fill="url(#grad)" rx="${size * 0.1}"/>
-    <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="${size * 0.3}" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">PA</text>
-  </svg>`
-}
-
 // Activate event
 self.addEventListener("activate", (event) => {
-  console.log("Service Worker: Activating v6...")
+  console.log("Service Worker: Activating v7...")
 
   event.waitUntil(
     caches
@@ -161,12 +59,7 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (
-              cacheName !== STATIC_CACHE &&
-              cacheName !== ICON_CACHE &&
-              cacheName !== API_CACHE &&
-              cacheName.startsWith("parking-angel")
-            ) {
+            if (cacheName !== CACHE_NAME && cacheName.startsWith("parking-angel")) {
               console.log("Service Worker: Deleting old cache", cacheName)
               return caches.delete(cacheName)
             }
@@ -174,11 +67,8 @@ self.addEventListener("activate", (event) => {
         )
       })
       .then(() => {
-        console.log("Service Worker: Activated v6")
+        console.log("Service Worker: Activated v7")
         return self.clients.claim()
-      })
-      .catch((error) => {
-        console.error("Service Worker: Activation error:", error)
       }),
   )
 })
@@ -199,70 +89,25 @@ self.addEventListener("fetch", (event) => {
     return
   }
 
+  // DO NOT INTERCEPT ICON REQUESTS - let them go directly to the server
+  if (
+    url.pathname.includes("icon") ||
+    url.pathname.includes("favicon") ||
+    url.pathname.includes("apple-touch") ||
+    url.pathname.endsWith(".png") ||
+    url.pathname.endsWith(".ico") ||
+    url.pathname.includes("manifest")
+  ) {
+    return // Let these requests go through normally
+  }
+
   // Handle different types of requests
-  if (isIconRequest(url.pathname)) {
-    event.respondWith(handleIconRequest(request))
-  } else if (isApiRequest(url.pathname)) {
+  if (isApiRequest(url.pathname)) {
     event.respondWith(handleApiRequest(request))
   } else {
     event.respondWith(handleRegularRequest(request))
   }
 })
-
-// Icon request handler with guaranteed fallback
-async function handleIconRequest(request) {
-  const url = new URL(request.url)
-
-  try {
-    // Try cache first
-    const iconCache = await caches.open(ICON_CACHE)
-    const cachedIcon = await iconCache.match(request)
-
-    if (cachedIcon) {
-      console.log(`Service Worker: Serving cached icon: ${url.pathname}`)
-      return cachedIcon
-    }
-
-    // Try to fetch the requested icon
-    try {
-      const response = await fetch(request, { timeout: 5000 })
-      if (response.ok && response.headers.get("content-type")?.includes("image")) {
-        const responseClone = response.clone()
-        iconCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
-        console.log(`Service Worker: Fetched and cached icon: ${url.pathname}`)
-        return response
-      }
-    } catch (fetchError) {
-      console.warn(`Service Worker: Fetch failed for icon ${url.pathname}:`, fetchError.message)
-    }
-
-    // Generate fallback icon
-    console.log(`Service Worker: Generating fallback for ${url.pathname}`)
-    return generateFallbackIconResponse(url.pathname)
-  } catch (error) {
-    console.error(`Service Worker: Error handling icon request for ${url.pathname}:`, error)
-    return generateFallbackIconResponse(url.pathname)
-  }
-}
-
-// Generate fallback icon response
-function generateFallbackIconResponse(pathname) {
-  // Determine size from pathname
-  let size = 192
-  if (pathname.includes("512")) size = 512
-  else if (pathname.includes("180")) size = 180
-  else if (pathname.includes("32")) size = 32
-  else if (pathname.includes("16")) size = 16
-
-  const svgIcon = generateSVGIcon(size)
-  return new Response(svgIcon, {
-    status: 200,
-    headers: {
-      "Content-Type": "image/svg+xml",
-      "Cache-Control": "public, max-age=31536000",
-    },
-  })
-}
 
 // API request handler with better error handling
 async function handleApiRequest(request) {
@@ -391,16 +236,6 @@ async function updateCacheInBackground(request, cache) {
 }
 
 // Utility functions
-function isIconRequest(pathname) {
-  return (
-    pathname.includes("apple-touch-icon") ||
-    pathname.includes("favicon") ||
-    pathname.includes("icon-") ||
-    pathname.endsWith(".ico") ||
-    (pathname.endsWith(".png") && (pathname.includes("icon") || pathname.includes("favicon")))
-  )
-}
-
 function isApiRequest(pathname) {
   return pathname.startsWith("/api/")
 }
@@ -481,4 +316,4 @@ self.addEventListener("notificationclick", (event) => {
   }
 })
 
-console.log("Service Worker v6: Loaded with comprehensive error handling and fallback icons")
+console.log("Service Worker v7: Loaded with minimal icon interference")
