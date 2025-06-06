@@ -32,7 +32,7 @@ export interface RealParkingSpot {
   provider: string
   provider_id: string
   real_time_data: boolean
-  last_updated: Date
+  last_updated: Date | string // Updated to accept string too
   distance?: number
   opening_hours?: {
     [key: string]: { open: string; close: string }
@@ -199,7 +199,7 @@ export class ParkingDataService {
         provider: PARKING_PROVIDERS.OPENSTREETMAP,
         provider_id: element.id.toString(),
         real_time_data: false,
-        last_updated: new Date(),
+        last_updated: new Date().toISOString(), // Fixed: Use string directly
         opening_hours: this.parseOpeningHours(element.tags?.opening_hours),
       }))
     } catch (error) {
@@ -274,6 +274,14 @@ export class ParkingDataService {
   private async storeRealParkingData(spots: RealParkingSpot[]): Promise<void> {
     try {
       for (const spot of spots) {
+        // Fix for last_updated - ensure it's a string
+        const lastUpdated =
+          typeof spot.last_updated === "object" && spot.last_updated instanceof Date
+            ? spot.last_updated.toISOString()
+            : typeof spot.last_updated === "string"
+              ? spot.last_updated
+              : new Date().toISOString()
+
         await supabase.from("real_parking_spots").upsert(
           {
             provider_id: spot.provider_id,
@@ -288,7 +296,7 @@ export class ParkingDataService {
             total_spaces: spot.total_spaces,
             available_spaces: spot.available_spaces,
             real_time_data: spot.real_time_data,
-            last_updated: spot.last_updated.toISOString(),
+            last_updated: lastUpdated, // Fixed: Use the processed value
             metadata: {
               restrictions: spot.restrictions,
               payment_methods: spot.payment_methods,
