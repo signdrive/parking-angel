@@ -12,6 +12,10 @@ import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug, Shiel
 import Link from "next/link"
 import { UserProfileEnhanced } from "@/components/dashboard/user-profile-enhanced"
 import { ParkingHistory } from "@/components/dashboard/parking-history"
+import { SmartAssistant } from "@/components/ai/smart-assistant"
+import { RouteOptimizer } from "@/components/ai/route-optimizer"
+import { AIAnalyticsDashboard } from "@/components/ai/ai-analytics-dashboard"
+import { SmartNotifications } from "@/components/ai/smart-notifications"
 
 export default function DashboardPage() {
   const { user, loading, signOut } = useAuth()
@@ -194,36 +198,16 @@ export default function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="ai" className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">AI Parking Assistant</h2>
-              <p className="text-gray-600 mb-6">Ask me anything about parking in your area!</p>
-              <div className="border rounded-lg p-4 bg-gray-50 min-h-[300px]">
-                <p className="text-center text-gray-500 my-12">AI Assistant ready to help you find parking!</p>
-              </div>
-            </div>
+            <SmartAssistant />
+            <RouteOptimizer />
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Parking Analytics</h2>
-              <p className="text-gray-600 mb-6">Insights and trends about parking in your area</p>
-              <div className="grid gap-4 grid-cols-2">
-                <div className="border rounded-lg p-4 bg-gray-50 h-[200px] flex items-center justify-center">
-                  <p className="text-center text-gray-500">Parking Availability Chart</p>
-                </div>
-                <div className="border rounded-lg p-4 bg-gray-50 h-[200px] flex items-center justify-center">
-                  <p className="text-center text-gray-500">Peak Hours Analysis</p>
-                </div>
-              </div>
-            </div>
+            <AIAnalyticsDashboard />
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Smart Notifications</h2>
-              <p className="text-gray-600 mb-4">Get alerts about parking availability</p>
-              <Button>Configure Notifications</Button>
-            </div>
+            <SmartNotifications />
           </TabsContent>
 
           <TabsContent value="premium" className="space-y-6">
