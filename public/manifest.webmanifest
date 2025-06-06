@@ -2,44 +2,39 @@
   "name": "Parking Angel - AI-Powered Parking Solutions",
   "short_name": "Parking Angel",
   "description": "Find parking spots in real-time with AI-powered predictions and smart recommendations",
-  "start_url": "/dashboard",
+  "start_url": "/dashboard?source=pwa",
   "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#3b82f6",
   "background_color": "#ffffff",
   "scope": "/",
-  "lang": "en",
+  "lang": "en-US",
   "dir": "ltr",
+  "categories": ["navigation", "utilities", "productivity"],
   "icons": [
     {
-      "src": "/icon-192x192.png",
+      "src": "/icons/icon-192x192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "/icons/icon-512x512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any"
     },
     {
-      "src": "/icon-maskable-192x192.png",
+      "src": "/icons/icon-192x192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "maskable"
     },
     {
-      "src": "/icon-maskable-512x512.png",
+      "src": "/icons/icon-512x512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"
-    },
-    {
-      "src": "/apple-touch-icon.png",
-      "type": "image/png",
-      "sizes": "180x180",
-      "purpose": "any"
     }
   ],
   "shortcuts": [
@@ -50,37 +45,10 @@
       "url": "/dashboard",
       "icons": [
         {
-          "src": "/icon-192x192.png",
+          "src": "/icons/icon-192x192.png",
           "sizes": "192x192"
         }
       ]
-    },
-    {
-      "name": "Admin Panel",
-      "short_name": "Admin",
-      "description": "Access admin dashboard",
-      "url": "/admin",
-      "icons": [
-        {
-          "src": "/icon-192x192.png",
-          "sizes": "192x192"
-        }
-      ]
-    }
-  ],
-  "categories": ["navigation", "utilities", "productivity"],
-  "screenshots": [
-    {
-      "src": "/screenshot-wide.png",
-      "type": "image/png",
-      "sizes": "1280x720",
-      "form_factor": "wide"
-    },
-    {
-      "src": "/screenshot-narrow.png",
-      "type": "image/png",
-      "sizes": "750x1334",
-      "form_factor": "narrow"
     }
   ]
 }
