@@ -8,8 +8,10 @@ import { StatsCards } from "@/components/dashboard/stats-cards"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug } from "lucide-react"
+import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug, Shield, Clock } from "lucide-react"
 import Link from "next/link"
+import { UserProfileEnhanced } from "@/components/dashboard/user-profile-enhanced"
+import { ParkingHistory } from "@/components/dashboard/parking-history"
 
 export default function DashboardPage() {
   const { user, loading, signOut } = useAuth()
@@ -108,6 +110,14 @@ export default function DashboardPage() {
                 <User className="w-5 h-5 text-gray-600" />
                 <span className="text-sm text-gray-700">{getUserDisplayName()}</span>
               </div>
+              {(user?.user_metadata?.role === "admin" || user?.email === "admin@parkalgo.com") && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/admin">
+                    <Shield className="w-4 h-4 mr-2" />
+                    Admin Panel
+                  </Link>
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={signOut}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out
@@ -128,10 +138,18 @@ export default function DashboardPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="map" className="flex items-center gap-2">
               <MapPin className="w-4 h-4" />
               Live Map
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Profile
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              History
             </TabsTrigger>
             <TabsTrigger value="ai" className="flex items-center gap-2">
               <Brain className="w-4 h-4" />
@@ -165,6 +183,14 @@ export default function DashboardPage() {
                 <ParkingMap onSpotSelect={setSelectedSpot} />
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="profile" className="space-y-6">
+            <UserProfileEnhanced user={user} />
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-6">
+            <ParkingHistory />
           </TabsContent>
 
           <TabsContent value="ai" className="space-y-6">
