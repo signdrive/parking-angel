@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Brain, X, Mic, Send, ChevronDown, Loader2 } from "lucide-react"
+import { Brain, X, Mic, Send, ChevronDown, Loader2, Wifi, WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface MapAIAssistantProps {
@@ -15,12 +15,36 @@ export function MapAIAssistant({ className }: MapAIAssistantProps) {
   const [message, setMessage] = useState("")
   const [isListening, setIsListening] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([
+  const [connectionStatus, setConnectionStatus] = useState<"unknown" | "connected" | "fallback">("unknown")
+  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string; fallback?: boolean }[]>([
     {
       role: "assistant",
       content: "Hi! I'm your Grok-powered parking AI assistant. How can I help you find parking today?",
     },
   ])
+
+  // Test connection on mount
+  useEffect(() => {
+    testConnection()
+  }, [])
+
+  const testConnection = async () => {
+    try {
+      const response = await fetch("/api/ai/grok-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "test connection",
+          context: "connection_test",
+        }),
+      })
+
+      const data = await response.json()
+      setConnectionStatus(data.fallback ? "fallback" : "connected")
+    } catch (error) {
+      setConnectionStatus("fallback")
+    }
+  }
 
   const handleSend = async () => {
     if (!message.trim() || isLoading) return
@@ -33,7 +57,6 @@ export function MapAIAssistant({ className }: MapAIAssistantProps) {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }])
 
     try {
-      // Call Grok AI API
       const response = await fetch("/api/ai/grok-chat", {
         method: "POST",
         headers: {
@@ -53,27 +76,29 @@ export function MapAIAssistant({ className }: MapAIAssistantProps) {
       const data = await response.json()
 
       // Add AI response
-      setMessages((prev) => [...prev, { role: "assistant", content: data.response }])
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.response,
+          fallback: data.fallback,
+        },
+      ])
+
+      // Update connection status
+      setConnectionStatus(data.fallback ? "fallback" : "connected")
     } catch (error) {
-      console.error("Error calling Grok AI:", error)
+      console.error("Error calling AI:", error)
 
-      // Fallback response
-      let fallbackResponse = ""
-      if (userMessage.toLowerCase().includes("parking near")) {
-        fallbackResponse =
-          "I found several parking options nearby! The closest is Central Garage (0.2 miles) with 15 available spots. Would you like me to navigate you there?"
-      } else if (userMessage.toLowerCase().includes("cheap") || userMessage.toLowerCase().includes("price")) {
-        fallbackResponse =
-          "The most affordable parking nearby is Street Parking at $2/hour. Premium options with security start at $5/hour. Which would you prefer?"
-      } else if (userMessage.toLowerCase().includes("time") || userMessage.toLowerCase().includes("when")) {
-        fallbackResponse =
-          "Based on current traffic and your location, I recommend leaving in 15 minutes to arrive on time. There's 85% probability of finding parking within 5 minutes of arrival."
-      } else {
-        fallbackResponse =
-          "I can help you find parking, check prices, estimate availability, or optimize your route. What would you like to know?"
-      }
-
-      setMessages((prev) => [...prev, { role: "assistant", content: fallbackResponse }])
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I'm having trouble right now. Please try again in a moment.",
+          fallback: true,
+        },
+      ])
+      setConnectionStatus("fallback")
     } finally {
       setIsLoading(false)
     }
@@ -115,6 +140,28 @@ export function MapAIAssistant({ className }: MapAIAssistantProps) {
     setIsOpen(!isOpen)
   }
 
+  const getStatusIcon = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return <Wifi className="h-4 w-4 text-green-500" />
+      case "fallback":
+        return <WifiOff className="h-4 w-4 text-orange-500" />
+      default:
+        return <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+    }
+  }
+
+  const getStatusText = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return "Grok AI Connected"
+      case "fallback":
+        return "Smart Fallback Mode"
+      default:
+        return "Connecting..."
+    }
+  }
+
   return (
     <div className={cn("fixed bottom-24 right-6 z-50", className)}>
       {!isOpen ? (
@@ -129,7 +176,13 @@ export function MapAIAssistant({ className }: MapAIAssistantProps) {
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3 flex items-center justify-between rounded-t-lg">
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5" />
-              <h3 className="font-medium">Grok AI Assistant</h3>
+              <div>
+                <h3 className="font-medium">Parking AI</h3>
+                <div className="flex items-center gap-1 text-xs opacity-90">
+                  {getStatusIcon()}
+                  <span>{getStatusText()}</span>
+                </div>
+              </div>
             </div>
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20" onClick={toggleOpen}>
@@ -155,14 +208,20 @@ export function MapAIAssistant({ className }: MapAIAssistantProps) {
                     msg.role === "user" ? "bg-blue-600 text-white ml-auto" : "bg-white border text-gray-700 shadow-sm",
                   )}
                 >
-                  {msg.content}
+                  <div className="whitespace-pre-line">{msg.content}</div>
+                  {msg.fallback && (
+                    <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                      <WifiOff className="h-3 w-3" />
+                      Smart fallback response
+                    </div>
+                  )}
                 </div>
               ))}
               {isLoading && (
                 <div className="mb-3 max-w-[85%] rounded-lg p-3 bg-white border text-gray-700 shadow-sm">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Grok is thinking...</span>
+                    <span>AI is thinking...</span>
                   </div>
                 </div>
               )}
@@ -182,7 +241,7 @@ export function MapAIAssistant({ className }: MapAIAssistantProps) {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                placeholder="Ask Grok about parking..."
+                placeholder="Ask about parking..."
                 className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isLoading}
               />
