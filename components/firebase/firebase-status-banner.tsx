@@ -1,12 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertCircle, CheckCircle, XCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, Info } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useFirebaseAuth } from "@/hooks/use-firebase-auth"
-import { FirebaseErrorDetector } from "@/lib/firebase-error-detector"
 
-type FirebaseStatus = "loading" | "working" | "domain-blocked" | "error" | "not-configured"
+type FirebaseStatus = "loading" | "configured" | "domain-error" | "other-error" | "not-configured"
 
 export function FirebaseStatusBanner() {
   const { firebaseUser, firebaseError } = useFirebaseAuth()
@@ -14,6 +13,7 @@ export function FirebaseStatusBanner() {
   const [errorDetails, setErrorDetails] = useState<string>("")
 
   useEffect(() => {
+    // Check if Firebase is properly configured
     const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || ""
 
     if (!apiKey) {
@@ -21,89 +21,72 @@ export function FirebaseStatusBanner() {
       return
     }
 
-    // Set up domain error detection
-    const detector = FirebaseErrorDetector.getInstance()
-
-    detector.onDomainError((hasError) => {
-      if (hasError) {
-        setStatus("domain-blocked")
-        setErrorDetails("Firebase API key has domain restrictions (403 errors detected)")
+    if (firebaseError) {
+      // Check for domain restriction errors
+      if (
+        firebaseError.message?.includes("domain-restricted") ||
+        firebaseError.message?.includes("unauthorized domain")
+      ) {
+        setStatus("domain-error")
+        setErrorDetails(firebaseError.message)
+      } else {
+        setStatus("other-error")
+        setErrorDetails(firebaseError.message || "Unknown Firebase error")
       }
-    })
-
-    // Check immediate status
-    if (detector.isDomainErrorDetected()) {
-      setStatus("domain-blocked")
-      setErrorDetails("Firebase API key has domain restrictions (403 errors detected)")
-    } else if (firebaseError) {
-      setStatus("error")
-      setErrorDetails(firebaseError.message || "Unknown Firebase error")
     } else if (firebaseUser) {
-      setStatus("working")
+      setStatus("configured")
     } else {
-      // Wait a bit to see if domain errors appear
-      setTimeout(() => {
-        if (!firebaseUser && !detector.isDomainErrorDetected()) {
-          setStatus("domain-blocked")
-          setErrorDetails("Firebase authentication not working (likely domain restrictions)")
-        }
-      }, 2000)
+      setStatus("configured") // Assume configured if no errors
     }
   }, [firebaseUser, firebaseError])
 
-  // Don't show banner if loading
   if (status === "loading") {
     return null
   }
 
-  // Don't show banner if not configured
-  if (status === "not-configured") {
-    return null
-  }
-
-  if (status === "working") {
+  if (status === "configured") {
     return (
       <Alert variant="default" className="bg-green-50 border-green-200 text-green-800 mb-4">
         <CheckCircle className="h-4 w-4 text-green-600" />
-        <AlertTitle>🔥 Firebase Authentication Active</AlertTitle>
-        <AlertDescription>Firebase authentication is working perfectly alongside Supabase!</AlertDescription>
+        <AlertTitle>Firebase Authentication Ready</AlertTitle>
+        <AlertDescription>Firebase authentication is properly configured and ready to use.</AlertDescription>
       </Alert>
     )
   }
 
-  if (status === "domain-blocked") {
+  if (status === "domain-error") {
     return (
       <Alert variant="destructive" className="mb-4">
-        <XCircle className="h-4 w-4" />
-        <AlertTitle>🚫 Firebase Domain Restriction Detected</AlertTitle>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Firebase Domain Restriction Error</AlertTitle>
         <AlertDescription>
-          <div className="space-y-2">
-            <p className="font-medium">Firebase API key is restricted and blocking this domain.</p>
-            <p className="text-sm">
-              ✅ <strong>Good news:</strong> Supabase authentication is working perfectly!
-            </p>
-            <div className="text-xs mt-2 p-2 bg-red-50 rounded border">
-              <p>
-                <strong>Error:</strong> API_KEY_HTTP_REFERRER_BLOCKED (403)
-              </p>
-              <p>
-                <strong>Solution:</strong> Create unrestricted Firebase API key or add domain to restrictions
-              </p>
-            </div>
-          </div>
+          <p>Firebase authentication is restricted to specific domains. Please use Supabase authentication instead.</p>
+          {errorDetails && <p className="text-xs mt-2 opacity-80">{errorDetails}</p>}
         </AlertDescription>
       </Alert>
     )
   }
 
-  if (status === "error") {
+  if (status === "other-error") {
     return (
       <Alert variant="destructive" className="mb-4">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Firebase Authentication Error</AlertTitle>
         <AlertDescription>
-          <p>Firebase authentication encountered an error. Supabase authentication is still working.</p>
+          <p>There was an error with Firebase authentication. Please use Supabase authentication instead.</p>
           {errorDetails && <p className="text-xs mt-2 opacity-80">{errorDetails}</p>}
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (status === "not-configured") {
+    return (
+      <Alert variant="default" className="bg-amber-50 border-amber-200 text-amber-800 mb-4">
+        <Info className="h-4 w-4 text-amber-600" />
+        <AlertTitle>Firebase Not Configured</AlertTitle>
+        <AlertDescription>
+          Firebase API key is not set. Please add NEXT_PUBLIC_FIREBASE_API_KEY to your environment variables.
         </AlertDescription>
       </Alert>
     )
