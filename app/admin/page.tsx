@@ -7,24 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Users,
-  MapPin,
-  Shield,
-  AlertTriangle,
-  Star,
-  DollarSign,
-  Ban,
-  Eye,
-  Edit,
-  Trash2,
-  Search,
-  Filter,
-  Download,
-  RefreshCw,
-} from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Users, MapPin, Shield, AlertTriangle, DollarSign, Eye, Mail } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminDashboard() {
@@ -33,8 +17,15 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
   const [searchTerm, setSearchTerm] = useState("")
 
-  // Check if user is admin (you'll need to implement this logic)
-  const isAdmin = user?.user_metadata?.role === "admin" || user?.email === "admin@parkalgo.com"
+  // Admin emails - these work even without email confirmation
+  const adminEmails = [
+    "admin@parkalgo.com",
+    "your-email@example.com", // Replace with your actual email
+    // Add more admin emails as needed
+  ]
+
+  // Check if user is admin (works even if email not confirmed)
+  const isAdmin = user?.user_metadata?.role === "admin" || adminEmails.includes(user?.email || "")
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -56,6 +47,9 @@ export default function AdminDashboard() {
   if (!user || !isAdmin) {
     return null
   }
+
+  // Check if email is confirmed
+  const isEmailConfirmed = user?.email_confirmed_at !== null
 
   // Mock data for admin dashboard
   const adminStats = {
@@ -106,6 +100,12 @@ export default function AdminDashboard() {
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-700">{user?.email}</span>
                 <Badge variant="outline">Admin</Badge>
+                {!isEmailConfirmed && (
+                  <Badge variant="secondary">
+                    <Mail className="w-3 h-3 mr-1" />
+                    Unconfirmed
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
@@ -113,6 +113,16 @@ export default function AdminDashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
+        {!isEmailConfirmed && (
+          <Alert className="mb-6">
+            <Mail className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Email not confirmed:</strong> Your admin access is working, but consider confirming your email for
+              full functionality. You can confirm it later in Supabase dashboard or ignore this message.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
           <p className="text-gray-600">Manage users, parking spots, and system settings</p>
@@ -238,76 +248,11 @@ export default function AdminDashboard() {
           <TabsContent value="users" className="space-y-6">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>User Management</CardTitle>
-                    <CardDescription>Manage user accounts and permissions</CardDescription>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm">
-                      <Download className="w-4 h-4 mr-2" />
-                      Export
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>Manage user accounts and permissions</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="flex-1">
-                    <Label htmlFor="search">Search Users</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="search"
-                        placeholder="Search by name, email..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <Button variant="outline">
-                    <Filter className="w-4 h-4 mr-2" />
-                    Filter
-                  </Button>
-                </div>
-
-                <div className="border rounded-lg">
-                  <div className="grid grid-cols-6 gap-4 p-4 border-b bg-gray-50 font-medium text-sm">
-                    <div>Name</div>
-                    <div>Email</div>
-                    <div>Status</div>
-                    <div>Join Date</div>
-                    <div>Spots Reported</div>
-                    <div>Actions</div>
-                  </div>
-                  {recentUsers.map((user) => (
-                    <div key={user.id} className="grid grid-cols-6 gap-4 p-4 border-b items-center">
-                      <div className="font-medium">{user.name}</div>
-                      <div className="text-sm text-gray-600">{user.email}</div>
-                      <div>
-                        <Badge variant={user.status === "active" ? "default" : "destructive"}>{user.status}</Badge>
-                      </div>
-                      <div className="text-sm text-gray-600">{user.joinDate}</div>
-                      <div className="text-sm">{user.spots}</div>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Ban className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-gray-600">User management features coming soon...</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -315,100 +260,23 @@ export default function AdminDashboard() {
           <TabsContent value="spots" className="space-y-6">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Parking Spot Management</CardTitle>
-                    <CardDescription>Monitor and manage parking spots</CardDescription>
-                  </div>
-                  <Button>Add New Spot</Button>
-                </div>
+                <CardTitle>Parking Spot Management</CardTitle>
+                <CardDescription>Monitor and manage parking spots</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-lg">
-                  <div className="grid grid-cols-6 gap-4 p-4 border-b bg-gray-50 font-medium text-sm">
-                    <div>Address</div>
-                    <div>Reporter</div>
-                    <div>Status</div>
-                    <div>Reports</div>
-                    <div>Rating</div>
-                    <div>Actions</div>
-                  </div>
-                  {recentSpots.map((spot) => (
-                    <div key={spot.id} className="grid grid-cols-6 gap-4 p-4 border-b items-center">
-                      <div className="font-medium">{spot.address}</div>
-                      <div className="text-sm text-gray-600">{spot.reporter}</div>
-                      <div>
-                        <Badge
-                          variant={
-                            spot.status === "active"
-                              ? "default"
-                              : spot.status === "flagged"
-                                ? "destructive"
-                                : "secondary"
-                          }
-                        >
-                          {spot.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm">{spot.reports}</div>
-                      <div className="flex items-center">
-                        <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                        <span className="text-sm">{spot.rating}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-gray-600">Parking spot management features coming soon...</p>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Usage Analytics</CardTitle>
-                  <CardDescription>User engagement and app usage statistics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px] flex items-center justify-center border rounded-lg bg-gray-50">
-                    <p className="text-gray-500">Usage Chart Placeholder</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Revenue Analytics</CardTitle>
-                  <CardDescription>Revenue trends and financial metrics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px] flex items-center justify-center border rounded-lg bg-gray-50">
-                    <p className="text-gray-500">Revenue Chart Placeholder</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
             <Card>
               <CardHeader>
-                <CardTitle>Geographic Distribution</CardTitle>
-                <CardDescription>Parking spot distribution across regions</CardDescription>
+                <CardTitle>Analytics Dashboard</CardTitle>
+                <CardDescription>View detailed analytics and insights</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[400px] flex items-center justify-center border rounded-lg bg-gray-50">
-                  <p className="text-gray-500">Geographic Map Placeholder</p>
-                </div>
+                <p className="text-gray-600">Analytics features coming soon...</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -417,80 +285,24 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>System Reports</CardTitle>
-                <CardDescription>Generate and download system reports</CardDescription>
+                <CardDescription>Generate and download reports</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-medium mb-2">User Activity Report</h3>
-                    <p className="text-sm text-gray-600 mb-4">Detailed user engagement metrics</p>
-                    <Button variant="outline" className="w-full">
-                      Generate Report
-                    </Button>
-                  </div>
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-medium mb-2">Revenue Report</h3>
-                    <p className="text-sm text-gray-600 mb-4">Financial performance analysis</p>
-                    <Button variant="outline" className="w-full">
-                      Generate Report
-                    </Button>
-                  </div>
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-medium mb-2">Parking Utilization</h3>
-                    <p className="text-sm text-gray-600 mb-4">Spot usage and availability trends</p>
-                    <Button variant="outline" className="w-full">
-                      Generate Report
-                    </Button>
-                  </div>
-                </div>
+                <p className="text-gray-600">Reporting features coming soon...</p>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>System Settings</CardTitle>
-                  <CardDescription>Configure system-wide settings</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="maintenance">Maintenance Mode</Label>
-                    <div className="flex items-center space-x-2 mt-2">
-                      <input type="checkbox" id="maintenance" />
-                      <span className="text-sm">Enable maintenance mode</span>
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="registration">User Registration</Label>
-                    <div className="flex items-center space-x-2 mt-2">
-                      <input type="checkbox" id="registration" defaultChecked />
-                      <span className="text-sm">Allow new user registration</span>
-                    </div>
-                  </div>
-                  <Button>Save Settings</Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>API Configuration</CardTitle>
-                  <CardDescription>Manage API keys and integrations</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="mapbox">Mapbox API Key</Label>
-                    <Input id="mapbox" type="password" placeholder="••••••••••••••••" />
-                  </div>
-                  <div>
-                    <Label htmlFor="google">Google Places API Key</Label>
-                    <Input id="google" type="password" placeholder="••••••••••••••••" />
-                  </div>
-                  <Button>Update API Keys</Button>
-                </CardContent>
-              </Card>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>System Settings</CardTitle>
+                <CardDescription>Configure system preferences</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">Settings features coming soon...</p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
