@@ -83,19 +83,16 @@ export default function HomePage() {
           <div className="flex items-center space-x-2">
             <MapPin className="w-8 h-8 text-blue-600" />
             <span className="text-2xl font-bold text-gray-900">Parking Angel</span>
-            <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
-              FIREBASE
+            <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              AI POWERED
             </span>
           </div>
           <div className="space-x-4">
-            <Link href="/auth/firebase-login">
+            <Link href="/auth/login">
               <Button variant="ghost">Sign In</Button>
             </Link>
-            <Link href="/auth/firebase-signup">
+            <Link href="/auth/signup">
               <Button>Get Started</Button>
-            </Link>
-            <Link href="/auth/login">
-              <Button variant="outline">Supabase Login</Button>
             </Link>
             {!isSupabaseConfigured() && (
               <Button onClick={() => setShowSetup(true)} variant="outline">
@@ -109,16 +106,16 @@ export default function HomePage() {
       <main className="container mx-auto px-4 py-12">
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Find Parking Spots with <span className="text-blue-600">AI & Firebase</span>
+            Find Parking Spots with <span className="text-blue-600">AI Intelligence</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Join thousands of drivers using our AI-powered platform with Firebase authentication, real-time analytics,
-            and smart notifications.
+            Join thousands of drivers using our AI-powered platform with secure authentication, real-time analytics, and
+            smart notifications.
           </p>
           <div className="space-x-4">
-            <Link href="/auth/firebase-signup">
+            <Link href="/auth/signup">
               <Button size="lg" className="px-8 py-3">
-                Start with Firebase
+                Start Finding Parking
               </Button>
             </Link>
             <Link href="/dashboard">
@@ -133,11 +130,11 @@ export default function HomePage() {
           <Card>
             <CardHeader className="text-center">
               <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-              <CardTitle>Firebase Powered</CardTitle>
+              <CardTitle>AI Powered</CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription className="text-center">
-                Secure authentication, real-time database, and advanced analytics with Firebase
+                Smart parking predictions using machine learning and real-time data analysis
               </CardDescription>
             </CardContent>
           </Card>
@@ -145,11 +142,11 @@ export default function HomePage() {
           <Card>
             <CardHeader className="text-center">
               <Users className="w-12 h-12 text-green-600 mx-auto mb-4" />
-              <CardTitle>Google Integration</CardTitle>
+              <CardTitle>Secure Authentication</CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription className="text-center">
-                Seamless Google login with your Firebase project for enhanced user experience
+                Secure login with Supabase authentication for enhanced user experience and data protection
               </CardDescription>
             </CardContent>
           </Card>
@@ -157,11 +154,11 @@ export default function HomePage() {
           <Card>
             <CardHeader className="text-center">
               <Clock className="w-12 h-12 text-orange-600 mx-auto mb-4" />
-              <CardTitle>Real-time Sync</CardTitle>
+              <CardTitle>Real-time Updates</CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription className="text-center">
-                Live parking updates across all devices with Firebase Firestore real-time database
+                Live parking availability updates across all devices with real-time database synchronization
               </CardDescription>
             </CardContent>
           </Card>
@@ -173,24 +170,24 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <CardDescription className="text-center">
-                Advanced user behavior tracking and insights with Firebase Analytics
+                Advanced user behavior tracking and parking pattern insights for better recommendations
               </CardDescription>
             </CardContent>
           </Card>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready for Firebase-Powered Parking?</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready for AI-Powered Parking?</h2>
           <p className="text-gray-600 mb-6">
-            Experience the next generation of parking apps with Firebase authentication and real-time features.
+            Experience the next generation of parking apps with intelligent predictions and real-time features.
           </p>
           <div className="space-x-4">
-            <Link href="/auth/firebase-signup">
+            <Link href="/auth/signup">
               <Button size="lg" className="px-8 py-3">
-                Get Started with Firebase
+                Get Started Now
               </Button>
             </Link>
-            <Link href="/auth/firebase-login">
+            <Link href="/auth/login">
               <Button size="lg" variant="outline" className="px-8 py-3">
                 Sign In
               </Button>
@@ -204,11 +201,11 @@ export default function HomePage() {
           <div className="flex items-center space-x-2">
             <MapPin className="w-6 h-6 text-blue-600" />
             <span className="font-semibold text-gray-900">Parking Angel</span>
-            <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
-              FIREBASE
+            <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              AI POWERED
             </span>
           </div>
-          <p className="text-gray-600">© 2024 Parking Angel. Powered by Firebase.</p>
+          <p className="text-gray-600">© 2024 Parking Angel. Powered by AI & Supabase.</p>
         </div>
       </footer>
     </div>

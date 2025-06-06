@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { useFirebaseAuth } from "@/hooks/use-firebase-auth"
 import { useRouter } from "next/navigation"
 import { ParkingMap } from "@/components/map/parking-map"
 import { StatsCards } from "@/components/dashboard/stats-cards"
@@ -11,32 +10,20 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MapPin, LogOut, User, Brain, BarChart3, Bell, Zap, Settings, Bug } from "lucide-react"
 import Link from "next/link"
-import { FirebaseStatusBanner } from "@/components/firebase/firebase-status-banner"
 
 export default function DashboardPage() {
-  const { user: supabaseUser, loading: supabaseLoading, signOut: supabaseSignOut } = useAuth()
-  const { user: firebaseUser, loading: firebaseLoading, signOut: firebaseSignOut } = useFirebaseAuth()
+  const { user, loading, signOut } = useAuth()
   const router = useRouter()
   const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("map")
   const [showDebug, setShowDebug] = useState(false)
 
-  // Use Firebase user if available, otherwise Supabase user
-  const user = firebaseUser || supabaseUser
-  // Only consider loading if BOTH are loading, or if we have no user and Supabase is still loading
-  const loading = supabaseLoading && (!supabaseUser || firebaseLoading)
-  const signOut = firebaseUser ? firebaseSignOut : supabaseSignOut
-
   useEffect(() => {
     console.log("Dashboard state:", {
-      supabaseUser: !!supabaseUser,
-      supabaseLoading,
-      firebaseUser: !!firebaseUser,
-      firebaseLoading,
       user: !!user,
       loading,
     })
-  }, [supabaseUser, supabaseLoading, firebaseUser, firebaseLoading, user, loading])
+  }, [user, loading])
 
   useEffect(() => {
     // Only redirect if we're sure the user is not authenticated and not loading
@@ -65,15 +52,7 @@ export default function DashboardPage() {
   }
 
   const getUserDisplayName = () => {
-    if (firebaseUser) {
-      return firebaseUser.displayName || firebaseUser.email
-    }
-    return supabaseUser?.user_metadata?.full_name || supabaseUser?.email
-  }
-
-  const getAuthProvider = () => {
-    if (firebaseUser) return "Firebase"
-    return "Supabase"
+    return user?.user_metadata?.full_name || user?.email
   }
 
   // Mock data for testing
@@ -115,7 +94,7 @@ export default function DashboardPage() {
                 AI POWERED
               </span>
               <span className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
-                {getAuthProvider()}
+                SUPABASE
               </span>
             </Link>
 
@@ -138,16 +117,11 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <FirebaseStatusBanner />
-
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-6 mb-6">
             <h1 className="text-2xl font-bold mb-2">Welcome back, {getUserDisplayName()}! 🎉</h1>
-            <p className="text-blue-100">
-              Your dashboard is ready.{" "}
-              {firebaseUser ? "Full Firebase integration active!" : "Running on Supabase authentication."}
-            </p>
+            <p className="text-blue-100">Your dashboard is ready. Running on Supabase authentication.</p>
           </div>
 
           <StatsCards totalSpots={42} activeUsers={128} averageRating={4.8} responseTime="2.3s" />
@@ -185,9 +159,7 @@ export default function DashboardPage() {
             <div className="bg-white rounded-lg shadow-sm border h-[600px]">
               <div className="p-4 border-b">
                 <h2 className="text-lg font-semibold text-gray-900">AI-Enhanced Live Parking Map</h2>
-                <p className="text-sm text-gray-600">
-                  Smart predictions • Real-time updates • {getAuthProvider()} powered
-                </p>
+                <p className="text-sm text-gray-600">Smart predictions • Real-time updates • Supabase powered</p>
               </div>
               <div className="h-[calc(600px-80px)]">
                 <ParkingMap onSpotSelect={setSelectedSpot} />
@@ -221,19 +193,10 @@ export default function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Smart Notifications</h2>
-                <p className="text-gray-600 mb-4">Get alerts about parking availability</p>
-                <Button>Configure Notifications</Button>
-              </div>
-              {firebaseUser && (
-                <div className="bg-white rounded-lg shadow-sm border p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Test Notifications</h2>
-                  <p className="text-gray-600 mb-4">Send a test notification to your device</p>
-                  <Button variant="outline">Send Test</Button>
-                </div>
-              )}
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Smart Notifications</h2>
+              <p className="text-gray-600 mb-4">Get alerts about parking availability</p>
+              <Button>Configure Notifications</Button>
             </div>
           </TabsContent>
 
@@ -246,7 +209,7 @@ export default function DashboardPage() {
                   <li>• Priority spot notifications</li>
                   <li>• Advanced analytics dashboard</li>
                   <li>• Custom route optimization</li>
-                  <li>• Firebase real-time features</li>
+                  <li>• Real-time sync features</li>
                 </ul>
                 <Button className="w-full bg-white text-purple-600 hover:bg-gray-100">Upgrade Now - $9.99/month</Button>
               </div>
@@ -255,7 +218,7 @@ export default function DashboardPage() {
                 <h3 className="text-xl font-bold mb-4">Enterprise Features</h3>
                 <ul className="space-y-2 mb-6">
                   <li>• White-label solution</li>
-                  <li>• Custom Firebase integration</li>
+                  <li>• Custom integrations</li>
                   <li>• Dedicated support</li>
                   <li>• Advanced reporting</li>
                   <li>• Multi-city deployment</li>
@@ -278,7 +241,7 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">Authentication Provider</p>
-                    <p className="text-gray-900">{getAuthProvider()}</p>
+                    <p className="text-gray-900">Supabase</p>
                   </div>
                   <Button variant="outline" size="sm">
                     Edit Profile
