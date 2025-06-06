@@ -7,13 +7,30 @@ import { useGeolocation } from "@/hooks/use-geolocation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Plus, Navigation, DollarSign, Car } from "lucide-react"
+import { MapPin, Plus, Navigation, DollarSign, Car, Brain, Zap, TrendingUp } from "lucide-react"
 import { ParkingDataService, type RealParkingSpot } from "@/lib/parking-data-service"
 import { SpotReportDialog } from "./spot-report-dialog"
-import { MapAIAssistant } from "@/components/ai/map-ai-assistant"
+import { AISpotPredictor, type SpotPrediction } from "@/lib/ai-spot-predictor"
 
 interface EnhancedParkingMapProps {
   onSpotSelect?: (spot: RealParkingSpot) => void
+}
+
+interface AreaAnalysis {
+  clickLocation: { lat: number; lng: number }
+  nearbySpots: RealParkingSpot[]
+  aiPredictions: SpotPrediction[]
+  bestRecommendation: {
+    spot: RealParkingSpot
+    prediction: SpotPrediction
+    reason: string
+  } | null
+  areaInsights: {
+    averagePrice: number
+    availabilityTrend: "increasing" | "decreasing" | "stable"
+    demandLevel: "low" | "medium" | "high"
+    bestTimeToArrive: string
+  }
 }
 
 export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
@@ -26,17 +43,12 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
   const [realSpots, setRealSpots] = useState<RealParkingSpot[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedSpot, setSelectedSpot] = useState<RealParkingSpot | null>(null)
-  const [filters, setFilters] = useState({
-    maxPrice: null as number | null,
-    spotTypes: [] as string[],
-    requireRealTime: false,
-    requireAvailability: true,
-    includeAccessible: false,
-    includeEVCharging: false,
-  })
+  const [areaAnalysis, setAreaAnalysis] = useState<AreaAnalysis | null>(null)
+  const [analyzingArea, setAnalyzingArea] = useState(false)
 
   const { latitude, longitude, error: locationError } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
+  const aiPredictor = AISpotPredictor.getInstance()
 
   // Fetch Mapbox token
   useEffect(() => {
@@ -81,12 +93,25 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
 
       map.current.addControl(new mapboxgl.NavigationControl())
 
-      map.current.on("click", (e) => {
-        setReportLocation({
+      // Handle map clicks for AI area analysis
+      map.current.on("click", async (e) => {
+        const clickLocation = {
           lat: e.lngLat.lat,
           lng: e.lngLat.lng,
-        })
-        setShowReportDialog(true)
+        }
+
+        // Show loading indicator
+        setAnalyzingArea(true)
+        setAreaAnalysis(null)
+
+        try {
+          // Analyze the clicked area with AI
+          await analyzeAreaWithAI(clickLocation)
+        } catch (error) {
+          console.error("Error analyzing area:", error)
+        } finally {
+          setAnalyzingArea(false)
+        }
       })
 
       map.current.on("error", (e) => {
@@ -121,13 +146,208 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
     }
   }, [latitude, longitude])
 
+  const analyzeAreaWithAI = async (clickLocation: { lat: number; lng: number }) => {
+    try {
+      // Find all parking spots within 500m of clicked location
+      const nearbySpots = await parkingService.getRealParkingSpots(
+        clickLocation.lat,
+        clickLocation.lng,
+        500, // 500m radius
+        {
+          requireAvailability: false, // Include all spots for analysis
+        },
+      )
+
+      if (nearbySpots.length === 0) {
+        setAreaAnalysis({
+          clickLocation,
+          nearbySpots: [],
+          aiPredictions: [],
+          bestRecommendation: null,
+          areaInsights: {
+            averagePrice: 0,
+            availabilityTrend: "stable",
+            demandLevel: "low",
+            bestTimeToArrive: "Now",
+          },
+        })
+        return
+      }
+
+      // Get AI predictions for each spot
+      const predictions: SpotPrediction[] = []
+      for (const spot of nearbySpots) {
+        try {
+          const prediction = await aiPredictor.predictSpotAvailability(
+            spot.id.toString(),
+            new Date(Date.now() + 30 * 60 * 1000), // 30 minutes from now
+            "30min",
+          )
+          predictions.push(prediction)
+        } catch (error) {
+          console.error(`Error predicting spot ${spot.id}:`, error)
+        }
+      }
+
+      // Analyze the area and find best recommendation
+      const analysis = await performAreaAnalysis(clickLocation, nearbySpots, predictions)
+      setAreaAnalysis(analysis)
+
+      // Add click marker to map
+      if (map.current) {
+        // Remove existing click marker
+        const existingMarker = document.querySelector(".click-marker")
+        if (existingMarker) {
+          existingMarker.remove()
+        }
+
+        // Add new click marker
+        const el = document.createElement("div")
+        el.className = "click-marker"
+        el.innerHTML = `
+          <div class="w-8 h-8 bg-purple-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center animate-pulse">
+            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+        `
+
+        new mapboxgl.Marker(el).setLngLat([clickLocation.lng, clickLocation.lat]).addTo(map.current)
+      }
+    } catch (error) {
+      console.error("Error in AI area analysis:", error)
+    }
+  }
+
+  const performAreaAnalysis = async (
+    clickLocation: { lat: number; lng: number },
+    spots: RealParkingSpot[],
+    predictions: SpotPrediction[],
+  ): Promise<AreaAnalysis> => {
+    // Calculate area insights
+    const prices = spots.filter((s) => s.price_per_hour).map((s) => s.price_per_hour!)
+    const averagePrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0
+
+    // Find best recommendation based on AI predictions
+    let bestRecommendation: AreaAnalysis["bestRecommendation"] = null
+    let bestScore = -1
+
+    for (let i = 0; i < spots.length; i++) {
+      const spot = spots[i]
+      const prediction = predictions[i]
+
+      if (!prediction) continue
+
+      // Calculate recommendation score
+      const availabilityScore = prediction.predictedAvailability
+      const confidenceScore = prediction.confidence
+      const distanceScore = Math.max(0, 100 - calculateDistance(clickLocation, spot) * 10) // Closer = better
+
+      const totalScore = (availabilityScore * 0.4 + confidenceScore * 0.3 + distanceScore * 0.3) / 100
+
+      if (totalScore > bestScore) {
+        bestScore = totalScore
+        bestRecommendation = {
+          spot,
+          prediction,
+          reason: generateRecommendationReason(spot, prediction, clickLocation),
+        }
+      }
+    }
+
+    // Analyze availability trend
+    const availabilityTrend = analyzeAvailabilityTrend(predictions)
+
+    // Determine demand level
+    const demandLevel = calculateDemandLevel(predictions)
+
+    // Calculate best time to arrive
+    const bestTimeToArrive = calculateBestArrivalTime(predictions)
+
+    return {
+      clickLocation,
+      nearbySpots: spots,
+      aiPredictions: predictions,
+      bestRecommendation,
+      areaInsights: {
+        averagePrice,
+        availabilityTrend,
+        demandLevel,
+        bestTimeToArrive,
+      },
+    }
+  }
+
+  const calculateDistance = (point1: { lat: number; lng: number }, point2: { lat: number; lng: number }): number => {
+    const R = 6371 // Earth's radius in km
+    const dLat = ((point2.latitude - point1.lat) * Math.PI) / 180
+    const dLng = ((point2.longitude - point1.lng) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((point1.lat * Math.PI) / 180) *
+        Math.cos((point2.latitude * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c * 1000 // Return distance in meters
+  }
+
+  const generateRecommendationReason = (
+    spot: RealParkingSpot,
+    prediction: SpotPrediction,
+    clickLocation: { lat: number; lng: number },
+  ): string => {
+    const distance = Math.round(calculateDistance(clickLocation, spot))
+    const reasons = []
+
+    if (prediction.predictedAvailability > 80) {
+      reasons.push("high availability")
+    }
+    if (prediction.confidence > 85) {
+      reasons.push("reliable prediction")
+    }
+    if (distance < 100) {
+      reasons.push("very close to your target")
+    }
+    if (spot.price_per_hour && spot.price_per_hour < 10) {
+      reasons.push("affordable pricing")
+    }
+
+    return `Best choice due to ${reasons.join(", ")} (${distance}m away)`
+  }
+
+  const analyzeAvailabilityTrend = (predictions: SpotPrediction[]): "increasing" | "decreasing" | "stable" => {
+    const availabilities = predictions.map((p) => p.predictedAvailability)
+    const average = availabilities.reduce((a, b) => a + b, 0) / availabilities.length
+
+    if (average > 70) return "increasing"
+    if (average < 40) return "decreasing"
+    return "stable"
+  }
+
+  const calculateDemandLevel = (predictions: SpotPrediction[]): "low" | "medium" | "high" => {
+    const averageAvailability = predictions.reduce((sum, p) => sum + p.predictedAvailability, 0) / predictions.length
+
+    if (averageAvailability > 70) return "low"
+    if (averageAvailability > 40) return "medium"
+    return "high"
+  }
+
+  const calculateBestArrivalTime = (predictions: SpotPrediction[]): string => {
+    const highAvailabilitySpots = predictions.filter((p) => p.predictedAvailability > 70)
+
+    if (highAvailabilitySpots.length > predictions.length * 0.6) {
+      return "Now - good availability"
+    } else {
+      return "In 15-30 minutes - availability improving"
+    }
+  }
+
   const fetchRealParkingData = async (lat: number, lng: number) => {
     setLoading(true)
     try {
       const spots = await parkingService.getRealParkingSpots(lat, lng, 2000, {
-        maxPrice: filters.maxPrice || undefined,
-        requireRealTime: filters.requireRealTime,
-        requireAvailability: filters.requireAvailability,
+        requireAvailability: true,
       })
       setRealSpots(spots)
     } catch (error) {
@@ -164,19 +384,12 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
           <div class="space-y-1 text-sm">
             <p class="text-gray-600">${spot.address}</p>
             <div class="flex items-center gap-2">
-              <Badge variant="outline">${spot.spot_type}</Badge>
-              <Badge variant="outline">${spot.provider}</Badge>
-              ${spot.real_time_data ? '<Badge class="bg-green-100 text-green-800">Live</Badge>' : ""}
+              <span class="px-2 py-1 bg-gray-100 rounded text-xs">${spot.spot_type}</span>
+              <span class="px-2 py-1 bg-blue-100 rounded text-xs">${spot.provider}</span>
+              ${spot.real_time_data ? '<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Live</span>' : ""}
             </div>
             ${spot.price_per_hour ? `<p class="text-green-600 font-medium">$${spot.price_per_hour}/hour</p>` : '<p class="text-blue-600">Free</p>'}
             ${spot.total_spaces ? `<p class="text-gray-500">${spot.available_spaces || "?"}/${spot.total_spaces} spaces</p>` : ""}
-            ${spot.restrictions?.length ? `<p class="text-orange-600 text-xs">${spot.restrictions.join(", ")}</p>` : ""}
-          </div>
-          <div class="flex gap-1 mt-2">
-            ${spot.accessibility ? '<Badge class="text-xs bg-blue-100 text-blue-800">♿</Badge>' : ""}
-            ${spot.ev_charging ? '<Badge class="text-xs bg-green-100 text-green-800">⚡</Badge>' : ""}
-            ${spot.covered ? '<Badge class="text-xs bg-gray-100 text-gray-800">🏠</Badge>' : ""}
-            ${spot.security ? '<Badge class="text-xs bg-purple-100 text-purple-800">🔒</Badge>' : ""}
           </div>
         </div>
       `)
@@ -283,7 +496,119 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
             From {new Set(realSpots.map((s) => s.provider)).size} providers
           </div>
         </Card>
+
+        {/* AI Instructions */}
+        <Card className="p-3 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Brain className="w-4 h-4 text-purple-600" />
+            <span className="text-sm font-medium text-purple-900">AI Assistant</span>
+          </div>
+          <p className="text-xs text-purple-700">
+            Click anywhere on the map to get AI-powered parking analysis for that area
+          </p>
+        </Card>
       </div>
+
+      {/* AI Analysis Panel */}
+      {(analyzingArea || areaAnalysis) && (
+        <Card className="absolute top-4 right-4 w-80 max-h-96 overflow-y-auto">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Brain className="w-5 h-5 text-purple-600" />
+              {analyzingArea ? "Analyzing Area..." : "AI Area Analysis"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {analyzingArea ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              </div>
+            ) : areaAnalysis ? (
+              <>
+                {/* Area Insights */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Area Insights</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="text-gray-600">Avg Price</div>
+                      <div className="font-medium">${areaAnalysis.areaInsights.averagePrice.toFixed(2)}/hr</div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="text-gray-600">Demand</div>
+                      <div className="font-medium capitalize">{areaAnalysis.areaInsights.demandLevel}</div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="text-gray-600">Trend</div>
+                      <div className="font-medium flex items-center gap-1">
+                        {areaAnalysis.areaInsights.availabilityTrend === "increasing" && (
+                          <TrendingUp className="w-3 h-3 text-green-500" />
+                        )}
+                        {areaAnalysis.areaInsights.availabilityTrend === "decreasing" && (
+                          <TrendingUp className="w-3 h-3 text-red-500 rotate-180" />
+                        )}
+                        <span className="capitalize">{areaAnalysis.areaInsights.availabilityTrend}</span>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="text-gray-600">Best Time</div>
+                      <div className="font-medium">{areaAnalysis.areaInsights.bestTimeToArrive}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Best Recommendation */}
+                {areaAnalysis.bestRecommendation && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm flex items-center gap-1">
+                      <Zap className="w-4 h-4 text-yellow-500" />
+                      AI Recommendation
+                    </h4>
+                    <div className="bg-gradient-to-r from-green-50 to-blue-50 p-3 rounded border border-green-200">
+                      <div className="font-medium text-sm">{areaAnalysis.bestRecommendation.spot.name}</div>
+                      <div className="text-xs text-gray-600 mb-2">{areaAnalysis.bestRecommendation.spot.address}</div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="outline" className="text-xs">
+                          {areaAnalysis.bestRecommendation.prediction.predictedAvailability}% available
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {areaAnalysis.bestRecommendation.prediction.confidence}% confident
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-gray-700">{areaAnalysis.bestRecommendation.reason}</div>
+                      <Button size="sm" className="w-full mt-2">
+                        Book This Spot
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Nearby Spots Summary */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Found {areaAnalysis.nearbySpots.length} spots nearby</h4>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {areaAnalysis.nearbySpots.slice(0, 3).map((spot, index) => {
+                      const prediction = areaAnalysis.aiPredictions[index]
+                      return (
+                        <div key={spot.id} className="text-xs bg-gray-50 p-2 rounded">
+                          <div className="font-medium">{spot.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span>${spot.price_per_hour || 0}/hr</span>
+                            {prediction && (
+                              <Badge variant="outline" className="text-xs">
+                                {prediction.predictedAvailability}% available
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Spot Button */}
       <Button
@@ -312,9 +637,6 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
       >
         <Navigation className="w-6 h-6" />
       </Button>
-
-      {/* AI Assistant */}
-      <MapAIAssistant />
 
       <SpotReportDialog open={showReportDialog} onOpenChange={setShowReportDialog} location={reportLocation} />
 
@@ -348,21 +670,6 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
                 <span>
                   {selectedSpot.available_spaces || "?"}/{selectedSpot.total_spaces} spaces
                 </span>
-              </div>
-            )}
-
-            <div className="flex gap-1 flex-wrap">
-              {selectedSpot.accessibility && <Badge className="text-xs bg-blue-100 text-blue-800">♿ Accessible</Badge>}
-              {selectedSpot.ev_charging && (
-                <Badge className="text-xs bg-green-100 text-green-800">⚡ EV Charging</Badge>
-              )}
-              {selectedSpot.covered && <Badge className="text-xs bg-gray-100 text-gray-800">🏠 Covered</Badge>}
-              {selectedSpot.security && <Badge className="text-xs bg-purple-100 text-purple-800">🔒 Secure</Badge>}
-            </div>
-
-            {selectedSpot.restrictions && selectedSpot.restrictions.length > 0 && (
-              <div className="text-xs text-orange-600">
-                <strong>Restrictions:</strong> {selectedSpot.restrictions.join(", ")}
               </div>
             )}
 
