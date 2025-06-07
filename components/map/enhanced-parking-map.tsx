@@ -9,31 +9,25 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapPin, Plus, Navigation, DollarSign, Car, Brain, Zap, TrendingUp } from "lucide-react"
 import { ParkingDataService, type RealParkingSpot } from "@/lib/parking-data-service"
-import { SpotReportDialog } from "./spot-report-dialog"
 import { AISpotPredictor, type SpotPrediction } from "@/lib/ai-spot-predictor"
+import type { AreaAnalysis } from "@/types/area-analysis" // Declare the AreaAnalysis variable
+import { SpotReportDialog } from "@/components/map/spot-report-dialog" // Declare the SpotReportDialog variable
 
 interface EnhancedParkingMapProps {
   onSpotSelect?: (spot: RealParkingSpot) => void
+  onStatsUpdate?: (spotsCount: number, providersCount: number) => void
+  onLocationClick?: (location: { lat: number; lng: number }) => void
+  onAreaAnalysis?: (analysis: any) => void
+  onLoadingChange?: (loading: boolean) => void
 }
 
-interface AreaAnalysis {
-  clickLocation: { lat: number; lng: number }
-  nearbySpots: RealParkingSpot[]
-  aiPredictions: SpotPrediction[]
-  bestRecommendation: {
-    spot: RealParkingSpot
-    prediction: SpotPrediction
-    reason: string
-  } | null
-  areaInsights: {
-    averagePrice: number
-    availabilityTrend: "increasing" | "decreasing" | "stable"
-    demandLevel: "low" | "medium" | "high"
-    bestTimeToArrive: string
-  }
-}
-
-export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
+export function EnhancedParkingMap({
+  onSpotSelect,
+  onStatsUpdate,
+  onLocationClick,
+  onAreaAnalysis,
+  onLoadingChange,
+}: EnhancedParkingMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const [showReportDialog, setShowReportDialog] = useState(false)
@@ -104,6 +98,8 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
         // Show loading indicator
         setAnalyzingArea(true)
         setAreaAnalysis(null)
+        onLocationClick?.(clickLocation)
+        onLoadingChange?.(true)
 
         try {
           // Analyze the clicked area with AI
@@ -130,7 +126,7 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
         map.current = null
       }
     }
-  }, [mapboxToken])
+  }, [mapboxToken, onLocationClick, onLoadingChange])
 
   // Update map center when user location is available
   useEffect(() => {
@@ -200,6 +196,8 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
       // Analyze the area and find best recommendation
       const analysis = await performAreaAnalysis(clickLocation, nearbySpots, predictions)
       setAreaAnalysis(analysis)
+      onAreaAnalysis?.(analysis)
+      onLoadingChange?.(false)
 
       // Add click marker to map
       if (map.current) {
@@ -414,7 +412,9 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
         onSpotSelect?.(spot)
       })
     })
-  }, [realSpots, onSpotSelect])
+
+    onStatsUpdate?.(realSpots.length, new Set(realSpots.map((s) => s.provider)).size)
+  }, [realSpots, onSpotSelect, onStatsUpdate])
 
   const getMarkerColor = (spot: RealParkingSpot): string => {
     if (!spot.is_available) return "bg-red-500"
