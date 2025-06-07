@@ -144,10 +144,17 @@ export function EnhancedParkingMap({
 
       map.current.addControl(
         new mapboxgl.GeolocateControl({
-          positionOptions: { enableHighAccuracy: true },
+          positionOptions: {
+            enableHighAccuracy: true,
+          },
           trackUserLocation: true,
           showUserHeading: true,
+          showAccuracyCircle: true,
+          fitBoundsOptions: {
+            maxZoom: 15,
+          },
         }),
+        "top-right",
       )
 
       map.current.addControl(new mapboxgl.NavigationControl())
@@ -186,6 +193,31 @@ export function EnhancedParkingMap({
       }
     }
   }, [mapboxToken, handleMapClick])
+
+  // Add event listeners for the geolocate control
+  useEffect(() => {
+    if (!map.current) return
+
+    const geolocateControl = document.querySelector(".mapboxgl-ctrl-geolocate")
+    if (geolocateControl) {
+      geolocateControl.addEventListener("click", () => {
+        console.log("Geolocate control clicked")
+        // Force a manual trigger if the automatic one doesn't work
+        if (map.current) {
+          const control = map.current._controls.find((c: any) => c instanceof mapboxgl.GeolocateControl)
+          if (control) {
+            control.trigger()
+          }
+        }
+      })
+    }
+
+    return () => {
+      if (geolocateControl) {
+        geolocateControl.removeEventListener("click", () => {})
+      }
+    }
+  }, [])
 
   // Update map center when user location is available
   useEffect(() => {
