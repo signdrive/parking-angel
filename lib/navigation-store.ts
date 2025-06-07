@@ -52,6 +52,13 @@ export interface NavigationSettings {
   theme: "auto" | "day" | "night"
 }
 
+export interface NavigationDestination {
+  latitude: number
+  longitude: number
+  name: string
+  spotId?: string
+}
+
 interface NavigationState {
   // Navigation state
   isNavigating: boolean
@@ -65,13 +72,7 @@ interface NavigationState {
     heading: number
     speed: number
   } | null
-  destination: {
-    latitude: number
-    longitude: number
-    name: string
-    spotId?: string
-  } | null
-
+  destination: NavigationDestination | null
   // Navigation state
   eta: Date | null
   remainingDistance: number
@@ -86,13 +87,10 @@ interface NavigationState {
   settings: NavigationSettings
 
   // Actions
-  startNavigation: (
-    destination: { latitude: number; longitude: number; name: string; spotId?: string },
-    route: NavigationRoute,
-  ) => void
+  startNavigation: (destination: NavigationDestination, route: NavigationRoute) => void
   stopNavigation: () => void
   setRoute: (route: NavigationRoute) => void
-  setDestination: (destination: { latitude: number; longitude: number; name: string; spotId?: string }) => void
+  setDestination: (destination: NavigationDestination) => void
   updateUserLocation: (location: { latitude: number; longitude: number; heading: number; speed: number }) => void
   nextStepAction: () => void
   recalculateRoute: () => void
@@ -135,7 +133,7 @@ export const useNavigationStore = create<NavigationState>()(
       },
 
       // Actions
-      startNavigation: (destination, route) => {
+      startNavigation: (destination: NavigationDestination, route: NavigationRoute) => {
         console.log("🚀 Starting navigation to:", destination.name)
         set({
           isNavigating: true,
@@ -177,7 +175,7 @@ export const useNavigationStore = create<NavigationState>()(
         })
       },
 
-      setDestination: (destination) => set({ destination }),
+      setDestination: (destination: NavigationDestination) => set({ destination }),
 
       updateUserLocation: (location) => set({ userLocation: location }),
 

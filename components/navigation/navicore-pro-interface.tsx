@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import mapboxgl, { type LngLatLike } from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { Button } from "@/components/ui/button"
-import { Phone, ArrowLeft, Navigation, AlertTriangle, Clock, Loader2, WifiOff } from "lucide-react" // Added WifiOff
+import { Phone, ArrowLeft, Navigation, AlertTriangle, Clock, Loader2, WifiOff } from "lucide-react"
 import type { NavigationRoute, NavigationStep } from "@/lib/navigation-store"
 
 interface NaviCoreProInterfaceProps {
@@ -78,11 +78,9 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
           console.error("Error getting user location:", geoError)
           setErrorMessage("Location Access Denied")
           setErrorDetails(geoError.message || "Could not get current location. Please enable location services.")
-          // Fallback or stop? For now, let's stop and show error.
-          // setUserLocation({ latitude: 40.7128, longitude: -74.006 })
           setMapStatus("error")
         },
-        { timeout: 10000, enableHighAccuracy: true }, // Added timeout and high accuracy
+        { timeout: 10000, enableHighAccuracy: true },
       )
     } else {
       console.error("Geolocation is not supported by this browser.")
@@ -188,7 +186,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
       const mapInstance = map.current!
       const sourceId = "route"
-      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId) // Ensure clean state
+      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId)
       if (mapInstance.getLayer(sourceId)) mapInstance.removeLayer(sourceId)
 
       mapInstance.addSource(sourceId, {
@@ -210,26 +208,36 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
         paint: { "line-color": "#007AFF", "line-width": 8, "line-opacity": 0.9 },
       })
 
-      if (routeData.geometry.length > 1) {
-        const bounds = routeData.geometry.reduce(
-          (bounds, coord) => {
-            return bounds.extend(coord as LngLatLike)
-          },
-          new mapboxgl.LngLatBounds(routeData.geometry[0] as LngLatLike, routeData.geometry[0] as LngLatLike),
-        )
+      // Safer fitBounds logic
+      try {
+        if (routeData.geometry.length > 1) {
+          const bounds = routeData.geometry.reduce(
+            (bounds, coord) => bounds.extend(coord as LngLatLike),
+            new mapboxgl.LngLatBounds(routeData.geometry[0] as LngLatLike, routeData.geometry[0] as LngLatLike),
+          )
 
-        mapInstance.fitBounds(bounds, {
-          padding: { top: 200, bottom: 280, left: 80, right: 80 },
-          pitch: 60,
-          bearing: mapInstance.getBearing(),
-          duration: 1000,
-        })
-      } else if (routeData.geometry.length === 1) {
+          mapInstance.fitBounds(bounds, {
+            // Reduced padding to prevent canvas fitting errors
+            padding: { top: 150, bottom: 150, left: 50, right: 50 },
+            pitch: 60,
+            bearing: mapInstance.getBearing(),
+            duration: 1000,
+          })
+        } else if (routeData.geometry.length === 1) {
+          mapInstance.flyTo({
+            center: routeData.geometry[0] as LngLatLike,
+            zoom: 15,
+            pitch: 60,
+            bearing: mapInstance.getBearing(),
+          })
+        }
+      } catch (fitBoundsError) {
+        console.warn("Mapbox fitBounds error, falling back to flyTo:", fitBoundsError)
+        // Fallback if fitBounds fails for any reason
         mapInstance.flyTo({
           center: routeData.geometry[0] as LngLatLike,
-          zoom: 15,
-          pitch: 60,
-          bearing: mapInstance.getBearing(),
+          zoom: 14,
+          pitch: 45,
         })
       }
     })
@@ -295,15 +303,10 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
   if (routeData && routeData.distance > 0 && currentStep) {
     const currentStepIndex = routeData.steps.findIndex((step) => step.id === currentStep.id)
     if (currentStepIndex !== -1) {
-      const distanceCoveredInCurrentStep = 0 // This would need real-time tracking
       const distanceOfPreviousSteps = routeData.steps
         .slice(0, currentStepIndex)
         .reduce((sum, step) => sum + step.distance, 0)
-      const totalDistanceCovered = distanceOfPreviousSteps + distanceCoveredInCurrentStep
-      displayProgress = (totalDistanceCovered / routeData.distance) * 100
-    } else {
-      // Fallback if current step not found (e.g. at start)
-      displayProgress = 0
+      displayProgress = (distanceOfPreviousSteps / routeData.distance) * 100
     }
     if (isNaN(displayProgress) || displayProgress < 0) displayProgress = 0
     if (displayProgress > 100) displayProgress = 100
@@ -316,18 +319,18 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
   else if (mapStatus === "loading_map") loadingMessage = "Rendering 3D map view..."
 
   return (
-    <div className="h-screen flex flex-col font-sans text-white overflow-hidden" style={{ backgroundColor: "#1C1C1E" }}>
+    <div className="h-full w-full flex flex-col font-sans text-white overflow-hidden bg-[#1C1C1E]">
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 border-b"
-        style={{ height: "80px", borderColor: "rgba(255, 255, 255, 0.1)" }}
+        className="flex items-center justify-between px-4 border-b shrink-0"
+        style={{ height: "60px", borderColor: "rgba(255, 255, 255, 0.1)" }}
       >
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onExit} className="rounded-full hover:bg-gray-700">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <div className="font-semibold text-base truncate max-w-[calc(100vw-200px)]">
+            <div className="font-semibold text-base truncate max-w-[calc(100vw-280px)]">
               {destination?.name || "Destination"}
             </div>
             <div className="text-sm text-gray-400">
@@ -362,15 +365,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
               </div>
             )}
             {mapStatus === "error" && (
-              <Button
-                onClick={() => {
-                  /* Implement retry logic: e.g., reset mapStatus to loading_token */
-                  setMapStatus("loading_token")
-                  setErrorMessage(null)
-                  setErrorDetails(null)
-                }}
-                className="mt-4 bg-blue-600 hover:bg-blue-700"
-              >
+              <Button onClick={() => setMapStatus("loading_token")} className="mt-4 bg-blue-600 hover:bg-blue-700">
                 Retry
               </Button>
             )}
@@ -404,7 +399,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
         {/* Right Side Info Panel */}
         {mapStatus === "loaded" && (
-          <div className="absolute top-36 right-4 z-20 flex flex-col gap-3 items-center">
+          <div className="absolute top-[124px] right-4 z-20 flex flex-col gap-3 items-center">
             <div
               className="p-3 rounded-lg text-center"
               style={{ backgroundColor: "rgba(28, 28, 30, 0.9)", border: "1px solid rgba(255, 255, 255, 0.1)" }}
@@ -428,7 +423,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
         {/* Bottom Info Bar */}
         {mapStatus === "loaded" && routeData && (
-          <div className="absolute bottom-20 left-4 right-4 z-20">
+          <div className="absolute bottom-16 left-4 right-4 z-20">
             <div
               className="rounded-lg p-3 flex items-center justify-between"
               style={{ backgroundColor: "rgba(28, 28, 30, 0.9)", border: "1px solid rgba(255, 255, 255, 0.1)" }}
@@ -463,21 +458,21 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
       {/* Bottom Action Bar */}
       <div
-        className="flex items-center justify-center gap-4 p-3 border-t"
-        style={{ height: "72px", borderColor: "rgba(255, 255, 255, 0.1)" }}
+        className="flex items-center justify-center gap-4 p-3 border-t shrink-0"
+        style={{ height: "60px", borderColor: "rgba(255, 255, 255, 0.1)" }}
       >
-        <Button className="rounded-full w-14 h-14 shadow-lg" style={{ backgroundColor: "#34C759", color: "#FFFFFF" }}>
-          <Phone className="w-6 h-6" />
+        <Button className="rounded-full w-12 h-12 shadow-lg" style={{ backgroundColor: "#34C759", color: "#FFFFFF" }}>
+          <Phone className="w-5 h-5" />
         </Button>
         <Button
           variant="outline"
-          className="h-14 flex-1 rounded-lg text-base font-semibold border-gray-600 hover:bg-gray-700"
+          className="h-12 flex-1 rounded-lg text-base font-semibold border-gray-600 hover:bg-gray-700"
         >
           Routes
         </Button>
         <Button
           variant="outline"
-          className="h-14 flex-1 rounded-lg text-base font-semibold border-gray-600 hover:bg-gray-700"
+          className="h-12 flex-1 rounded-lg text-base font-semibold border-gray-600 hover:bg-gray-700"
         >
           Options
         </Button>
