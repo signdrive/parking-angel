@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import {
   MapPin,
   Clock,
-  TrendingUp,
   Zap,
   DollarSign,
   Users,
@@ -55,7 +54,7 @@ export function RightPanel({
   return (
     <div
       className={cn(
-        "h-full bg-gray-50 border-l border-gray-200 transition-all duration-300 ease-in-out relative flex-shrink-0",
+        "h-full bg-white/95 backdrop-blur-sm border-l border-gray-200 shadow-lg transition-all duration-300 ease-in-out relative",
         isCollapsed ? "w-12" : "w-80",
       )}
     >
@@ -64,7 +63,7 @@ export function RightPanel({
         variant="ghost"
         size="icon"
         onClick={handleToggle}
-        className="absolute top-4 -left-6 z-10 bg-white border border-gray-200 shadow-md hover:shadow-lg h-8 w-8 rounded-full"
+        className="absolute top-4 -left-6 z-20 bg-white border border-gray-200 shadow-md hover:shadow-lg h-8 w-8 rounded-full"
       >
         {isCollapsed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
       </Button>
@@ -73,16 +72,40 @@ export function RightPanel({
       {isCollapsed && (
         <div className="p-2 space-y-4 mt-12">
           <div className="flex flex-col items-center space-y-3">
-            <Button variant="ghost" size="icon" className="w-8 h-8 text-blue-600" title="Live Stats">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8 text-blue-600 hover:bg-blue-50"
+              title="Live Stats"
+              onClick={() => setIsCollapsed(false)}
+            >
               <BarChart3 className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="w-8 h-8 text-yellow-600" title="AI Recommendations">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8 text-yellow-600 hover:bg-yellow-50"
+              title="AI Recommendations"
+              onClick={() => setIsCollapsed(false)}
+            >
               <Zap className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="w-8 h-8 text-green-600" title="Quick Actions">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8 text-green-600 hover:bg-green-50"
+              title="Quick Actions"
+              onClick={() => setIsCollapsed(false)}
+            >
               <Target className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="w-8 h-8 text-purple-600" title="Recent Activity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8 text-purple-600 hover:bg-purple-50"
+              title="Recent Activity"
+              onClick={() => setIsCollapsed(false)}
+            >
               <Activity className="w-4 h-4" />
             </Button>
           </div>
@@ -91,7 +114,7 @@ export function RightPanel({
 
       {/* Expanded State */}
       {!isCollapsed && (
-        <div className="h-full overflow-y-auto">
+        <div className="h-full overflow-y-auto bg-gray-50">
           <div className="p-4 space-y-4">
             {/* Live Stats */}
             <Card>
@@ -177,63 +200,6 @@ export function RightPanel({
                 )}
               </CardContent>
             </Card>
-
-            {/* Area Insights */}
-            {areaAnalysis?.areaInsights && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-green-600" />
-                    Area Insights
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-2 bg-gray-50 rounded">
-                      <div className="text-xs text-gray-600">Avg Price</div>
-                      <div className="font-medium">${areaAnalysis.areaInsights.averagePrice.toFixed(2)}/hr</div>
-                    </div>
-                    <div className="p-2 bg-gray-50 rounded">
-                      <div className="text-xs text-gray-600">Demand</div>
-                      <div
-                        className={cn(
-                          "font-medium capitalize",
-                          areaAnalysis.areaInsights.demandLevel === "high"
-                            ? "text-red-600"
-                            : areaAnalysis.areaInsights.demandLevel === "medium"
-                              ? "text-yellow-600"
-                              : "text-green-600",
-                        )}
-                      >
-                        {areaAnalysis.areaInsights.demandLevel}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-2 bg-gray-50 rounded">
-                    <div className="text-xs text-gray-600 mb-1">Availability Trend</div>
-                    <div className="flex items-center gap-1">
-                      {areaAnalysis.areaInsights.availabilityTrend === "increasing" && (
-                        <TrendingUp className="w-3 h-3 text-green-500" />
-                      )}
-                      {areaAnalysis.areaInsights.availabilityTrend === "decreasing" && (
-                        <TrendingUp className="w-3 h-3 text-red-500 rotate-180" />
-                      )}
-                      <span className="font-medium capitalize text-sm">
-                        {areaAnalysis.areaInsights.availabilityTrend}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-2 bg-blue-50 rounded">
-                    <div className="text-xs text-blue-600 mb-1">Best Time to Arrive</div>
-                    <div className="font-medium text-sm text-blue-900">
-                      {areaAnalysis.areaInsights.bestTimeToArrive}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Quick Actions */}
             <Card>

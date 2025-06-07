@@ -1,30 +1,35 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export function usePersistentState<T>(key: string, defaultValue: T): [T, (value: T | ((prev: T) => T)) => void] {
-  // Initialize state with value from localStorage or default
-  const [state, setState] = useState<T>(() => {
-    if (typeof window === "undefined") {
-      return defaultValue
-    }
+  // Initialize state with default value first
+  const [state, setState] = useState<T>(defaultValue)
+  const [isInitialized, setIsInitialized] = useState(false)
 
+  // Load from localStorage after component mounts (client-side only)
+  useEffect(() => {
     try {
       const item = window.localStorage.getItem(key)
-      return item ? JSON.parse(item) : defaultValue
+      if (item !== null) {
+        const parsedValue = JSON.parse(item)
+        setState(parsedValue)
+      }
     } catch (error) {
       console.warn(`Error reading localStorage key "${key}":`, error)
-      return defaultValue
+    } finally {
+      setIsInitialized(true)
     }
-  })
+  }, [key])
 
-  // Update localStorage when state changes
+  // Update localStorage when state changes (but not on initial load)
   const setPersistentState = (value: T | ((prev: T) => T)) => {
     try {
       const valueToStore = value instanceof Function ? value(state) : value
       setState(valueToStore)
 
-      if (typeof window !== "undefined") {
+      // Only save to localStorage if we're initialized and on client-side
+      if (isInitialized && typeof window !== "undefined") {
         window.localStorage.setItem(key, JSON.stringify(valueToStore))
       }
     } catch (error) {
