@@ -15,7 +15,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState(false)
 
-  const { currentRoute, userLocation, destination, currentStep, isDayMode } = useNavigationStore()
+  const { currentRoute, userLocation, destination, currentStep, isDayMode, settings } = useNavigationStore()
   const navigationService = NavigationService.getInstance()
 
   // Fallback street visualization when Mapbox fails
@@ -154,7 +154,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           style: isDayMode ? "mapbox://styles/mapbox/navigation-day-v1" : "mapbox://styles/mapbox/navigation-night-v1",
           center: userLocation ? [userLocation.longitude, userLocation.latitude] : [-122.4194, 37.7749],
           zoom: 16,
-          pitch: 60,
+          pitch: settings.viewMode === "3d" ? 60 : 0, // Use settings from store
           bearing: userLocation?.heading || 0,
           attributionControl: false,
         })
@@ -189,7 +189,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     return () => {
       mounted = false
     }
-  }, [mapboxToken, isDayMode, userLocation])
+  }, [mapboxToken, isDayMode, userLocation, settings.viewMode])
 
   return (
     <div className="relative w-full h-full">

@@ -69,17 +69,23 @@ export class NavigationService {
     console.log("🛠️ Generating fallback route")
 
     // Calculate realistic distance and duration
-    const distance = this.calculateDistance(from, to)
+    const distance = this.calculateDistance(from, to) // This returns meters
     const baseSpeed = 30 // km/h average city speed
     const duration = (distance / 1000 / baseSpeed) * 3600 // Convert to seconds
+
+    // Ensure minimum realistic values for local navigation
+    const minDistance = 500 // 500 meters minimum
+    const maxDistance = 50000 // 50km maximum for local navigation
+    const clampedDistance = Math.max(minDistance, Math.min(maxDistance, distance))
+    const clampedDuration = Math.max(60, Math.min(3600, duration)) // 1 minute to 1 hour
 
     // Generate realistic route steps
     const steps: NavigationStep[] = [
       {
         id: "1",
         instruction: "Head toward your destination",
-        distance: Math.round(distance * 0.3),
-        duration: Math.round(duration * 0.3),
+        distance: Math.round(clampedDistance * 0.3),
+        duration: Math.round(clampedDuration * 0.3),
         maneuver: { type: "straight" },
         streetName: "Current Street",
         coordinates: [from[0] + (to[0] - from[0]) * 0.3, from[1] + (to[1] - from[1]) * 0.3],
@@ -88,8 +94,8 @@ export class NavigationService {
       {
         id: "2",
         instruction: "Continue straight",
-        distance: Math.round(distance * 0.4),
-        duration: Math.round(duration * 0.4),
+        distance: Math.round(clampedDistance * 0.4),
+        duration: Math.round(clampedDuration * 0.4),
         maneuver: { type: "straight" },
         streetName: "Main Route",
         coordinates: [from[0] + (to[0] - from[0]) * 0.7, from[1] + (to[1] - from[1]) * 0.7],
@@ -98,20 +104,12 @@ export class NavigationService {
       {
         id: "3",
         instruction: "Arrive at your destination",
-        distance: Math.round(distance * 0.3),
-        duration: Math.round(duration * 0.3),
+        distance: Math.round(clampedDistance * 0.3),
+        duration: Math.round(clampedDuration * 0.3),
         maneuver: { type: "arrive" },
         streetName: "Destination Street",
         coordinates: to,
       },
-    ]
-
-    // Generate route geometry
-    const geometry: [number, number][] = [
-      from,
-      [from[0] + (to[0] - from[0]) * 0.33, from[1] + (to[1] - from[1]) * 0.33],
-      [from[0] + (to[0] - from[0]) * 0.66, from[1] + (to[1] - from[1]) * 0.66],
-      to,
     ]
 
     const totalDistance = steps.reduce((sum, step) => sum + step.distance, 0)
@@ -122,7 +120,12 @@ export class NavigationService {
       distance: totalDistance,
       duration: totalDuration,
       steps,
-      geometry,
+      geometry: [
+        from,
+        [from[0] + (to[0] - from[0]) * 0.33, from[1] + (to[1] - from[1]) * 0.33],
+        [from[0] + (to[0] - from[0]) * 0.66, from[1] + (to[1] - from[1]) * 0.66],
+        to,
+      ],
       trafficDelays: options?.avoidTraffic ? 0 : Math.round(totalDuration * 0.1),
     }
   }
