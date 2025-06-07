@@ -45,6 +45,7 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
   const [selectedSpot, setSelectedSpot] = useState<RealParkingSpot | null>(null)
   const [areaAnalysis, setAreaAnalysis] = useState<AreaAnalysis | null>(null)
   const [analyzingArea, setAnalyzingArea] = useState(false)
+  const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   const { latitude, longitude, error: locationError } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
@@ -158,6 +159,13 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
         },
       )
 
+      // Update the displayed spots and map markers for the clicked area
+      setRealSpots(nearbySpots)
+
+      // Update the loading state briefly to show we're fetching
+      setLoading(true)
+      setTimeout(() => setLoading(false), 500)
+
       if (nearbySpots.length === 0) {
         setAreaAnalysis({
           clickLocation,
@@ -214,6 +222,8 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
 
         new mapboxgl.Marker(el).setLngLat([clickLocation.lng, clickLocation.lat]).addTo(map.current)
       }
+
+      setClickedLocation(clickLocation)
     } catch (error) {
       console.error("Error in AI area analysis:", error)
     }
@@ -494,6 +504,11 @@ export function EnhancedParkingMap({ onSpotSelect }: EnhancedParkingMapProps) {
           <div className="text-sm font-medium">{loading ? "Loading..." : `${realSpots.length} spots found`}</div>
           <div className="text-xs text-gray-500 mt-1">
             From {new Set(realSpots.map((s) => s.provider)).size} providers
+            {clickedLocation && (
+              <div className="text-purple-600 mt-1">
+                📍 Clicked area: {clickedLocation.lat.toFixed(4)}, {clickedLocation.lng.toFixed(4)}
+              </div>
+            )}
           </div>
         </Card>
 
