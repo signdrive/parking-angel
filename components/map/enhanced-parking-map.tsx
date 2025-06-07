@@ -70,30 +70,12 @@ export function EnhancedParkingMap({
   // Navigation store
   const { isNavigating, startNavigation, stopNavigation } = useNavigationStore()
 
-  // Fetch Mapbox token securely from server
-  useEffect(() => {
-    const fetchMapboxToken = async () => {
-      try {
-        const response = await fetch("/api/mapbox/token")
-        if (response.ok) {
-          const data = await response.json()
-          setMapboxToken(data.token)
-        } else {
-          setMapboxError("Failed to load map configuration")
-        }
-      } catch (error) {
-        console.error("Error fetching map config:", error)
-        setMapboxError("Failed to connect to map service")
-      }
-    }
-
-    fetchMapboxToken()
-  }, [])
-
   // Handle map click - defined outside the initialization to avoid recreation
   const handleMapClick = useCallback(
     async (e: mapboxgl.MapMouseEvent) => {
       console.log("Map clicked at:", e.lngLat)
+      console.log("Analyzing location:", e.lngLat)
+      console.log("Searching for parking spots within 500m radius")
 
       const clickLocation = {
         lat: e.lngLat.lat,
@@ -305,6 +287,10 @@ export function EnhancedParkingMap({
         500, // 500m radius
         {
           requireAvailability: false, // Include all spots for analysis
+          includeFreeSpots: true, // Explicitly include free spots
+          includeStreetParking: true,
+          includeGarages: true,
+          includeLots: true,
         },
       )
 
@@ -529,6 +515,10 @@ export function EnhancedParkingMap({
     try {
       const spots = await parkingService.getRealParkingSpots(lat, lng, 2000, {
         requireAvailability: true,
+        includeFreeSpots: true, // Explicitly include free spots
+        includeStreetParking: true,
+        includeGarages: true,
+        includeLots: true,
       })
       setRealSpots(spots)
 
@@ -612,7 +602,7 @@ export function EnhancedParkingMap({
       case "garage":
         return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v1a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/></svg>`
       case "meter":
-        return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1a2 2 0 002 2V4zM4 13v3a2 2 0 002 2h8a2 2 0 002-2v-3a2 2 0 002-2V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"/></svg>`
+        return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1a2 2 0 002 2V4zM4 13v3a2 2 0 002 2h8a2 2 0 002 2h2a2 2 0 002-2v-3a2 2 0 002-2V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"/></svg>`
       default:
         return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/></svg>`
     }
@@ -634,6 +624,26 @@ export function EnhancedParkingMap({
 
     analyzeAreaWithAI(clickLocation)
   }
+
+  // Fetch Mapbox token securely from server
+  useEffect(() => {
+    const fetchMapboxToken = async () => {
+      try {
+        const response = await fetch("/api/mapbox/token")
+        if (response.ok) {
+          const data = await response.json()
+          setMapboxToken(data.token)
+        } else {
+          setMapboxError("Failed to load map configuration")
+        }
+      } catch (error) {
+        console.error("Error fetching map config:", error)
+        setMapboxError("Failed to connect to map service")
+      }
+    }
+
+    fetchMapboxToken()
+  }, [])
 
   // Show navigation interface if navigating
   if (isNavigating) {
