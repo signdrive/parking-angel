@@ -29,6 +29,18 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
   const [currentTime, setCurrentTime] = useState(new Date())
   const [currentSpeed, setCurrentSpeed] = useState(0)
 
+  // Helper to validate a single coordinate pair
+  const isValidCoordinatePair = (coord: any): coord is [number, number] => {
+    return (
+      Array.isArray(coord) &&
+      coord.length === 2 &&
+      typeof coord[0] === "number" &&
+      !isNaN(coord[0]) &&
+      typeof coord[1] === "number" &&
+      !isNaN(coord[1])
+    )
+  }
+
   // 1. Fetch Mapbox token
   useEffect(() => {
     setMapStatus("loading_token")
@@ -108,18 +120,14 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     setErrorMessage(null)
     setErrorDetails(null)
 
-    // Client-side validation of coordinates before API call
     if (
-      typeof userLocation.latitude !== "number" ||
-      isNaN(userLocation.latitude) ||
-      typeof userLocation.longitude !== "number" ||
-      isNaN(userLocation.longitude) ||
-      typeof destination.latitude !== "number" ||
-      isNaN(destination.latitude) ||
-      typeof destination.longitude !== "number" ||
-      isNaN(destination.longitude)
+      !isValidCoordinatePair([userLocation.longitude, userLocation.latitude]) ||
+      !isValidCoordinatePair([destination.longitude, destination.latitude])
     ) {
-      console.error("Invalid coordinates for route calculation:", { userLocation, destination })
+      console.error("NaviCoreProInterface: Invalid coordinates for route calculation (client-side pre-check):", {
+        userLocation,
+        destination,
+      })
       setErrorMessage("Invalid Route Coordinates")
       setErrorDetails("Cannot calculate route due to invalid start or end point coordinates.")
       setMapStatus("error")
@@ -128,6 +136,9 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
     const calculate = async () => {
       try {
+        console.log(
+          `NaviCoreProInterface: Fetching route from [${userLocation.longitude}, ${userLocation.latitude}] to [${destination.longitude}, ${destination.latitude}]`,
+        )
         const response = await fetch("/api/navigation/calculate-route", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -142,9 +153,15 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
             error: "Unknown route calculation error",
             details: `Server responded with ${response.status}`,
           }))
+          console.error("NaviCoreProInterface: API error response:", errorData)
           throw new Error(errorData.details || errorData.error || `Route calculation failed: ${response.statusText}`)
         }
         const newRoute: NavigationRoute = await response.json()
+        console.log(
+          "NaviCoreProInterface: Received route from API:",
+          JSON.stringify(newRoute).substring(0, 500) + "...",
+        )
+
         if (
           !newRoute ||
           !newRoute.steps ||
@@ -152,18 +169,23 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
           !newRoute.geometry ||
           newRoute.geometry.length === 0
         ) {
+          console.error("NaviCoreProInterface: Invalid route data structure from server:", newRoute)
           throw new Error("Invalid route data received from server (empty steps or geometry).")
         }
-        // Further check geometry for NaN values
-        if (newRoute.geometry.some((coord) => isNaN(coord[0]) || isNaN(coord[1]))) {
-          console.error("Route geometry contains NaN values:", newRoute.geometry)
-          throw new Error("Route calculation resulted in invalid geometry. Please try again.")
+
+        if (newRoute.geometry.some((coord) => !isValidCoordinatePair(coord))) {
+          console.error(
+            "NaviCoreProInterface: Route geometry from API contains NaN or malformed values:",
+            JSON.stringify(newRoute.geometry),
+          )
+          throw new Error("Route calculation resulted in invalid geometry. Please check API response or source data.")
         }
+
         setRouteData(newRoute)
         setCurrentStep(newRoute.steps[0] || null)
         setMapStatus("loading_map")
       } catch (error) {
-        console.error("Error calculating route:", error)
+        console.error("NaviCoreProInterface: Error in calculate function:", error)
         setErrorMessage("Route Calculation Failed")
         setErrorDetails((error as Error).message || "Could not calculate route to destination.")
         setMapStatus("error")
@@ -184,24 +206,31 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     ) {
       return
     }
-    // Ensure routeData and geometry are valid before proceeding
+
+    // CRITICAL VALIDATION before using routeData.geometry
+    console.log(
+      "NaviCoreProInterface: Attempting to initialize map. Validating routeData.geometry:",
+      JSON.stringify(routeData.geometry).substring(0, 500) + "...",
+    )
     if (
       !routeData.geometry ||
       routeData.geometry.length === 0 ||
-      routeData.geometry.some((coord) => isNaN(coord[0]) || isNaN(coord[1]))
+      routeData.geometry.some((coord) => !isValidCoordinatePair(coord))
     ) {
-      console.error("Attempting to initialize map with invalid route geometry:", routeData.geometry)
+      console.error(
+        "NaviCoreProInterface: CRITICAL - routeData.geometry is invalid just before map initialization:",
+        JSON.stringify(routeData.geometry),
+      )
       setErrorMessage("Map Display Error")
-      setErrorDetails("Cannot display map due to invalid route data.")
+      setErrorDetails("Cannot display map due to invalid route data. Coordinates might be NaN or malformed.")
       setMapStatus("error")
       return
     }
+    console.log("NaviCoreProInterface: routeData.geometry appears valid for map initialization.")
 
     mapboxgl.accessToken = mapboxToken
-    const initialCenter: LngLatLike =
-      routeData.geometry.length > 0
-        ? (routeData.geometry[0] as LngLatLike) // Already validated geometry, so this should be safe
-        : [userLocation.longitude, userLocation.latitude] // Fallback, also validated
+    // This initialCenter should now be safe due to the above validation
+    const initialCenter: LngLatLike = routeData.geometry[0] as LngLatLike
 
     try {
       map.current = new mapboxgl.Map({
@@ -225,27 +254,15 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
       console.log("NaviCore Pro: Map style loaded.")
 
       const mapInstance = map.current!
-      mapInstance.resize() // Ensure map is sized correctly
+      mapInstance.resize()
 
-      // Add markers only if coordinates are valid
-      if (
-        typeof userLocation.longitude === "number" &&
-        !isNaN(userLocation.longitude) &&
-        typeof userLocation.latitude === "number" &&
-        !isNaN(userLocation.latitude)
-      ) {
+      if (isValidCoordinatePair([userLocation.longitude, userLocation.latitude])) {
         new mapboxgl.Marker({ color: "#007AFF" })
           .setLngLat([userLocation.longitude, userLocation.latitude])
           .addTo(mapInstance)
       }
 
-      if (
-        destination &&
-        typeof destination.longitude === "number" &&
-        !isNaN(destination.longitude) &&
-        typeof destination.latitude === "number" &&
-        !isNaN(destination.latitude)
-      ) {
+      if (destination && isValidCoordinatePair([destination.longitude, destination.latitude])) {
         new mapboxgl.Marker({ color: "#34C759" })
           .setLngLat([destination.longitude, destination.latitude])
           .addTo(mapInstance)
@@ -262,7 +279,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
           properties: {},
           geometry: {
             type: "LineString",
-            coordinates: routeData.geometry, // Already validated
+            coordinates: routeData.geometry, // This geometry should be clean now
           },
         },
       })
@@ -274,9 +291,10 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
         paint: { "line-color": "#007AFF", "line-width": 8, "line-opacity": 0.9 },
       })
 
-      setMapStatus("loaded") // Set loaded status after all map setup
+      setMapStatus("loaded")
 
       try {
+        // This geometry should be clean now
         if (routeData.geometry.length > 1) {
           const bounds = routeData.geometry.reduce(
             (bounds, coord) => bounds.extend(coord as LngLatLike),
@@ -289,6 +307,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
             duration: 1000,
           })
         } else if (routeData.geometry.length === 1) {
+          // Should be at least one valid point
           mapInstance.flyTo({
             center: routeData.geometry[0] as LngLatLike,
             zoom: 15,
@@ -297,12 +316,21 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
           })
         }
       } catch (fitBoundsError) {
-        console.warn("Mapbox fitBounds error, falling back to flyTo:", fitBoundsError)
-        mapInstance.flyTo({
-          center: routeData.geometry[0] as LngLatLike, // Fallback to first point of (hopefully) valid geometry
-          zoom: 14,
-          pitch: 45,
-        })
+        console.warn(
+          "Mapbox fitBounds error (even after validation), falling back to flyTo:",
+          fitBoundsError,
+          "Geometry was:",
+          JSON.stringify(routeData.geometry),
+        )
+        if (isValidCoordinatePair(routeData.geometry[0])) {
+          mapInstance.flyTo({
+            center: routeData.geometry[0] as LngLatLike,
+            zoom: 14,
+            pitch: 45,
+          })
+        } else {
+          console.error("NaviCoreProInterface: Fallback flyTo also failed due to invalid first coordinate in geometry.")
+        }
       }
     })
 
