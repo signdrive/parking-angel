@@ -97,6 +97,7 @@ export const useNavigationStore = create<NavigationState & NavigationActions>()(
 
     // Actions
     startNavigation: (destination, route) => {
+      console.log("🚗 Starting navigation to:", destination.name)
       set({
         isNavigating: true,
         destination,
@@ -112,6 +113,7 @@ export const useNavigationStore = create<NavigationState & NavigationActions>()(
     },
 
     stopNavigation: () => {
+      console.log("🛑 Stopping navigation")
       set({
         isNavigating: false,
         currentRoute: null,

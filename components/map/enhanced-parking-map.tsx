@@ -168,11 +168,12 @@ export function EnhancedParkingMap({
 
   const startNavigationToSpot = async (spot: RealParkingSpot) => {
     if (!latitude || !longitude) {
-      alert("Current location not available")
+      alert("Current location not available. Please enable location services.")
       return
     }
 
     try {
+      console.log("🚗 Starting navigation to spot:", spot.name)
       setLoading(true)
 
       // Calculate route to the parking spot
@@ -181,18 +182,22 @@ export function EnhancedParkingMap({
         routeType: "fastest",
       })
 
+      console.log("📍 Route calculated, starting navigation...")
+
       // Start navigation
       startNavigation(
         {
           latitude: spot.latitude,
           longitude: spot.longitude,
           name: spot.name,
-          spotId: spot.id,
+          spotId: spot.id.toString(),
         },
         route,
       )
+
+      console.log("✅ Navigation started successfully!")
     } catch (error) {
-      console.error("Failed to start navigation:", error)
+      console.error("❌ Failed to start navigation:", error)
       alert("Failed to calculate route. Please try again.")
     } finally {
       setLoading(false)
@@ -654,11 +659,14 @@ export function EnhancedParkingMap({
                       <Button
                         size="sm"
                         className="w-full"
-                        onClick={() => startNavigationToSpot(areaAnalysis.bestRecommendation!.spot)}
+                        onClick={() => {
+                          console.log("🎯 AI Recommendation Navigate clicked")
+                          startNavigationToSpot(areaAnalysis.bestRecommendation!.spot)
+                        }}
                         disabled={loading}
                       >
                         <Route className="w-3 h-3 mr-1" />
-                        Navigate Here
+                        {loading ? "Calculating..." : "Navigate Here"}
                       </Button>
                     </div>
                   </div>
@@ -759,11 +767,14 @@ export function EnhancedParkingMap({
               <Button
                 size="sm"
                 className="flex-1"
-                onClick={() => startNavigationToSpot(selectedSpot)}
+                onClick={() => {
+                  console.log("📍 Selected Spot Navigate clicked")
+                  startNavigationToSpot(selectedSpot)
+                }}
                 disabled={loading}
               >
                 <Route className="w-4 h-4 mr-2" />
-                Navigate
+                {loading ? "Starting..." : "Navigate"}
               </Button>
               <Button size="sm" variant="outline" onClick={() => setSelectedSpot(null)}>
                 Close

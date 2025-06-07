@@ -30,6 +30,8 @@ interface NavigationInterfaceProps {
 }
 
 export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
+  console.log("🧭 NavigationInterface rendered")
+
   const {
     currentRoute,
     currentStep,
@@ -52,6 +54,13 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     updateUserLocation,
     updateGpsSignal,
   } = useNavigationStore()
+
+  console.log("📊 Navigation state:", {
+    isNavigating: true,
+    currentRoute: !!currentRoute,
+    destination: destination?.name,
+    currentStep,
+  })
 
   const [showMiniMap, setShowMiniMap] = useState(false)
   const [currentInstruction, setCurrentInstruction] = useState("")
@@ -117,7 +126,16 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
   }, [userLocation, currentRoute, recalculateRoute])
 
   if (!currentRoute || !destination) {
-    return null
+    console.log("❌ Navigation interface: Missing route or destination")
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-center">
+          <h2 className="text-xl font-bold mb-4">Navigation Error</h2>
+          <p className="mb-4">Unable to load navigation data</p>
+          <Button onClick={onExit}>Go Back</Button>
+        </div>
+      </div>
+    )
   }
 
   const currentStepData = currentRoute.steps[currentStep]
