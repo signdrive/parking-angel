@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
 import { cn } from "@/lib/utils"
-import { Navigation, ArrowUp, ArrowRight, ArrowLeft, RotateCcw, AlertTriangle, MapPin } from "lucide-react"
+import { Navigation, ArrowUp, ArrowRight, ArrowLeft, AlertTriangle, MapPin } from "lucide-react"
 
 interface NavigationMapProps {
-  mapboxToken?: string
+  mapboxToken?: string | null
 }
 
 export function NavigationMap({ mapboxToken }: NavigationMapProps) {
@@ -15,6 +15,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
   const mapRef = useRef<any>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState("Initializing...")
 
   const { currentRoute, userLocation, destination, currentStep, settings } = useNavigationStore()
   const navigationService = NavigationService.getInstance()
@@ -29,12 +30,13 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     const loadMapbox = async () => {
       try {
         if (!mapboxToken) {
-          console.log("No Mapbox token available, using fallback")
-          setMapError(true)
+          console.log("⏳ Waiting for Mapbox token...")
+          setLoadingProgress("Waiting for map token...")
           return
         }
 
-        console.log("Loading Mapbox for navigation...")
+        console.log("🗺️ Loading Mapbox for navigation with token...")
+        setLoadingProgress("Loading map service...")
 
         // Dynamic import of mapbox-gl
         const mapboxgl = await import("mapbox-gl")
@@ -42,9 +44,11 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
         if (!mounted || !mapContainer.current) return
 
+        console.log("🔑 Setting Mapbox access token...")
         mapboxgl.accessToken = mapboxToken
+        setLoadingProgress("Configuring navigation map...")
 
-        // Get appropriate map style
+        // Get appropriate map style for navigation
         const getMapStyle = () => {
           switch (settings.mapStyle) {
             case "satellite":
@@ -62,6 +66,9 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           }
         }
 
+        console.log("🎨 Creating navigation map with style:", getMapStyle())
+        setLoadingProgress("Creating navigation view...")
+
         const map = new mapboxgl.Map({
           container: mapContainer.current,
           style: getMapStyle(),
@@ -73,16 +80,20 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
         })
 
         mapRef.current = map
+        setLoadingProgress("Loading map tiles...")
 
         map.on("load", () => {
           if (!mounted) return
 
-          console.log("✅ Navigation Mapbox loaded successfully")
+          console.log("✅ Navigation Mapbox loaded successfully!")
           setMapLoaded(true)
-          setMapError(false) // Ensure error state is cleared
+          setMapError(false)
+          setLoadingProgress("Map ready!")
 
           // Add navigation route
           if (currentRoute) {
+            console.log("🛣️ Adding navigation route to map...")
+
             // Add route line
             map.addSource("route", {
               type: "geojson",
@@ -129,6 +140,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
             // Add destination marker
             if (destination) {
+              console.log("📍 Adding destination marker...")
               new mapboxgl.Marker({
                 color: "#ef4444",
                 scale: 1.2,
@@ -140,6 +152,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
           // Add user location marker
           if (userLocation) {
+            console.log("👤 Adding user location marker...")
             const userMarker = new mapboxgl.Marker({
               color: "#3b82f6",
               scale: 1.5,
@@ -163,16 +176,29 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           console.error("❌ Navigation Mapbox error:", e)
           if (mounted) {
             setMapError(true)
+            setLoadingProgress("Map loading failed")
           }
         })
 
+        map.on("styledata", () => {
+          setLoadingProgress("Loading map style...")
+        })
+
+        map.on("sourcedata", () => {
+          setLoadingProgress("Loading map data...")
+        })
+
         return () => {
-          if (map) map.remove()
+          if (map) {
+            console.log("🧹 Cleaning up navigation map...")
+            map.remove()
+          }
         }
       } catch (error) {
         console.error("❌ Failed to load Navigation Mapbox:", error)
         if (mounted) {
           setMapError(true)
+          setLoadingProgress("Failed to initialize map")
         }
       }
     }
@@ -221,12 +247,11 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     }
   }, [settings.mapStyle, settings.viewMode, isDayMode, mapLoaded, userLocation])
 
-  // Fallback when Mapbox is not available
+  // Fallback when Mapbox is not available - ONLY show when there's an actual error
   const GoogleMapsStyleFallback = () => {
     if (!currentRoute || !currentRoute.steps[currentStep]) return null
 
     const currentStepData = currentRoute.steps[currentStep]
-    const nextStep = currentRoute.steps[currentStep + 1]
 
     return (
       <div className="h-full relative bg-gray-100">
@@ -290,36 +315,9 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           {currentStepData.streetName}
         </div>
 
-        {currentRoute.steps[currentStep + 1] && (
-          <div className="absolute top-16 left-4 bg-white/90 px-2 py-1 rounded text-sm">
-            Next: {currentRoute.steps[currentStep + 1].streetName}
-          </div>
-        )}
-
-        {/* Navigation instruction */}
-        <div className="absolute bottom-4 left-4 right-4 bg-white rounded-lg p-3 shadow-lg">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">
-              {currentRoute.steps[currentStep + 1].maneuver.type === "turn-left" && "↰"}
-              {currentRoute.steps[currentStep + 1].maneuver.type === "turn-right" && "↱"}
-              {currentRoute.steps[currentStep + 1].maneuver.type === "straight" && "↑"}
-              {currentRoute.steps[currentStep + 1].maneuver.type === "roundabout" && "↻"}
-              {!currentRoute.steps[currentStep + 1] && "🏁"}
-            </div>
-            <div className="flex-1">
-              <div className="font-medium text-lg">{currentRoute.steps[currentStep + 1].instruction}</div>
-              <div className="text-gray-600">
-                {currentRoute.steps[currentStep + 1]
-                  ? `in ${navigationService.formatDistance(currentRoute.steps[currentStep + 1].distance)}`
-                  : "You have arrived"}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">
-                {navigationService.formatDistance(currentRoute.steps[currentStep + 1].distance)}
-              </div>
-            </div>
-          </div>
+        {/* Fallback indicator */}
+        <div className="absolute bottom-4 left-4 bg-yellow-600 text-white px-3 py-2 rounded-lg text-sm">
+          ⚠️ Using simplified map view
         </div>
       </div>
     )
@@ -328,49 +326,28 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
   return (
     <div className="relative w-full h-full">
       {/* Mapbox container - show when loaded and no error */}
-      <div ref={mapContainer} className={cn("w-full h-full", mapError || !mapLoaded ? "hidden" : "block")} />
-
-      {/* Fallback when Mapbox fails or is loading */}
-      {(mapError || !mapLoaded) && <GoogleMapsStyleFallback />}
+      <div ref={mapContainer} className={cn("w-full h-full", mapError ? "hidden" : "block")} />
 
       {/* Loading state - only show when not loaded and no error */}
       {!mapLoaded && !mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white">
-          <div className="text-center">
-            <Navigation className="w-12 h-12 mx-auto mb-2 text-blue-600 animate-pulse" />
-            <p className="text-sm text-gray-600">Loading Navigation Map...</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+          <div className="text-center text-white">
+            <Navigation className="w-12 h-12 mx-auto mb-4 text-blue-400 animate-pulse" />
+            <h3 className="text-lg font-semibold mb-2">Loading Navigation</h3>
+            <p className="text-gray-300 mb-4">{loadingProgress}</p>
+            <div className="w-48 bg-gray-700 rounded-full h-2 mx-auto">
+              <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{ width: "60%" }}></div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Navigation overlays - show regardless of map type */}
-      {currentRoute && (
-        <>
-          {/* Next turn instruction overlay */}
-          {currentRoute.steps[currentStep + 1] && (
-            <div className="absolute top-4 left-4 right-4 bg-white rounded-lg shadow-lg p-4 z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl">
-                  {currentRoute.steps[currentStep + 1].maneuver.type === "turn-left" && <ArrowLeft />}
-                  {currentRoute.steps[currentStep + 1].maneuver.type === "turn-right" && <ArrowRight />}
-                  {currentRoute.steps[currentStep + 1].maneuver.type === "straight" && <ArrowUp />}
-                  {currentRoute.steps[currentStep + 1].maneuver.type === "roundabout" && <RotateCcw />}
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-lg">{currentRoute.steps[currentStep + 1].instruction}</div>
-                  <div className="text-gray-600">
-                    in {navigationService.formatDistance(currentRoute.steps[currentStep + 1].distance)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold">
-                    {navigationService.formatDistance(currentRoute.steps[currentStep + 1].distance)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+      {/* Fallback when Mapbox fails - ONLY show on actual error */}
+      {mapError && <GoogleMapsStyleFallback />}
 
+      {/* Navigation overlays - show regardless of map type */}
+      {currentRoute && mapLoaded && (
+        <>
           {/* Speed limit */}
           {currentRoute.steps[currentStep].speedLimit && (
             <div className="absolute top-4 right-4 bg-white border-2 border-red-600 rounded-full w-16 h-16 flex flex-col items-center justify-center z-10">
