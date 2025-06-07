@@ -102,6 +102,20 @@ function generateSteps(
   totalDistance: number,
   totalDuration: number,
 ): any[] {
+  const streetNames = [
+    "Oak St",
+    "Pine Ave",
+    "Maple Dr",
+    "Cedar Ln",
+    "Elm Ct",
+    "Washington Blvd",
+    "Main St",
+    "Park Ave",
+    "Sunset Blvd",
+    "Broadway",
+  ]
+  const getRandomStreet = () => streetNames[Math.floor(Math.random() * streetNames.length)]
+
   const steps = [
     {
       id: "step_1",
@@ -109,7 +123,7 @@ function generateSteps(
       distance: Math.round(totalDistance * 0.3),
       duration: Math.round(totalDuration * 0.3),
       maneuver: { type: "straight" },
-      streetName: "Current Street",
+      streetName: getRandomStreet(),
       coordinates: [from[0] + (to[0] - from[0]) * 0.3, from[1] + (to[1] - from[1]) * 0.3],
       speedLimit: 35,
     },
@@ -119,7 +133,7 @@ function generateSteps(
       distance: Math.round(totalDistance * 0.4),
       duration: Math.round(totalDuration * 0.4),
       maneuver: { type: "straight" },
-      streetName: "Main Route",
+      streetName: getRandomStreet(),
       coordinates: [from[0] + (to[0] - from[0]) * 0.7, from[1] + (to[1] - from[1]) * 0.7],
       speedLimit: 30,
       laneGuidance: {
@@ -136,7 +150,7 @@ function generateSteps(
       distance: Math.round(totalDistance * 0.3),
       duration: Math.round(totalDuration * 0.3),
       maneuver: { type: "arrive" },
-      streetName: "Destination Street",
+      streetName: getRandomStreet(),
       coordinates: to,
     },
   ]

@@ -185,6 +185,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
       }
 
       const mapInstance = map.current!
+      mapInstance.resize()
       const sourceId = "route"
       if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId)
       if (mapInstance.getLayer(sourceId)) mapInstance.removeLayer(sourceId)
