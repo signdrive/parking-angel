@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
-import { RealGoogleMapsNavigation } from "./real-google-maps-navigation"
+import { CleanNavigation } from "./clean-navigation"
 
 interface NavigationInterfaceProps {
   onExit: () => void
@@ -46,5 +46,5 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     )
   }
 
-  return <RealGoogleMapsNavigation onExit={onExit} />
+  return <CleanNavigation onExit={onExit} />
 }
