@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
 import { cn } from "@/lib/utils"
-import { Navigation, ArrowUp, ArrowRight, ArrowLeft, AlertTriangle, MapPin } from "lucide-react"
+import { Navigation, Plus, Minus, MoreVertical, ParkingSquare, User, ChevronUp } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface NavigationMapProps {
   mapboxToken?: string | null
@@ -74,7 +75,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           style: getMapStyle(),
           center: userLocation ? [userLocation.longitude, userLocation.latitude] : [-122.4194, 37.7749],
           zoom: 17,
-          pitch: settings.viewMode === "3d" ? 60 : settings.viewMode === "bird-eye" ? 45 : 0,
+          pitch: 60, // Always use 60 degree pitch for 3D view like TomTom
           bearing: userLocation?.heading || 0,
           attributionControl: false,
         })
@@ -107,6 +108,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
               },
             })
 
+            // Add blue route line (TomTom style)
             map.addLayer({
               id: "route",
               type: "line",
@@ -116,15 +118,15 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
                 "line-cap": "round",
               },
               paint: {
-                "line-color": "#3b82f6",
+                "line-color": "#00b3fd", // TomTom blue
                 "line-width": 8,
-                "line-opacity": 0.8,
+                "line-opacity": 0.9,
               },
             })
 
-            // Add route outline
+            // Add route glow (TomTom style)
             map.addLayer({
-              id: "route-outline",
+              id: "route-glow",
               type: "line",
               source: "route",
               layout: {
@@ -132,9 +134,9 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
                 "line-cap": "round",
               },
               paint: {
-                "line-color": "#1e40af",
-                "line-width": 12,
-                "line-opacity": 0.4,
+                "line-color": "#00b3fd",
+                "line-width": 14,
+                "line-opacity": 0.3,
               },
             })
 
@@ -154,7 +156,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           if (userLocation) {
             console.log("👤 Adding user location marker...")
             const userMarker = new mapboxgl.Marker({
-              color: "#3b82f6",
+              color: "#00b3fd", // TomTom blue
               scale: 1.5,
             })
               .setLngLat([userLocation.longitude, userLocation.latitude])
@@ -162,7 +164,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
             // Add direction indicator
             const directionEl = document.createElement("div")
-            directionEl.className = "w-6 h-6 bg-blue-600 rounded-full border-2 border-white shadow-lg"
+            directionEl.className = "w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg"
             directionEl.innerHTML = `<div class="w-full h-full flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L15 8H5L10 2Z"/></svg></div>`
             directionEl.style.transform = `rotate(${userLocation.heading || 0}deg)`
 
@@ -210,115 +212,201 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     }
   }, [mapboxToken, isDayMode, userLocation, destination, currentRoute])
 
-  // Update map when settings change
-  useEffect(() => {
-    if (mapRef.current && mapLoaded) {
-      const map = mapRef.current
-
-      // Update map style
-      const getMapStyle = () => {
-        switch (settings.mapStyle) {
-          case "satellite":
-            return "mapbox://styles/mapbox/satellite-streets-v12"
-          case "terrain":
-            return "mapbox://styles/mapbox/outdoors-v12"
-          case "hybrid":
-            return "mapbox://styles/mapbox/satellite-streets-v12"
-          case "street":
-            return "mapbox://styles/mapbox/streets-v12"
-          default:
-            return isDayMode ? "mapbox://styles/mapbox/navigation-day-v1" : "mapbox://styles/mapbox/navigation-night-v1"
-        }
-      }
-
-      map.setStyle(getMapStyle())
-
-      // Update pitch and bearing based on view mode
-      const targetPitch = settings.viewMode === "3d" ? 60 : settings.viewMode === "bird-eye" ? 45 : 0
-      const targetBearing = settings.viewMode === "follow" ? userLocation?.heading || 0 : 0
-
-      map.easeTo({
-        pitch: targetPitch,
-        bearing: targetBearing,
-        duration: 1000,
-      })
-
-      console.log(`🗺️ Updated navigation map: style=${settings.mapStyle}, viewMode=${settings.viewMode}`)
-    }
-  }, [settings.mapStyle, settings.viewMode, isDayMode, mapLoaded, userLocation])
-
-  // Fallback when Mapbox is not available - ONLY show when there's an actual error
-  const GoogleMapsStyleFallback = () => {
+  // TomTom-style 3D navigation overlay
+  const TomTomStyleOverlay = () => {
     if (!currentRoute || !currentRoute.steps[currentStep]) return null
 
     const currentStepData = currentRoute.steps[currentStep]
+    const nextStep = currentRoute.steps[currentStep + 1]
+
+    // Calculate ETA
+    const eta = new Date()
+    if (currentRoute.duration) {
+      eta.setSeconds(eta.getSeconds() + currentRoute.duration)
+    }
+
+    // Get current speed (simulated)
+    const currentSpeed = userLocation?.speed ? Math.round(userLocation.speed * 2.237) : 63 // mph
+
+    // Get next maneuver distance
+    const nextManeuverDistance = nextStep ? nextStep.distance : 0
+    const formattedDistance =
+      nextManeuverDistance < 1000
+        ? `${Math.round(nextManeuverDistance)} ft`
+        : `${(nextManeuverDistance / 1609).toFixed(1)} mi`
+
+    // Get remaining distance
+    const remainingDistance = (currentRoute.distance / 1609).toFixed(1) // miles
+
+    // Get remaining time
+    const remainingMinutes = Math.ceil(currentRoute.duration / 60)
+
+    return (
+      <>
+        {/* Top navigation bar with next maneuver */}
+        <div className="absolute top-0 left-0 right-0 flex justify-between items-center px-2 py-1 bg-gray-800/90 text-white z-20">
+          <div className="flex items-center gap-2 bg-gray-800 rounded-full px-3 py-1">
+            <span className="font-bold">{formattedDistance}</span>
+            <div className="flex">
+              {nextStep?.maneuver.type === "straight" && (
+                <>
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <div className="w-3 h-4 bg-gray-300 flex items-center justify-center">↑</div>
+                  </div>
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <div className="w-3 h-4 bg-gray-300 flex items-center justify-center">↑</div>
+                  </div>
+                </>
+              )}
+              {nextStep?.maneuver.type === "turn-right" && (
+                <>
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <div className="w-3 h-4 bg-gray-300 flex items-center justify-center">↑</div>
+                  </div>
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <div className="w-3 h-4 bg-cyan-400 flex items-center justify-center">→</div>
+                  </div>
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <div className="w-3 h-4 bg-cyan-400 flex items-center justify-center">→</div>
+                  </div>
+                </>
+              )}
+              {nextStep?.maneuver.type === "turn-left" && (
+                <>
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <div className="w-3 h-4 bg-cyan-400 flex items-center justify-center">←</div>
+                  </div>
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <div className="w-3 h-4 bg-cyan-400 flex items-center justify-center">←</div>
+                  </div>
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <div className="w-3 h-4 bg-gray-300 flex items-center justify-center">↑</div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-sm font-bold">
+              {eta.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </div>
+            <div className="text-xs">{remainingMinutes} min</div>
+          </div>
+        </div>
+
+        {/* Left side controls */}
+        <div className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-gray-800/80 rounded-full flex flex-col z-20">
+          <Button variant="ghost" size="icon" className="text-white hover:bg-gray-700 rounded-full">
+            <ChevronUp className="h-5 w-5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-white hover:bg-gray-700 rounded-full">
+            <Plus className="h-5 w-5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-white hover:bg-gray-700 rounded-full">
+            <Minus className="h-5 w-5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-white hover:bg-gray-700 rounded-full">
+            <MoreVertical className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Right side controls */}
+        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex flex-col gap-2 z-20">
+          <Button variant="ghost" size="icon" className="bg-white/90 hover:bg-white rounded-full">
+            <ParkingSquare className="h-5 w-5 text-blue-600" />
+          </Button>
+          <Button variant="ghost" size="icon" className="bg-white/90 hover:bg-white rounded-full">
+            <User className="h-5 w-5 text-gray-700" />
+          </Button>
+        </div>
+
+        {/* Speed and distance indicators */}
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-20">
+          {/* Speed limit */}
+          <div className="bg-white rounded-full border-4 border-red-600 w-14 h-14 flex items-center justify-center">
+            <div className="text-center">
+              <div className="font-bold text-lg">{currentStepData.speedLimit || 65}</div>
+              <div className="text-xs -mt-1">mph</div>
+            </div>
+          </div>
+
+          {/* Current speed */}
+          <div className="text-center">
+            <div className="font-bold text-3xl text-white">{currentSpeed}</div>
+            <div className="text-sm text-white">mph</div>
+          </div>
+        </div>
+
+        {/* Distance remaining */}
+        <div className="absolute bottom-4 right-4 bg-white/80 px-2 py-1 rounded text-sm font-bold z-20">
+          {remainingDistance} mi
+        </div>
+
+        {/* Lane guidance overlay - only show when needed */}
+        {nextManeuverDistance < 500 && nextStep?.maneuver.type !== "straight" && (
+          <div className="absolute bottom-24 left-0 right-0 flex justify-center z-20">
+            <div className="bg-black/70 rounded-lg p-3">
+              <div className="flex gap-1">
+                {/* Simulate lane guidance with blue arrows for recommended lanes */}
+                <div className="w-12 h-20 flex flex-col items-center">
+                  <div className="flex-1 w-2 bg-gray-500"></div>
+                  <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-cyan-400"></div>
+                </div>
+                <div className="w-12 h-20 flex flex-col items-center">
+                  <div className="flex-1 w-2 bg-gray-500"></div>
+                  <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-cyan-400"></div>
+                </div>
+                <div className="w-12 h-20 flex flex-col items-center">
+                  <div className="flex-1 w-2 bg-gray-500"></div>
+                  <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-gray-500"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // TomTom-style fallback when Mapbox is not available
+  const TomTomStyleFallback = () => {
+    if (!currentRoute || !currentRoute.steps[currentStep]) return null
 
     return (
       <div className="h-full relative bg-gray-100">
-        {/* Map background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-green-100 to-green-200">
-          {/* Streets grid */}
-          <div className="absolute inset-0">
-            {/* Horizontal streets */}
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={`h-${i}`}
-                className="absolute left-0 right-0 h-2 bg-white border-t border-b border-gray-300"
-                style={{ top: `${i * 12.5}%` }}
-              />
-            ))}
-            {/* Vertical streets */}
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={`v-${i}`}
-                className="absolute top-0 bottom-0 w-2 bg-white border-l border-r border-gray-300"
-                style={{ left: `${i * 16.66}%` }}
-              />
-            ))}
-          </div>
+        {/* Sky */}
+        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-blue-300 to-blue-200">
+          <div className="absolute left-10 top-10 w-12 h-6 bg-white rounded-full opacity-70"></div>
+          <div className="absolute left-40 top-20 w-16 h-8 bg-white rounded-full opacity-60"></div>
+        </div>
 
-          {/* Buildings */}
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute bg-gray-300 border border-gray-400"
-              style={{
-                width: `${30 + Math.random() * 40}px`,
-                height: `${20 + Math.random() * 30}px`,
-                left: `${Math.random() * 90}%`,
-                top: `${Math.random() * 90}%`,
-              }}
-            />
-          ))}
+        {/* Ground */}
+        <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-b from-green-200 to-green-300"></div>
 
-          {/* Main route */}
-          <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-blue-500 transform -translate-x-1/2" />
-          <div className="absolute top-1/2 left-0 right-0 h-1 bg-blue-500 transform -translate-y-1/2" />
+        {/* Road */}
+        <div className="absolute bottom-0 left-0 right-0 h-full flex items-center justify-center perspective">
+          <div className="w-full h-3/4 bg-gray-800 transform rotate-x-60 origin-bottom relative">
+            {/* Lane markings */}
+            <div className="absolute top-0 bottom-0 left-1/4 w-0.5 bg-white dashed-line"></div>
+            <div className="absolute top-0 bottom-0 left-1/2 w-1 bg-white"></div>
+            <div className="absolute top-0 bottom-0 left-3/4 w-0.5 bg-white dashed-line"></div>
 
-          {/* Current position */}
-          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <div className="w-4 h-4 bg-blue-600 rounded-full border-2 border-white shadow-lg" />
-          </div>
+            {/* Route guidance */}
+            <div className="absolute top-1/4 bottom-0 left-5/8 w-1/8 bg-cyan-400 opacity-70"></div>
 
-          {/* Destination */}
-          {destination && (
-            <div className="absolute right-4 top-4">
-              <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
-                <MapPin className="w-4 h-4 text-white" />
-              </div>
+            {/* Direction arrows */}
+            <div className="absolute bottom-1/4 left-5/8 w-1/8 flex justify-center">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-b-16 border-l-transparent border-r-transparent border-b-cyan-400"></div>
             </div>
-          )}
+            <div className="absolute bottom-2/5 left-5/8 w-1/8 flex justify-center">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-b-16 border-l-transparent border-r-transparent border-b-cyan-400"></div>
+            </div>
+          </div>
         </div>
 
-        {/* Street names overlay */}
-        <div className="absolute top-4 left-4 bg-white/90 px-2 py-1 rounded text-sm font-medium">
-          {currentStepData.streetName}
-        </div>
-
-        {/* Fallback indicator */}
-        <div className="absolute bottom-4 left-4 bg-yellow-600 text-white px-3 py-2 rounded-lg text-sm">
-          ⚠️ Using simplified map view
-        </div>
+        {/* TomTom UI overlays */}
+        <TomTomStyleOverlay />
       </div>
     )
   }
@@ -326,7 +414,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
   return (
     <div className="relative w-full h-full">
       {/* Mapbox container - show when loaded and no error */}
-      <div ref={mapContainer} className={cn("w-full h-full", mapError ? "hidden" : "block")} />
+      <div ref={mapContainer} className={cn("w-full h-full", mapError || !mapLoaded ? "hidden" : "block")} />
 
       {/* Loading state - only show when not loaded and no error */}
       {!mapLoaded && !mapError && (
@@ -343,55 +431,10 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
       )}
 
       {/* Fallback when Mapbox fails - ONLY show on actual error */}
-      {mapError && <GoogleMapsStyleFallback />}
+      {mapError && <TomTomStyleFallback />}
 
-      {/* Navigation overlays - show regardless of map type */}
-      {currentRoute && mapLoaded && (
-        <>
-          {/* Speed limit */}
-          {currentRoute.steps[currentStep].speedLimit && (
-            <div className="absolute top-4 right-4 bg-white border-2 border-red-600 rounded-full w-16 h-16 flex flex-col items-center justify-center z-10">
-              <div className="text-lg font-bold text-black">{currentRoute.steps[currentStep].speedLimit}</div>
-              <div className="text-xs text-gray-600">{settings.units === "metric" ? "km/h" : "mph"}</div>
-            </div>
-          )}
-
-          {/* Lane guidance */}
-          {settings.showLaneGuidance && currentRoute.steps[currentStep].laneGuidance && (
-            <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 bg-black/80 rounded-lg p-3 z-10">
-              <div className="flex gap-1">
-                {currentRoute.steps[currentStep].laneGuidance!.lanes.map((lane, idx) => (
-                  <div
-                    key={idx}
-                    className={cn(
-                      "w-8 h-12 border-2 rounded flex items-end justify-center pb-1",
-                      lane.valid ? "border-green-500 bg-green-900/30" : "border-gray-500 bg-gray-800/30",
-                    )}
-                  >
-                    {lane.indications.includes("straight") && (
-                      <ArrowUp className={cn("w-5 h-5", lane.valid ? "text-green-500" : "text-gray-500")} />
-                    )}
-                    {lane.indications.includes("right") && (
-                      <ArrowRight className={cn("w-5 h-5", lane.valid ? "text-green-500" : "text-gray-500")} />
-                    )}
-                    {lane.indications.includes("left") && (
-                      <ArrowLeft className={cn("w-5 h-5", lane.valid ? "text-green-500" : "text-gray-500")} />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Traffic alerts */}
-          {settings.showIncidents && (
-            <div className="absolute bottom-20 right-4 bg-red-600 text-white px-3 py-2 rounded-lg z-10 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" />
-              <span className="text-sm">Traffic ahead</span>
-            </div>
-          )}
-        </>
-      )}
+      {/* TomTom style UI overlays - show on top of Mapbox when loaded */}
+      {mapLoaded && !mapError && <TomTomStyleOverlay />}
     </div>
   )
 }

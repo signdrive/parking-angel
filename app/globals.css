@@ -136,3 +136,33 @@
 .turn-highlight {
   animation: turn-highlight 1s ease-in-out infinite;
 }
+
+/* Add these custom styles for the TomTom-style navigation */
+.perspective {
+  perspective: 1000px;
+}
+
+.rotate-x-60 {
+  transform: rotateX(60deg);
+}
+
+.dashed-line {
+  background: repeating-linear-gradient(to bottom, white, white 10px, transparent 10px, transparent 20px);
+}
+
+/* Add animation for the route arrows */
+@keyframes pulse-arrow {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
+  }
+}
+
+.pulse-arrow {
+  animation: pulse-arrow 2s infinite;
+}
