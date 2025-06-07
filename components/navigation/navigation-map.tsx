@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
 import { cn } from "@/lib/utils"
-import { Navigation, MapPin, ArrowUp, ArrowRight, ArrowLeft, RotateCcw, Mountain, Satellite, Eye } from "lucide-react"
+import { Navigation, ArrowUp, ArrowRight, ArrowLeft, AlertTriangle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 interface NavigationMapProps {
   mapboxToken?: string
@@ -22,245 +23,331 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
   const isDayMode =
     settings.theme === "day" || (settings.theme === "auto" && new Date().getHours() >= 6 && new Date().getHours() < 20)
 
-  // Enhanced street visualization with different modes
-  const EnhancedStreetVisualization = () => {
+  // TomTom-like street visualization
+  const TomTomStyleNavigation = () => {
     if (!currentRoute || !currentRoute.steps[currentStep]) return null
 
     const currentStepData = currentRoute.steps[currentStep]
     const nextStep = currentRoute.steps[currentStep + 1]
+    const distanceToNextTurn = nextStep ? nextStep.distance : 0
+    const distanceFormatted = navigationService.formatDistance(distanceToNextTurn)
 
-    // Different visual styles based on settings
-    const getMapStyle = () => {
-      switch (settings.mapStyle) {
-        case "satellite":
-          return {
-            background: "bg-green-800",
-            road: "bg-gray-600",
-            buildings: "bg-green-900",
-            overlay: "satellite view",
-          }
-        case "terrain":
-          return {
-            background: "bg-amber-100",
-            road: "bg-gray-400",
-            buildings: "bg-amber-200",
-            overlay: "terrain view",
-          }
-        case "hybrid":
-          return {
-            background: "bg-green-700",
-            road: "bg-gray-500",
-            buildings: "bg-green-800",
-            overlay: "hybrid view",
-          }
+    // Get maneuver type for next turn
+    const getNextManeuverType = () => {
+      if (!nextStep) return "straight"
+      return nextStep.maneuver.type
+    }
+
+    const nextManeuver = getNextManeuverType()
+
+    // Get large arrow for next turn
+    const getLargeArrow = () => {
+      switch (nextManeuver) {
+        case "turn-left":
+          return (
+            <div className="transform -rotate-90">
+              <div className="w-16 h-16 border-t-[16px] border-t-yellow-500 border-r-[16px] border-r-transparent border-l-[16px] border-l-transparent" />
+            </div>
+          )
+        case "turn-right":
+          return (
+            <div className="transform rotate-90">
+              <div className="w-16 h-16 border-t-[16px] border-t-yellow-500 border-r-[16px] border-r-transparent border-l-[16px] border-l-transparent" />
+            </div>
+          )
+        case "roundabout":
+          return (
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 border-4 border-yellow-500 rounded-full" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-t-[8px] border-t-yellow-500 border-r-[8px] border-r-transparent border-l-[8px] border-l-transparent transform rotate-45" />
+            </div>
+          )
         default:
-          return {
-            background: isDayMode ? "bg-gray-100" : "bg-gray-800",
-            road: isDayMode ? "bg-gray-300" : "bg-gray-600",
-            buildings: isDayMode ? "bg-gray-400" : "bg-gray-700",
-            overlay: "navigation view",
-          }
+          return (
+            <div className="transform -rotate-180">
+              <div className="w-16 h-16 border-t-[16px] border-t-yellow-500 border-r-[16px] border-r-transparent border-l-[16px] border-l-transparent" />
+            </div>
+          )
       }
     }
 
-    const mapStyle = getMapStyle()
+    // Lane guidance visualization
+    const renderLaneGuidance = () => {
+      if (!currentStepData.laneGuidance) return null
 
-    // Different perspectives based on view mode
-    const getViewPerspective = () => {
-      switch (settings.viewMode) {
-        case "3d":
-          return {
-            perspective: "perspective-1000",
-            transform: "rotateX(60deg)",
-            buildings: "h-32",
-            description: "3D perspective view",
-          }
-        case "bird-eye":
-          return {
-            perspective: "perspective-500",
-            transform: "rotateX(30deg)",
-            buildings: "h-24",
-            description: "bird's eye view",
-          }
-        case "follow":
-          return {
-            perspective: "",
-            transform: "rotateX(0deg)",
-            buildings: "h-20",
-            description: "follow mode",
-          }
-        default:
-          return {
-            perspective: "",
-            transform: "rotateX(0deg)",
-            buildings: "h-16",
-            description: "2D top-down view",
-          }
-      }
+      return (
+        <div className="absolute top-32 left-0 right-0 flex justify-center">
+          <div className="bg-black/80 rounded-lg p-3">
+            <div className="flex gap-1">
+              {currentStepData.laneGuidance.lanes.map((lane, idx) => (
+                <div
+                  key={idx}
+                  className={cn(
+                    "w-10 h-16 border-2 rounded flex flex-col items-center justify-end pb-1",
+                    lane.valid ? "border-green-500 bg-green-900/30" : "border-gray-500 bg-gray-800/30",
+                  )}
+                >
+                  {lane.indications.includes("straight") && (
+                    <ArrowUp className={cn("w-6 h-6", lane.valid ? "text-green-500" : "text-gray-500")} />
+                  )}
+                  {lane.indications.includes("right") && (
+                    <ArrowRight className={cn("w-6 h-6", lane.valid ? "text-green-500" : "text-gray-500")} />
+                  )}
+                  {lane.indications.includes("left") && (
+                    <ArrowLeft className={cn("w-6 h-6", lane.valid ? "text-green-500" : "text-gray-500")} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
     }
-
-    const viewPerspective = getViewPerspective()
 
     return (
-      <div className={cn("h-full relative overflow-hidden", mapStyle.background)}>
-        {/* Map Style Indicator */}
-        <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded-lg text-sm z-10">
-          {mapStyle.overlay} • {viewPerspective.description}
-        </div>
+      <div className={cn("h-full relative overflow-hidden", isDayMode ? "bg-gray-100" : "bg-gray-900")}>
+        {/* 3D Perspective Container */}
+        <div className="h-full w-full perspective-1000">
+          <div className="h-full w-full transition-transform duration-500" style={{ transform: "rotateX(60deg)" }}>
+            {/* Sky */}
+            <div
+              className={cn(
+                "absolute top-0 left-0 right-0 h-1/2",
+                isDayMode ? "bg-gradient-to-b from-blue-300 to-blue-100" : "bg-gradient-to-b from-gray-900 to-gray-800",
+              )}
+            />
 
-        {/* 3D Container */}
-        <div className={cn("h-full w-full", viewPerspective.perspective)}>
-          <div
-            className="h-full w-full transition-transform duration-500"
-            style={{ transform: viewPerspective.transform }}
-          >
-            {/* Street Background */}
-            <div className="absolute inset-0">
-              {/* Main road */}
-              <div className={cn("absolute left-1/2 transform -translate-x-1/2 w-32 h-full", mapStyle.road)}>
-                {/* Road markings */}
-                <div className="absolute left-1/2 transform -translate-x-1/2 w-1 h-full bg-white opacity-60">
-                  <div className="flex flex-col h-full">
-                    {Array.from({ length: 20 }).map((_, i) => (
-                      <div key={i} className="flex-1 border-b-4 border-transparent border-b-white opacity-80" />
-                    ))}
+            {/* Horizon */}
+            <div className={cn("absolute top-1/2 left-0 right-0 h-px", isDayMode ? "bg-gray-300" : "bg-gray-700")} />
+
+            {/* Ground */}
+            <div
+              className={cn("absolute top-1/2 left-0 right-0 bottom-0", isDayMode ? "bg-gray-200" : "bg-gray-800")}
+            />
+
+            {/* Main road with perspective */}
+            <div className="absolute top-1/2 left-0 right-0 bottom-0 flex justify-center perspective-1000">
+              <div
+                className={cn(
+                  "relative w-full max-w-md h-full transform-gpu",
+                  isDayMode ? "bg-gray-400" : "bg-gray-700",
+                )}
+                style={{
+                  clipPath: "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
+                }}
+              >
+                {/* Road surface */}
+                <div
+                  className={cn("absolute inset-[2px] transform-gpu", isDayMode ? "bg-gray-300" : "bg-gray-600")}
+                  style={{
+                    clipPath: "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
+                  }}
+                >
+                  {/* Center line */}
+                  <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-yellow-400 transform -translate-x-1/2">
+                    <div className="h-full flex flex-col">
+                      {Array.from({ length: 20 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="flex-1 border-b-4 border-transparent"
+                          style={{
+                            borderBottomColor: i % 2 === 0 ? "rgba(250, 204, 21, 0.8)" : "transparent",
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Side lines */}
+                  <div className="absolute left-[15%] top-0 bottom-0 w-[3px] bg-white" />
+                  <div className="absolute right-[15%] top-0 bottom-0 w-[3px] bg-white" />
                 </div>
               </div>
-
-              {/* Side streets */}
-              <div className={cn("absolute top-1/3 left-0 right-0 h-20", mapStyle.road)} />
-              <div className={cn("absolute top-2/3 left-0 right-0 h-20", mapStyle.road)} />
-
-              {/* Buildings with different heights based on view mode */}
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "absolute w-16 rounded-sm transition-all duration-500",
-                    mapStyle.buildings,
-                    viewPerspective.buildings,
-                    i % 2 === 0 ? "left-4" : "right-4",
-                  )}
-                  style={{
-                    top: `${5 + i * 8}%`,
-                    height:
-                      settings.viewMode === "3d" ? `${80 + Math.random() * 60}px` : `${40 + Math.random() * 30}px`,
-                  }}
-                />
-              ))}
-
-              {/* Satellite view overlay */}
-              {settings.mapStyle === "satellite" && (
-                <div className="absolute inset-0 bg-green-900/20">
-                  {/* Simulate satellite imagery patterns */}
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="absolute bg-green-700/30 rounded-full"
-                      style={{
-                        left: `${20 + i * 15}%`,
-                        top: `${10 + i * 12}%`,
-                        width: `${30 + Math.random() * 20}px`,
-                        height: `${30 + Math.random() * 20}px`,
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Terrain view overlay */}
-              {settings.mapStyle === "terrain" && (
-                <div className="absolute inset-0">
-                  {/* Contour lines */}
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="absolute border-amber-600 border-2 rounded-full opacity-30"
-                      style={{
-                        left: `${10 + i * 20}%`,
-                        top: `${15 + i * 15}%`,
-                        width: `${100 + i * 50}px`,
-                        height: `${100 + i * 50}px`,
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
 
+            {/* 3D Buildings */}
+            <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none">
+              {/* Left side buildings */}
+              {Array.from({ length: 6 }).map((_, i) => {
+                const height = 120 + Math.random() * 80
+                const width = 80 + Math.random() * 40
+                const distance = 10 + i * 15
+                const opacity = 1 - i * 0.15
+
+                return (
+                  <div
+                    key={`left-${i}`}
+                    className={cn("absolute transform-gpu", isDayMode ? "bg-blue-100" : "bg-gray-700")}
+                    style={{
+                      height: `${height}px`,
+                      width: `${width}px`,
+                      bottom: `${50 + i * 2}%`,
+                      left: `${distance}%`,
+                      opacity,
+                      transform: `translateZ(${i * 10}px)`,
+                    }}
+                  >
+                    {/* Windows */}
+                    <div className="absolute inset-1 grid grid-cols-3 grid-rows-5 gap-1">
+                      {Array.from({ length: 15 }).map((_, j) => (
+                        <div
+                          key={j}
+                          className={cn(
+                            "rounded-sm",
+                            isDayMode
+                              ? j % 3 === 0
+                                ? "bg-blue-200"
+                                : "bg-blue-300"
+                              : j % 3 === 0
+                                ? "bg-yellow-500/20"
+                                : "bg-gray-800",
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Right side buildings */}
+              {Array.from({ length: 6 }).map((_, i) => {
+                const height = 120 + Math.random() * 80
+                const width = 80 + Math.random() * 40
+                const distance = 10 + i * 15
+                const opacity = 1 - i * 0.15
+
+                return (
+                  <div
+                    key={`right-${i}`}
+                    className={cn("absolute transform-gpu", isDayMode ? "bg-blue-100" : "bg-gray-700")}
+                    style={{
+                      height: `${height}px`,
+                      width: `${width}px`,
+                      bottom: `${50 + i * 2}%`,
+                      right: `${distance}%`,
+                      opacity,
+                      transform: `translateZ(${i * 10}px)`,
+                    }}
+                  >
+                    {/* Windows */}
+                    <div className="absolute inset-1 grid grid-cols-3 grid-rows-5 gap-1">
+                      {Array.from({ length: 15 }).map((_, j) => (
+                        <div
+                          key={j}
+                          className={cn(
+                            "rounded-sm",
+                            isDayMode
+                              ? j % 3 === 0
+                                ? "bg-blue-200"
+                                : "bg-blue-300"
+                              : j % 3 === 0
+                                ? "bg-yellow-500/20"
+                                : "bg-gray-800",
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Intersections */}
+            {nextManeuver !== "straight" && (
+              <div className={cn("absolute top-[30%] left-0 right-0 h-24", isDayMode ? "bg-gray-300" : "bg-gray-600")}>
+                {/* Intersection markings */}
+                <div className="absolute left-0 right-0 top-1/2 h-[2px] bg-white transform -translate-y-1/2" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-yellow-400 transform -translate-x-1/2" />
+              </div>
+            )}
+
             {/* Current Position */}
-            <div className="absolute left-1/2 bottom-20 transform -translate-x-1/2 z-20">
+            <div className="absolute left-1/2 bottom-[15%] transform -translate-x-1/2 z-20">
               <div className="relative">
-                <div className="w-8 h-8 bg-blue-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
-                  <ArrowUp className="w-4 h-4 text-white" />
+                <div className="w-12 h-12 bg-blue-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
+                  <ArrowUp className="w-6 h-6 text-white" />
                 </div>
-                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-4 border-transparent border-t-blue-600" />
+                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-8 border-transparent border-t-blue-600" />
               </div>
             </div>
 
             {/* Route Line */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 w-2 h-full bg-blue-500 opacity-80 z-10" />
+            <div
+              className="absolute left-1/2 top-[30%] bottom-[15%] w-4 bg-blue-500 opacity-80 z-10 transform -translate-x-1/2"
+              style={{
+                clipPath:
+                  nextManeuver === "turn-left"
+                    ? "polygon(0% 70%, 100% 70%, 100% 100%, 0% 100%)"
+                    : nextManeuver === "turn-right"
+                      ? "polygon(0% 70%, 100% 70%, 100% 100%, 0% 100%)"
+                      : "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)",
+              }}
+            />
 
-            {/* Turn Indicator */}
-            {nextStep && (
-              <div className="absolute left-1/2 top-1/3 transform -translate-x-1/2 z-20">
-                <div className="bg-yellow-500 rounded-full p-3 shadow-lg animate-pulse">
-                  {nextStep.maneuver.type === "turn-left" && <ArrowLeft className="w-6 h-6 text-white" />}
-                  {nextStep.maneuver.type === "turn-right" && <ArrowRight className="w-6 h-6 text-white" />}
-                  {nextStep.maneuver.type === "straight" && <ArrowUp className="w-6 h-6 text-white" />}
-                  {nextStep.maneuver.type === "roundabout" && <RotateCcw className="w-6 h-6 text-white" />}
-                </div>
-              </div>
+            {/* Turn visualization */}
+            {nextManeuver === "turn-left" && (
+              <div className="absolute top-[30%] left-0 w-1/2 h-4 bg-blue-500 opacity-80 z-10" />
             )}
-
-            {/* Destination */}
-            {currentStep === currentRoute.steps.length - 1 && (
-              <div className="absolute left-1/2 top-20 transform -translate-x-1/2 z-20">
-                <div className="bg-red-600 rounded-full p-3 shadow-lg">
-                  <MapPin className="w-6 h-6 text-white" />
-                </div>
-              </div>
+            {nextManeuver === "turn-right" && (
+              <div className="absolute top-[30%] right-0 w-1/2 h-4 bg-blue-500 opacity-80 z-10" />
             )}
           </div>
         </div>
 
+        {/* TomTom-style UI Overlays */}
+        {/* Large Next Turn Arrow */}
+        <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 z-30">{getLargeArrow()}</div>
+
+        {/* Distance to next turn - large counter */}
+        {nextStep && (
+          <div className="absolute top-[40%] left-1/2 transform -translate-x-1/2 z-30 text-center">
+            <div className="bg-black/70 text-white px-6 py-3 rounded-lg">
+              <div className="text-3xl font-bold">{distanceFormatted}</div>
+              <div className="text-sm opacity-80">to next turn</div>
+            </div>
+          </div>
+        )}
+
+        {/* Lane guidance */}
+        {renderLaneGuidance()}
+
         {/* Street Names */}
-        <div className="absolute top-16 left-4 bg-black/70 text-white px-3 py-1 rounded-lg text-sm z-10">
+        <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded-lg text-sm z-30">
           {currentStepData.streetName}
         </div>
 
         {nextStep && (
-          <div className="absolute top-1/3 right-4 bg-black/70 text-white px-3 py-1 rounded-lg text-sm z-10">
+          <div className="absolute top-16 left-4 bg-black/70 text-white px-3 py-1 rounded-lg text-sm z-30">
             Next: {nextStep.streetName}
           </div>
         )}
 
         {/* Speed Limit */}
         {currentStepData.speedLimit && (
-          <div className="absolute top-4 right-4 bg-white border-2 border-red-600 rounded-lg p-2 text-center z-10">
-            <div className="text-lg font-bold text-red-600">{currentStepData.speedLimit}</div>
-            <div className="text-xs text-gray-600">{settings.units === "metric" ? "KM/H" : "MPH"}</div>
+          <div className="absolute top-4 right-4 bg-white border-2 border-red-600 rounded-full p-2 text-center z-30 w-16 h-16 flex flex-col items-center justify-center">
+            <div className="text-xl font-bold text-black">{currentStepData.speedLimit}</div>
+            <div className="text-xs text-gray-600">{settings.units === "metric" ? "km/h" : "mph"}</div>
           </div>
         )}
 
-        {/* Distance to next turn */}
-        <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg text-center z-10">
-          <div className="text-2xl font-bold">{navigationService.formatDistance(currentStepData.distance)}</div>
-          <div className="text-xs opacity-75">to next turn</div>
+        {/* Traffic incidents */}
+        <div className="absolute bottom-32 right-4 z-30">
+          <Badge variant="destructive" className="flex items-center gap-1 px-3 py-1">
+            <AlertTriangle className="w-4 h-4" />
+            <span>Traffic ahead</span>
+          </Badge>
         </div>
 
-        {/* View Mode Indicator */}
-        <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded-lg text-sm z-10 flex items-center gap-2">
-          {settings.viewMode === "3d" && <Mountain className="w-4 h-4" />}
-          {settings.viewMode === "bird-eye" && <Eye className="w-4 h-4" />}
-          {settings.mapStyle === "satellite" && <Satellite className="w-4 h-4" />}
-          <span className="capitalize">{settings.viewMode}</span>
+        {/* Current speed */}
+        <div className="absolute bottom-4 left-4 bg-black/70 text-white px-4 py-2 rounded-lg z-30">
+          <div className="text-2xl font-bold">35</div>
+          <div className="text-xs opacity-75">{settings.units === "metric" ? "km/h" : "mph"}</div>
         </div>
 
-        {/* Route Preference Indicator */}
-        <div className="absolute bottom-16 right-4 bg-black/70 text-white px-3 py-1 rounded-lg text-sm z-10">
-          Route: {settings.routePreference}
+        {/* ETA */}
+        <div className="absolute bottom-4 right-4 bg-black/70 text-white px-4 py-2 rounded-lg z-30">
+          <div className="text-lg font-bold">12:45</div>
+          <div className="text-xs opacity-75">ETA</div>
         </div>
       </div>
     )
@@ -273,7 +360,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     const loadMapbox = async () => {
       try {
         if (!mapboxToken) {
-          console.log("No Mapbox token, using enhanced fallback visualization")
+          console.log("No Mapbox token, using TomTom-style visualization")
           setMapError(true)
           return
         }
@@ -387,8 +474,8 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
       {/* Mapbox container */}
       <div ref={mapContainer} className={cn("w-full h-full", mapError ? "hidden" : "block")} />
 
-      {/* Enhanced fallback street visualization */}
-      {(mapError || !mapLoaded) && <EnhancedStreetVisualization />}
+      {/* TomTom-style visualization */}
+      {(mapError || !mapLoaded) && <TomTomStyleNavigation />}
 
       {/* Loading state */}
       {!mapLoaded && !mapError && (

@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
 import { NavigationMap } from "./navigation-map"
@@ -18,7 +16,6 @@ import {
   Sun,
   Moon,
   MapPin,
-  Gauge,
   AlertTriangle,
   CheckCircle,
   RotateCcw,
@@ -188,87 +185,21 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
         isDayMode ? "bg-white text-gray-900" : "bg-gray-900 text-white",
       )}
     >
-      {/* Header */}
+      {/* TomTom-style Header */}
       <div
         className={cn(
-          "flex items-center justify-between p-4 border-b",
-          isDayMode ? "bg-white border-gray-200" : "bg-gray-800 border-gray-700",
+          "flex items-center justify-between p-3 border-b",
+          isDayMode ? "bg-blue-600 border-blue-700 text-white" : "bg-blue-900 border-blue-950 text-white",
         )}
       >
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onExit}
-            className={cn("rounded-full", isDayMode ? "hover:bg-gray-100" : "hover:bg-gray-700")}
-          >
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={onExit} className="rounded-full text-white hover:bg-blue-700">
             <ArrowLeft className="w-5 h-5" />
           </Button>
 
           <div className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-blue-500" />
+            <MapPin className="w-5 h-5 text-white" />
             <span className="font-medium truncate max-w-48">{destination.name}</span>
-          </div>
-
-          {/* Active Settings Indicators - Make them clickable */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-6 px-2"
-              onClick={() => {
-                const nextViewMode = settings.viewMode === "3d" ? "2d" : "3d"
-                updateSettings({ viewMode: nextViewMode })
-                toast({
-                  title: "View Mode Changed",
-                  description: `Switched to ${nextViewMode.toUpperCase()} view`,
-                  duration: 2000,
-                })
-              }}
-            >
-              <ViewModeIcon className="w-3 h-3 mr-1" />
-              {settings.viewMode.toUpperCase()}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-6 px-2"
-              onClick={() => {
-                const styles = ["navigation", "satellite", "terrain", "street", "hybrid"] as const
-                const currentIndex = styles.indexOf(settings.mapStyle)
-                const nextStyle = styles[(currentIndex + 1) % styles.length]
-                updateSettings({ mapStyle: nextStyle })
-                toast({
-                  title: "Map Style Changed",
-                  description: `Switched to ${nextStyle} style`,
-                  duration: 2000,
-                })
-              }}
-            >
-              <MapStyleIcon className="w-3 h-3 mr-1" />
-              {settings.mapStyle}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-6 px-2"
-              onClick={() => {
-                const preferences = ["fastest", "shortest", "eco", "avoid-highways"] as const
-                const currentIndex = preferences.indexOf(settings.routePreference)
-                const nextPreference = preferences[(currentIndex + 1) % preferences.length]
-                updateSettings({ routePreference: nextPreference })
-                toast({
-                  title: "Route Preference Changed",
-                  description: `Switched to ${nextPreference} route`,
-                  duration: 2000,
-                })
-              }}
-            >
-              <RoutePreferenceIcon className="w-3 h-3 mr-1" />
-              {settings.routePreference}
-            </Button>
           </div>
         </div>
 
@@ -279,33 +210,29 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
               className={cn(
                 "w-2 h-2 rounded-full",
                 gpsSignalStrength === "strong"
-                  ? "bg-green-500"
+                  ? "bg-green-400"
                   : gpsSignalStrength === "weak"
-                    ? "bg-yellow-500"
-                    : "bg-red-500",
+                    ? "bg-yellow-400"
+                    : "bg-red-400",
               )}
             />
-            <span className="text-xs">GPS</span>
+            <span className="text-xs text-white">GPS</span>
           </div>
 
           {/* Voice Toggle */}
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => updateSettings({ voiceGuidance: !settings.voiceGuidance })}
-            className={cn("rounded-full", isDayMode ? "hover:bg-gray-100" : "hover:bg-gray-700")}
+            onClick={() => {
+              updateSettings({ voiceGuidance: !settings.voiceGuidance })
+              toast({
+                title: settings.voiceGuidance ? "Voice guidance off" : "Voice guidance on",
+                duration: 2000,
+              })
+            }}
+            className="rounded-full text-white hover:bg-blue-700"
           >
             {settings.voiceGuidance ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </Button>
-
-          {/* Theme Toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => updateSettings({ theme: isDayMode ? "night" : "day" })}
-            className={cn("rounded-full", isDayMode ? "hover:bg-gray-100" : "hover:bg-gray-700")}
-          >
-            {isDayMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
           </Button>
 
           {/* Settings */}
@@ -313,63 +240,97 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
             variant="ghost"
             size="icon"
             onClick={() => setShowSettings(true)}
-            className={cn("rounded-full", isDayMode ? "hover:bg-gray-100" : "hover:bg-gray-700")}
+            className="rounded-full text-white hover:bg-blue-700"
           >
             <Settings className="w-4 h-4" />
           </Button>
         </div>
       </div>
 
-      {/* Current Instruction */}
-      <div className={cn("p-6 border-b", isDayMode ? "bg-blue-50 border-gray-200" : "bg-blue-900/20 border-gray-700")}>
-        <div className="flex items-center gap-4">
-          <div className="text-4xl">{navigationService.getManeuverIcon(currentStepData.maneuver)}</div>
-          <div className="flex-1">
-            <div className="text-lg font-medium mb-1">{currentStepData.instruction}</div>
-            <div className="text-sm opacity-75">{currentStepData.streetName}</div>
-            {settings.showSpeedLimits && currentStepData.speedLimit && (
-              <Badge variant="outline" className="mt-2">
-                <Gauge className="w-3 h-3 mr-1" />
-                {currentStepData.speedLimit} {settings.units === "metric" ? "km/h" : "mph"}
-              </Badge>
-            )}
-          </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold">{navigationService.formatDistance(currentStepData.distance)}</div>
-            <div className="text-sm opacity-75">{navigationService.formatDuration(currentStepData.duration)}</div>
-          </div>
+      {/* Navigation Options Bar - TomTom style */}
+      <div
+        className={cn(
+          "flex items-center justify-between px-2 py-1 border-b",
+          isDayMode ? "bg-blue-500 border-blue-600 text-white" : "bg-blue-800 border-blue-900 text-white",
+        )}
+      >
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-7 px-2 text-white hover:bg-blue-600"
+            onClick={() => {
+              const nextViewMode = settings.viewMode === "3d" ? "2d" : "3d"
+              updateSettings({ viewMode: nextViewMode })
+              toast({
+                title: "View Mode Changed",
+                description: `Switched to ${nextViewMode.toUpperCase()} view`,
+                duration: 2000,
+              })
+            }}
+          >
+            <ViewModeIcon className="w-3 h-3 mr-1" />
+            {settings.viewMode.toUpperCase()}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-7 px-2 text-white hover:bg-blue-600"
+            onClick={() => {
+              const styles = ["navigation", "satellite", "terrain", "street", "hybrid"] as const
+              const currentIndex = styles.indexOf(settings.mapStyle)
+              const nextStyle = styles[(currentIndex + 1) % styles.length]
+              updateSettings({ mapStyle: nextStyle })
+              toast({
+                title: "Map Style Changed",
+                description: `Switched to ${nextStyle} style`,
+                duration: 2000,
+              })
+            }}
+          >
+            <MapStyleIcon className="w-3 h-3 mr-1" />
+            {settings.mapStyle}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-7 px-2 text-white hover:bg-blue-600"
+            onClick={() => {
+              const preferences = ["fastest", "shortest", "eco", "avoid-highways"] as const
+              const currentIndex = preferences.indexOf(settings.routePreference)
+              const nextPreference = preferences[(currentIndex + 1) % preferences.length]
+              updateSettings({ routePreference: nextPreference })
+              toast({
+                title: "Route Preference Changed",
+                description: `Switched to ${nextPreference} route`,
+                duration: 2000,
+              })
+            }}
+          >
+            <RoutePreferenceIcon className="w-3 h-3 mr-1" />
+            {settings.routePreference}
+          </Button>
         </div>
 
-        {/* Progress Bar */}
-        <Progress value={progressPercentage} className="mt-4" />
+        {/* Theme Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => updateSettings({ theme: isDayMode ? "night" : "day" })}
+          className="text-xs h-7 px-2 text-white hover:bg-blue-600"
+        >
+          {isDayMode ? <Moon className="w-3 h-3 mr-1" /> : <Sun className="w-3 h-3 mr-1" />}
+          {isDayMode ? "Night" : "Day"}
+        </Button>
       </div>
-
-      {/* Lane Guidance */}
-      {settings.showLaneGuidance && currentStepData.laneGuidance && (
-        <div className={cn("p-4 border-b", isDayMode ? "bg-gray-50 border-gray-200" : "bg-gray-800 border-gray-700")}>
-          <div className="flex justify-center gap-2">
-            {currentStepData.laneGuidance.lanes.map((lane, index) => (
-              <div
-                key={index}
-                className={cn(
-                  "w-8 h-12 border-2 rounded flex items-end justify-center pb-1",
-                  lane.valid
-                    ? "border-green-500 bg-green-100 text-green-700"
-                    : "border-gray-300 bg-gray-100 text-gray-400",
-                )}
-              >
-                ↑
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Status Alerts */}
       {(isOffRoute || isRecalculating || gpsSignalStrength === "lost" || lastMileWalking) && (
-        <div className="p-4">
+        <div className="p-2">
           {isRecalculating && (
-            <Card className="mb-2">
+            <Card className="mb-2 bg-blue-50 border-blue-200">
               <CardContent className="p-3 flex items-center gap-3">
                 <RotateCcw className="w-5 h-5 animate-spin text-blue-500" />
                 <span>Recalculating route...</span>
@@ -378,7 +339,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           )}
 
           {isOffRoute && !isRecalculating && (
-            <Card className="mb-2">
+            <Card className="mb-2 bg-yellow-50 border-yellow-200">
               <CardContent className="p-3 flex items-center gap-3">
                 <AlertTriangle className="w-5 h-5 text-yellow-500" />
                 <span>Off route - calculating new path</span>
@@ -387,7 +348,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           )}
 
           {gpsSignalStrength === "lost" && (
-            <Card className="mb-2">
+            <Card className="mb-2 bg-red-50 border-red-200">
               <CardContent className="p-3 flex items-center gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-500" />
                 <span>GPS signal lost - trying to reconnect</span>
@@ -396,7 +357,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           )}
 
           {lastMileWalking && (
-            <Card className="mb-2">
+            <Card className="mb-2 bg-green-50 border-green-200">
               <CardContent className="p-3 flex items-center gap-3">
                 <Walking className="w-5 h-5 text-green-500" />
                 <span>Switch to walking directions - you're almost there!</span>
@@ -406,7 +367,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
         </div>
       )}
 
-      {/* Navigation Map */}
+      {/* Navigation Map - Main Content */}
       <div className="flex-1 relative">
         {mapboxToken ? (
           <NavigationMap mapboxToken={mapboxToken} />
@@ -420,8 +381,13 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
         )}
       </div>
 
-      {/* Bottom Info Bar */}
-      <div className={cn("p-4 border-t", isDayMode ? "bg-white border-gray-200" : "bg-gray-800 border-gray-700")}>
+      {/* Bottom Info Bar - TomTom style */}
+      <div
+        className={cn(
+          "p-3 border-t",
+          isDayMode ? "bg-blue-600 border-blue-700 text-white" : "bg-blue-900 border-blue-950 text-white",
+        )}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="text-center">
