@@ -571,9 +571,47 @@ export function EnhancedParkingMap({
             </div>
             ${spot.price_per_hour ? `<p class="text-green-600 font-medium">$${spot.price_per_hour}/hour</p>` : '<p class="text-blue-600">Free</p>'}
             ${spot.total_spaces ? `<p class="text-gray-500">${spot.available_spaces || "?"}/${spot.total_spaces} spaces</p>` : ""}
+            <button 
+              class="w-full mt-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium navigate-btn" 
+              data-spot-id="${spot.id}"
+              data-spot-name="${spot.name}"
+              data-spot-lat="${spot.latitude}"
+              data-spot-lng="${spot.longitude}"
+            >
+              🧭 Navigate Here
+            </button>
           </div>
         </div>
       `)
+
+      // Add event listener for navigate button in popup
+      popup.on("open", () => {
+        const navigateBtn = document.querySelector(".navigate-btn")
+        if (navigateBtn) {
+          navigateBtn.addEventListener("click", (e) => {
+            e.preventDefault()
+            const btn = e.target as HTMLButtonElement
+            const spotData = {
+              id: Number.parseInt(btn.dataset.spotId!),
+              name: btn.dataset.spotName!,
+              latitude: Number.parseFloat(btn.dataset.spotLat!),
+              longitude: Number.parseFloat(btn.dataset.spotLng!),
+              address: spot.address,
+              spot_type: spot.spot_type,
+              provider: spot.provider,
+              price_per_hour: spot.price_per_hour,
+              is_available: spot.is_available,
+              real_time_data: spot.real_time_data,
+              total_spaces: spot.total_spaces,
+              available_spaces: spot.available_spaces,
+            } as RealParkingSpot
+
+            console.log("🎯 Popup Navigate clicked for:", spotData.name)
+            startNavigationToSpot(spotData)
+            popup.remove() // Close popup after starting navigation
+          })
+        }
+      })
 
       const marker = new mapboxgl.Marker(el)
         .setLngLat([spot.longitude, spot.latitude])

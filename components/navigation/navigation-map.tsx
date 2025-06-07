@@ -29,10 +29,12 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     const loadMapbox = async () => {
       try {
         if (!mapboxToken) {
-          console.log("No Mapbox token available")
+          console.log("No Mapbox token available, using fallback")
           setMapError(true)
           return
         }
+
+        console.log("Loading Mapbox for navigation...")
 
         // Dynamic import of mapbox-gl
         const mapboxgl = await import("mapbox-gl")
@@ -74,6 +76,10 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
         map.on("load", () => {
           if (!mounted) return
+
+          console.log("✅ Navigation Mapbox loaded successfully")
+          setMapLoaded(true)
+          setMapError(false) // Ensure error state is cleared
 
           // Add navigation route
           if (currentRoute) {
@@ -151,13 +157,10 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
               .setLngLat([userLocation.longitude, userLocation.latitude])
               .addTo(map)
           }
-
-          setMapLoaded(true)
-          console.log("✅ Navigation map loaded successfully")
         })
 
         map.on("error", (e) => {
-          console.error("❌ Mapbox error:", e)
+          console.error("❌ Navigation Mapbox error:", e)
           if (mounted) {
             setMapError(true)
           }
@@ -167,7 +170,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           if (map) map.remove()
         }
       } catch (error) {
-        console.error("❌ Failed to load Mapbox:", error)
+        console.error("❌ Failed to load Navigation Mapbox:", error)
         if (mounted) {
           setMapError(true)
         }
@@ -324,24 +327,24 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
   return (
     <div className="relative w-full h-full">
-      {/* Mapbox container */}
-      <div ref={mapContainer} className={cn("w-full h-full", mapError ? "hidden" : "block")} />
+      {/* Mapbox container - show when loaded and no error */}
+      <div ref={mapContainer} className={cn("w-full h-full", mapError || !mapLoaded ? "hidden" : "block")} />
 
-      {/* Fallback when Mapbox fails */}
+      {/* Fallback when Mapbox fails or is loading */}
       {(mapError || !mapLoaded) && <GoogleMapsStyleFallback />}
 
-      {/* Loading state */}
+      {/* Loading state - only show when not loaded and no error */}
       {!mapLoaded && !mapError && (
         <div className="absolute inset-0 flex items-center justify-center bg-white">
           <div className="text-center">
             <Navigation className="w-12 h-12 mx-auto mb-2 text-blue-600 animate-pulse" />
-            <p className="text-sm text-gray-600">Loading Navigation...</p>
+            <p className="text-sm text-gray-600">Loading Navigation Map...</p>
           </div>
         </div>
       )}
 
-      {/* Navigation overlays */}
-      {mapLoaded && currentRoute && (
+      {/* Navigation overlays - show regardless of map type */}
+      {currentRoute && (
         <>
           {/* Next turn instruction overlay */}
           {currentRoute.steps[currentStep + 1] && (
