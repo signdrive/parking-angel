@@ -51,6 +51,9 @@ export interface NavigationSettings {
 }
 
 interface NavigationState {
+  // Navigation state
+  isNavigating: boolean
+
   // Route data
   currentRoute: NavigationRoute | null
   currentStep: number
@@ -64,6 +67,7 @@ interface NavigationState {
     latitude: number
     longitude: number
     name: string
+    spotId?: string
   } | null
 
   // Navigation state
@@ -80,8 +84,13 @@ interface NavigationState {
   settings: NavigationSettings
 
   // Actions
+  startNavigation: (
+    destination: { latitude: number; longitude: number; name: string; spotId?: string },
+    route: NavigationRoute,
+  ) => void
+  stopNavigation: () => void
   setRoute: (route: NavigationRoute) => void
-  setDestination: (destination: { latitude: number; longitude: number; name: string }) => void
+  setDestination: (destination: { latitude: number; longitude: number; name: string; spotId?: string }) => void
   updateUserLocation: (location: { latitude: number; longitude: number; heading: number; speed: number }) => void
   nextStepAction: () => void
   recalculateRoute: () => void
@@ -93,6 +102,7 @@ interface NavigationState {
 
 export const useNavigationStore = create<NavigationState>((set, get) => ({
   // Initial state
+  isNavigating: false,
   currentRoute: null,
   currentStep: 0,
   userLocation: null,
@@ -121,6 +131,36 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   },
 
   // Actions
+  startNavigation: (destination, route) => {
+    console.log("🚀 Starting navigation to:", destination.name)
+    set({
+      isNavigating: true,
+      destination,
+      currentRoute: route,
+      currentStep: 0,
+      remainingDistance: route.distance,
+      remainingTime: route.duration,
+      eta: new Date(Date.now() + route.duration * 1000),
+      nextStep: route.steps[1] || null,
+    })
+  },
+
+  stopNavigation: () => {
+    console.log("🛑 Stopping navigation")
+    set({
+      isNavigating: false,
+      currentRoute: null,
+      currentStep: 0,
+      destination: null,
+      eta: null,
+      remainingDistance: 0,
+      remainingTime: 0,
+      nextStep: null,
+      isOffRoute: false,
+      isRecalculating: false,
+    })
+  },
+
   setRoute: (route) => {
     const state = get()
     set({
@@ -165,6 +205,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
   confirmArrival: () => {
     set({
+      isNavigating: false,
       currentRoute: null,
       currentStep: 0,
       destination: null,
@@ -184,6 +225,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
   resetNavigation: () =>
     set({
+      isNavigating: false,
       currentRoute: null,
       currentStep: 0,
       userLocation: null,

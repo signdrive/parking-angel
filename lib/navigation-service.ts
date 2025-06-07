@@ -21,88 +21,96 @@ export class NavigationService {
   async calculateRoute(
     from: [number, number],
     to: [number, number],
-    destinationName: string,
+    options?: {
+      avoidTraffic?: boolean
+      routeType?: "fastest" | "shortest" | "eco"
+    },
   ): Promise<NavigationRoute> {
-    console.log("🗺️ Calculating route from", from, "to", to)
+    console.log("🗺️ Calculating route from", from, "to", to, "with options:", options)
 
-    // Generate realistic route with multiple steps
+    try {
+      // Call the API to calculate the route
+      const response = await fetch("/api/navigation/calculate-route", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to,
+          options: options || {},
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Route calculation failed: ${response.status} ${response.statusText}`)
+      }
+
+      const route: NavigationRoute = await response.json()
+      console.log("✅ Route calculated successfully:", route)
+      return route
+    } catch (error) {
+      console.error("❌ Route calculation error:", error)
+
+      // Fallback to local route generation if API fails
+      console.log("🔄 Falling back to local route generation")
+      return this.generateFallbackRoute(from, to, options)
+    }
+  }
+
+  private generateFallbackRoute(
+    from: [number, number],
+    to: [number, number],
+    options?: {
+      avoidTraffic?: boolean
+      routeType?: "fastest" | "shortest" | "eco"
+    },
+  ): NavigationRoute {
+    console.log("🛠️ Generating fallback route")
+
+    // Calculate realistic distance and duration
+    const distance = this.calculateDistance(from, to)
+    const baseSpeed = 30 // km/h average city speed
+    const duration = (distance / 1000 / baseSpeed) * 3600 // Convert to seconds
+
+    // Generate realistic route steps
     const steps: NavigationStep[] = [
       {
         id: "1",
-        instruction: "Head north on Main Street",
-        distance: 500,
-        duration: 60,
+        instruction: "Head toward your destination",
+        distance: Math.round(distance * 0.3),
+        duration: Math.round(duration * 0.3),
         maneuver: { type: "straight" },
-        streetName: "Main Street",
-        coordinates: [from[0], from[1] + 0.001],
+        streetName: "Current Street",
+        coordinates: [from[0] + (to[0] - from[0]) * 0.3, from[1] + (to[1] - from[1]) * 0.3],
         speedLimit: 35,
       },
       {
         id: "2",
-        instruction: "Turn right onto Oak Avenue",
-        distance: 300,
-        duration: 45,
-        maneuver: { type: "turn-right" },
-        streetName: "Oak Avenue",
-        coordinates: [from[0] + 0.002, from[1] + 0.001],
-        speedLimit: 25,
-        laneGuidance: {
-          lanes: [
-            { valid: false, indications: ["straight"] },
-            { valid: true, indications: ["right"] },
-            { valid: true, indications: ["right"] },
-          ],
-        },
-      },
-      {
-        id: "3",
-        instruction: "Continue straight for 800 meters",
-        distance: 800,
-        duration: 120,
+        instruction: "Continue straight",
+        distance: Math.round(distance * 0.4),
+        duration: Math.round(duration * 0.4),
         maneuver: { type: "straight" },
-        streetName: "Oak Avenue",
-        coordinates: [from[0] + 0.004, from[1] + 0.001],
-        speedLimit: 25,
-      },
-      {
-        id: "4",
-        instruction: "Turn left onto Pine Street",
-        distance: 200,
-        duration: 30,
-        maneuver: { type: "turn-left" },
-        streetName: "Pine Street",
-        coordinates: [from[0] + 0.004, from[1] + 0.003],
+        streetName: "Main Route",
+        coordinates: [from[0] + (to[0] - from[0]) * 0.7, from[1] + (to[1] - from[1]) * 0.7],
         speedLimit: 30,
       },
       {
-        id: "5",
-        instruction: "Enter roundabout and take 2nd exit",
-        distance: 150,
-        duration: 45,
-        maneuver: { type: "roundabout" },
-        streetName: "Pine Street",
-        coordinates: [from[0] + 0.003, from[1] + 0.004],
-        speedLimit: 20,
-      },
-      {
-        id: "6",
-        instruction: `Arrive at ${destinationName}`,
-        distance: 100,
-        duration: 20,
+        id: "3",
+        instruction: "Arrive at your destination",
+        distance: Math.round(distance * 0.3),
+        duration: Math.round(duration * 0.3),
         maneuver: { type: "arrive" },
-        streetName: "Pine Street",
+        streetName: "Destination Street",
         coordinates: to,
       },
     ]
 
-    // Generate route geometry (simplified)
+    // Generate route geometry
     const geometry: [number, number][] = [
       from,
-      [from[0], from[1] + 0.001],
-      [from[0] + 0.002, from[1] + 0.001],
-      [from[0] + 0.004, from[1] + 0.001],
-      [from[0] + 0.004, from[1] + 0.003],
-      [from[0] + 0.003, from[1] + 0.004],
+      [from[0] + (to[0] - from[0]) * 0.33, from[1] + (to[1] - from[1]) * 0.33],
+      [from[0] + (to[0] - from[0]) * 0.66, from[1] + (to[1] - from[1]) * 0.66],
       to,
     ]
 
@@ -110,12 +118,12 @@ export class NavigationService {
     const totalDuration = steps.reduce((sum, step) => sum + step.duration, 0)
 
     return {
-      id: `route_${Date.now()}`,
+      id: `fallback_route_${Date.now()}`,
       distance: totalDistance,
       duration: totalDuration,
       steps,
       geometry,
-      trafficDelays: 0,
+      trafficDelays: options?.avoidTraffic ? 0 : Math.round(totalDuration * 0.1),
     }
   }
 
@@ -235,15 +243,13 @@ export class NavigationService {
   }
 
   private calculateDistance(point1: [number, number], point2: [number, number]): number {
-    const R = 6371 // Earth's radius in km
-    const dLat = this.toRadians(point2[1] - point1[1])
-    const dLon = this.toRadians(point2[0] - point1[0])
-    const lat1 = this.toRadians(point1[1])
-    const lat2 = this.toRadians(point2[1])
+    const R = 6371e3 // Earth's radius in meters
+    const φ1 = (point1[1] * Math.PI) / 180
+    const φ2 = (point2[1] * Math.PI) / 180
+    const Δφ = ((point2[1] - point1[1]) * Math.PI) / 180
+    const Δλ = ((point2[0] - point1[0]) * Math.PI) / 180
 
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2)
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
     return R * c
