@@ -142,22 +142,24 @@ export function EnhancedParkingMap({
         zoom: 15,
       })
 
-      map.current.addControl(
-        new mapboxgl.GeolocateControl({
-          positionOptions: {
-            enableHighAccuracy: true,
-          },
-          trackUserLocation: true,
-          showUserHeading: true,
-          showAccuracyCircle: true,
-          fitBoundsOptions: {
-            maxZoom: 15,
-          },
-        }),
-        "top-right",
-      )
+      // Remove the existing GeolocateControl and replace with:
+      // map.current.addControl(
+      //   new mapboxgl.GeolocateControl({
+      //     positionOptions: {
+      //       enableHighAccuracy: true,
+      //     },
+      //     trackUserLocation: true,
+      //     showUserHeading: true,
+      //     showAccuracyCircle: true,
+      //     fitBoundsOptions: {
+      //       maxZoom: 15,
+      //     },
+      //   }),
+      //   "top-right",
+      // )
 
-      map.current.addControl(new mapboxgl.NavigationControl())
+      // Add only the navigation control
+      map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
 
       // Wait for map to load before adding click handler
       map.current.on("load", () => {
@@ -195,29 +197,29 @@ export function EnhancedParkingMap({
   }, [mapboxToken, handleMapClick])
 
   // Add event listeners for the geolocate control
-  useEffect(() => {
-    if (!map.current) return
+  // useEffect(() => {
+  //   if (!map.current) return
 
-    const geolocateControl = document.querySelector(".mapboxgl-ctrl-geolocate")
-    if (geolocateControl) {
-      geolocateControl.addEventListener("click", () => {
-        console.log("Geolocate control clicked")
-        // Force a manual trigger if the automatic one doesn't work
-        if (map.current) {
-          const control = map.current._controls.find((c: any) => c instanceof mapboxgl.GeolocateControl)
-          if (control) {
-            control.trigger()
-          }
-        }
-      })
-    }
+  //   const geolocateControl = document.querySelector(".mapboxgl-ctrl-geolocate")
+  //   if (geolocateControl) {
+  //     geolocateControl.addEventListener("click", () => {
+  //       console.log("Geolocate control clicked")
+  //       // Force a manual trigger if the automatic one doesn't work
+  //       if (map.current) {
+  //         const control = map.current._controls.find((c: any) => c instanceof mapboxgl.GeolocateControl)
+  //         if (control) {
+  //           control.trigger()
+  //         }
+  //       }
+  //     })
+  //   }
 
-    return () => {
-      if (geolocateControl) {
-        geolocateControl.removeEventListener("click", () => {})
-      }
-    }
-  }, [])
+  //   return () => {
+  //     if (geolocateControl) {
+  //       geolocateControl.removeEventListener("click", () => {})
+  //     }
+  //   }
+  // }, [])
 
   // Update map center when user location is available
   useEffect(() => {
@@ -679,6 +681,34 @@ export function EnhancedParkingMap({
   return (
     <div className="relative h-full">
       <div ref={mapContainer} className="h-full w-full" />
+
+      {/* Custom Location Button */}
+      <Button
+        className="absolute top-4 right-4 rounded-full w-10 h-10 shadow-lg bg-white hover:bg-gray-50 text-gray-700 border border-gray-300"
+        onClick={() => {
+          console.log("Custom location button clicked")
+          if (latitude && longitude && map.current) {
+            map.current.flyTo({
+              center: [longitude, latitude],
+              zoom: 15,
+              essential: true,
+            })
+            toast({
+              title: "Centered on your location",
+              description: `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`,
+            })
+          } else if (!latitude || !longitude) {
+            toast({
+              title: "Location unavailable",
+              description: "Please enable location services to center on your position.",
+              variant: "destructive",
+            })
+          }
+        }}
+        disabled={!latitude || !longitude}
+      >
+        <MapPin className="w-5 h-5" />
+      </Button>
 
       {/* Map Controls */}
       <div className="absolute top-4 left-4 space-y-2">
