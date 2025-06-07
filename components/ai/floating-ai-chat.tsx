@@ -1,78 +1,135 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Sparkles, X, Send, Mic, Minimize2, Maximize2, Loader2, Brain } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { MessageCircle, X, Send, Mic, MicOff, Bot, User, Minimize2, Maximize2 } from "lucide-react"
 
-interface FloatingAIChatProps {
-  className?: string
+interface ChatMessage {
+  id: string
+  type: "user" | "ai"
+  content: string
+  timestamp: Date
 }
 
-export function FloatingAIChat({ className }: FloatingAIChatProps) {
+export function FloatingAIChat() {
   const [isOpen, setIsOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
-  const [message, setMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      role: "assistant" as const,
-      content: "Hi! I'm your AI parking assistant. How can I help you find the perfect parking spot today?",
+      id: "1",
+      type: "ai",
+      content:
+        "Hi! I'm your parking assistant. I can help you find spots, navigate, and answer questions about parking in your area.",
       timestamp: new Date(),
     },
   ])
+  const [inputValue, setInputValue] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const handleSend = async () => {
-    if (!message.trim() || isLoading) return
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
 
-    const userMessage = message.trim()
-    setMessage("")
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const sendMessage = async (content: string) => {
+    if (!content.trim()) return
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: "user",
+      content: content.trim(),
+      timestamp: new Date(),
+    }
+
+    setMessages((prev) => [...prev, userMessage])
+    setInputValue("")
     setIsLoading(true)
 
-    // Add user message
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "user" as const,
-        content: userMessage,
-        timestamp: new Date(),
-      },
-    ])
-
     try {
-      const response = await fetch("/api/ai/grok-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage,
-          context: "floating_chat",
-        }),
-      })
+      // Simulate AI response
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      const data = await response.json()
+      const aiResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: "ai",
+        content: generateAIResponse(content),
+        timestamp: new Date(),
+      }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant" as const,
-          content: data.response || "I'm having trouble right now. Please try again.",
-          timestamp: new Date(),
-        },
-      ])
+      setMessages((prev) => [...prev, aiResponse])
     } catch (error) {
-      console.error("Error calling AI:", error)
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant" as const,
-          content: "Sorry, I'm having trouble connecting. Please try again in a moment.",
-          timestamp: new Date(),
-        },
-      ])
+      console.error("Failed to get AI response:", error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const generateAIResponse = (userInput: string): string => {
+    const input = userInput.toLowerCase()
+
+    if (input.includes("navigate") || input.includes("directions")) {
+      return 'I can help you navigate to any parking spot! Just click on a spot on the map and select "Navigate" to get turn-by-turn directions with voice guidance.'
+    }
+
+    if (input.includes("price") || input.includes("cost") || input.includes("cheap")) {
+      return "I found several affordable options nearby. The cheapest spots are typically street parking (free) and some lots under $5/hour. Would you like me to show you the most cost-effective routes?"
+    }
+
+    if (input.includes("available") || input.includes("free") || input.includes("open")) {
+      return "Based on real-time data, I see several available spots within 2 blocks. The green markers on the map show live availability. Shall I guide you to the nearest one?"
+    }
+
+    if (input.includes("traffic") || input.includes("busy")) {
+      return "Current traffic conditions are moderate. I recommend leaving 5-10 extra minutes for your journey. I can calculate the optimal route avoiding heavy traffic areas."
+    }
+
+    if (input.includes("reserve") || input.includes("book")) {
+      return 'You can reserve spots at participating locations. Look for the "Reserve" button on premium spots. This guarantees your space and often includes discounted rates.'
+    }
+
+    return "I understand you're looking for parking assistance. I can help with finding spots, navigation, pricing info, and real-time availability. What specific help do you need?"
+  }
+
+  const toggleVoiceInput = () => {
+    if (!isListening) {
+      // Start voice recognition
+      if ("webkitSpeechRecognition" in window) {
+        const recognition = new (window as any).webkitSpeechRecognition()
+        recognition.continuous = false
+        recognition.interimResults = false
+        recognition.lang = "en-US"
+
+        recognition.onstart = () => {
+          setIsListening(true)
+        }
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript
+          setInputValue(transcript)
+          setIsListening(false)
+        }
+
+        recognition.onerror = () => {
+          setIsListening(false)
+        }
+
+        recognition.onend = () => {
+          setIsListening(false)
+        }
+
+        recognition.start()
+      }
+    } else {
+      setIsListening(false)
     }
   }
 
@@ -80,14 +137,9 @@ export function FloatingAIChat({ className }: FloatingAIChatProps) {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className={cn(
-          "fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50",
-          "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700",
-          "animate-pulse hover:animate-none transition-all duration-300",
-          className,
-        )}
+        className="fixed bottom-6 right-6 rounded-full w-14 h-14 shadow-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 z-50"
       >
-        <Sparkles className="h-6 w-6 text-white" />
+        <MessageCircle className="w-6 h-6" />
       </Button>
     )
   }
@@ -95,100 +147,159 @@ export function FloatingAIChat({ className }: FloatingAIChatProps) {
   return (
     <Card
       className={cn(
-        "fixed bottom-6 right-6 z-50 shadow-2xl border-purple-200",
+        "fixed bottom-6 right-6 z-50 shadow-xl border-2 border-purple-200 transition-all duration-300",
         isMinimized ? "w-80 h-16" : "w-96 h-[500px]",
-        "transition-all duration-300 ease-in-out",
-        className,
       )}
     >
-      {/* Header */}
       <CardHeader className="pb-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-t-lg">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Brain className="w-5 h-5" />
-            AI Assistant
+            <Bot className="w-5 h-5" />
+            {!isMinimized && "AI Parking Assistant"}
           </CardTitle>
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white hover:bg-white/20"
               onClick={() => setIsMinimized(!isMinimized)}
+              className="text-white hover:bg-white/20 h-8 w-8"
             >
               {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white hover:bg-white/20"
               onClick={() => setIsOpen(false)}
+              className="text-white hover:bg-white/20 h-8 w-8"
             >
               <X className="w-4 h-4" />
             </Button>
           </div>
         </div>
+        {!isMinimized && (
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-sm opacity-90">Online & Ready</span>
+          </div>
+        )}
       </CardHeader>
 
       {!isMinimized && (
-        <CardContent className="p-0 flex flex-col h-[calc(500px-80px)]">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-            {messages.map((msg, i) => (
-              <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+        <>
+          <CardContent className="flex-1 overflow-y-auto p-4 space-y-3 max-h-80">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={cn("flex gap-2", message.type === "user" ? "justify-end" : "justify-start")}
+              >
+                {message.type === "ai" && (
+                  <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                )}
+
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-lg p-3 text-sm",
-                    msg.role === "user"
-                      ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                      : "bg-white border shadow-sm text-gray-800",
+                    "max-w-[80%] p-3 rounded-lg text-sm",
+                    message.type === "user"
+                      ? "bg-blue-600 text-white rounded-br-none"
+                      : "bg-gray-100 text-gray-900 rounded-bl-none",
                   )}
                 >
-                  <div className="whitespace-pre-line">{msg.content}</div>
+                  {message.content}
                   <div
-                    className={cn("text-xs mt-1 opacity-70", msg.role === "user" ? "text-purple-100" : "text-gray-500")}
+                    className={cn(
+                      "text-xs mt-1 opacity-70",
+                      message.type === "user" ? "text-blue-100" : "text-gray-500",
+                    )}
                   >
-                    {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </div>
                 </div>
+
+                {message.type === "user" && (
+                  <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                    <User className="w-4 h-4 text-gray-600" />
+                  </div>
+                )}
               </div>
             ))}
 
             {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-white border shadow-sm rounded-lg p-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
-                    <span className="text-gray-600">AI is thinking...</span>
+              <div className="flex gap-2 justify-start">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="bg-gray-100 p-3 rounded-lg rounded-bl-none">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.1s" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.2s" }}
+                    ></div>
                   </div>
                 </div>
               </div>
             )}
-          </div>
+            <div ref={messagesEndRef} />
+          </CardContent>
 
-          {/* Input */}
-          <div className="p-4 border-t bg-white">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="text-gray-500 hover:text-purple-600" disabled={isLoading}>
-                <Mic className="w-4 h-4" />
-              </Button>
+          <div className="p-4 border-t">
+            <div className="flex gap-2">
               <Input
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                placeholder="Ask about parking..."
-                className="flex-1 border-gray-200 focus:border-purple-500"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Ask about parking, navigation, or prices..."
+                onKeyPress={(e) => e.key === "Enter" && sendMessage(inputValue)}
+                className="flex-1"
                 disabled={isLoading}
               />
               <Button
-                onClick={handleSend}
-                disabled={isLoading || !message.trim()}
+                variant="outline"
+                size="icon"
+                onClick={toggleVoiceInput}
+                className={cn("transition-colors", isListening ? "bg-red-100 border-red-300" : "hover:bg-gray-100")}
+              >
+                {isListening ? <MicOff className="w-4 h-4 text-red-600" /> : <Mic className="w-4 h-4" />}
+              </Button>
+              <Button
+                onClick={() => sendMessage(inputValue)}
+                disabled={!inputValue.trim() || isLoading}
                 className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
               >
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <Send className="w-4 h-4" />
               </Button>
             </div>
+
+            <div className="flex gap-1 mt-2">
+              <Badge
+                variant="outline"
+                className="text-xs cursor-pointer hover:bg-gray-100"
+                onClick={() => sendMessage("Find nearest parking")}
+              >
+                Find nearest
+              </Badge>
+              <Badge
+                variant="outline"
+                className="text-xs cursor-pointer hover:bg-gray-100"
+                onClick={() => sendMessage("Show cheapest options")}
+              >
+                Cheapest
+              </Badge>
+              <Badge
+                variant="outline"
+                className="text-xs cursor-pointer hover:bg-gray-100"
+                onClick={() => sendMessage("Navigate to spot")}
+              >
+                Navigate
+              </Badge>
+            </div>
           </div>
-        </CardContent>
+        </>
       )}
     </Card>
   )

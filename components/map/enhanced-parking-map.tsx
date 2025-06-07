@@ -7,11 +7,30 @@ import { useGeolocation } from "@/hooks/use-geolocation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Plus, Navigation, DollarSign, Car, Brain, Zap, TrendingUp } from "lucide-react"
+import { MapPin, Plus, Navigation, DollarSign, Car, Brain, Zap, TrendingUp, Route } from "lucide-react"
 import { ParkingDataService, type RealParkingSpot } from "@/lib/parking-data-service"
 import { AISpotPredictor, type SpotPrediction } from "@/lib/ai-spot-predictor"
-import type { AreaAnalysis } from "@/types/area-analysis" // Declare the AreaAnalysis variable
-import { SpotReportDialog } from "@/components/map/spot-report-dialog" // Declare the SpotReportDialog variable
+import { useNavigationStore } from "@/lib/navigation-store"
+import { NavigationService } from "@/lib/navigation-service"
+import { NavigationInterface } from "@/components/navigation/navigation-interface"
+import { SpotReportDialog } from "./spot-report-dialog"
+
+interface AreaAnalysis {
+  clickLocation: { lat: number; lng: number }
+  nearbySpots: RealParkingSpot[]
+  aiPredictions: SpotPrediction[]
+  bestRecommendation: {
+    spot: RealParkingSpot
+    prediction: SpotPrediction
+    reason: string
+  } | null
+  areaInsights: {
+    averagePrice: number
+    availabilityTrend: "increasing" | "decreasing" | "stable"
+    demandLevel: "low" | "medium" | "high"
+    bestTimeToArrive: string
+  }
+}
 
 interface EnhancedParkingMapProps {
   onSpotSelect?: (spot: RealParkingSpot) => void
@@ -44,6 +63,10 @@ export function EnhancedParkingMap({
   const { latitude, longitude, error: locationError } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
   const aiPredictor = AISpotPredictor.getInstance()
+  const navigationService = NavigationService.getInstance()
+
+  // Navigation store
+  const { isNavigating, startNavigation, stopNavigation } = useNavigationStore()
 
   // Fetch Mapbox token
   useEffect(() => {
@@ -142,6 +165,39 @@ export function EnhancedParkingMap({
       fetchRealParkingData(latitude, longitude)
     }
   }, [latitude, longitude])
+
+  const startNavigationToSpot = async (spot: RealParkingSpot) => {
+    if (!latitude || !longitude) {
+      alert("Current location not available")
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      // Calculate route to the parking spot
+      const route = await navigationService.calculateRoute([longitude, latitude], [spot.longitude, spot.latitude], {
+        avoidTraffic: true,
+        routeType: "fastest",
+      })
+
+      // Start navigation
+      startNavigation(
+        {
+          latitude: spot.latitude,
+          longitude: spot.longitude,
+          name: spot.name,
+          spotId: spot.id,
+        },
+        route,
+      )
+    } catch (error) {
+      console.error("Failed to start navigation:", error)
+      alert("Failed to calculate route. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const analyzeAreaWithAI = async (clickLocation: { lat: number; lng: number }) => {
     try {
@@ -435,6 +491,11 @@ export function EnhancedParkingMap({
     }
   }
 
+  // Show navigation interface if navigating
+  if (isNavigating) {
+    return <NavigationInterface onExit={stopNavigation} />
+  }
+
   if (mapboxError) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-100">
@@ -589,9 +650,15 @@ export function EnhancedParkingMap({
                           {areaAnalysis.bestRecommendation.prediction.confidence}% confident
                         </Badge>
                       </div>
-                      <div className="text-xs text-gray-700">{areaAnalysis.bestRecommendation.reason}</div>
-                      <Button size="sm" className="w-full mt-2">
-                        Book This Spot
+                      <div className="text-xs text-gray-700 mb-2">{areaAnalysis.bestRecommendation.reason}</div>
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => startNavigationToSpot(areaAnalysis.bestRecommendation!.spot)}
+                        disabled={loading}
+                      >
+                        <Route className="w-3 h-3 mr-1" />
+                        Navigate Here
                       </Button>
                     </div>
                   </div>
@@ -689,7 +756,13 @@ export function EnhancedParkingMap({
             )}
 
             <div className="flex gap-2">
-              <Button size="sm" className="flex-1">
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={() => startNavigationToSpot(selectedSpot)}
+                disabled={loading}
+              >
+                <Route className="w-4 h-4 mr-2" />
                 Navigate
               </Button>
               <Button size="sm" variant="outline" onClick={() => setSelectedSpot(null)}>
