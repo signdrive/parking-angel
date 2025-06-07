@@ -73,22 +73,20 @@ export class NavigationService {
     const baseSpeed = 30 // km/h average city speed
     const duration = (distance / 1000 / baseSpeed) * 3600 // Convert to seconds
 
-    // Ensure minimum realistic values for local navigation
-    const minDistance = 500 // 500 meters minimum
-    const maxDistance = 50000 // 50km maximum for local navigation
-    const clampedDistance = Math.max(minDistance, Math.min(maxDistance, distance))
-    const clampedDuration = Math.max(60, Math.min(3600, duration)) // 1 minute to 1 hour
+    // Ensure realistic values for local navigation (500m to 10km)
+    const clampedDistance = Math.max(500, Math.min(10000, distance))
+    const clampedDuration = Math.max(60, Math.min(1800, duration)) // 1 minute to 30 minutes
 
     // Generate realistic route steps
     const steps: NavigationStep[] = [
       {
         id: "1",
         instruction: "Head toward your destination",
-        distance: Math.round(clampedDistance * 0.3),
-        duration: Math.round(clampedDuration * 0.3),
+        distance: Math.round(clampedDistance * 0.4),
+        duration: Math.round(clampedDuration * 0.4),
         maneuver: { type: "straight" },
         streetName: "Current Street",
-        coordinates: [from[0] + (to[0] - from[0]) * 0.3, from[1] + (to[1] - from[1]) * 0.3],
+        coordinates: [from[0] + (to[0] - from[0]) * 0.4, from[1] + (to[1] - from[1]) * 0.4],
         speedLimit: 35,
       },
       {
@@ -98,14 +96,14 @@ export class NavigationService {
         duration: Math.round(clampedDuration * 0.4),
         maneuver: { type: "straight" },
         streetName: "Main Route",
-        coordinates: [from[0] + (to[0] - from[0]) * 0.7, from[1] + (to[1] - from[1]) * 0.7],
+        coordinates: [from[0] + (to[0] - from[0]) * 0.8, from[1] + (to[1] - from[1]) * 0.8],
         speedLimit: 30,
       },
       {
         id: "3",
         instruction: "Arrive at your destination",
-        distance: Math.round(clampedDistance * 0.3),
-        duration: Math.round(clampedDuration * 0.3),
+        distance: Math.round(clampedDistance * 0.2),
+        duration: Math.round(clampedDuration * 0.2),
         maneuver: { type: "arrive" },
         streetName: "Destination Street",
         coordinates: to,
