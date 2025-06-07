@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
-import { CleanNavigation } from "./clean-navigation"
+import { OfflineNavigation } from "./offline-navigation"
 
 interface NavigationInterfaceProps {
   onExit: () => void
@@ -46,5 +46,5 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     )
   }
 
-  return <CleanNavigation onExit={onExit} />
+  return <OfflineNavigation onExit={onExit} />
 }
