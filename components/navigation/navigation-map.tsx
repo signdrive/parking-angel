@@ -72,10 +72,10 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
         const map = new mapboxgl.Map({
           container: mapContainer.current,
-          style: getMapStyle(),
+          style: "mapbox://styles/mapbox/navigation-day-v1", // Force navigation style
           center: userLocation ? [userLocation.longitude, userLocation.latitude] : [-122.4194, 37.7749],
-          zoom: 17,
-          pitch: 60, // Always use 60 degree pitch for 3D view like TomTom
+          zoom: 16, // Reduce zoom to show more road context
+          pitch: 60, // 3D perspective
           bearing: userLocation?.heading || 0,
           attributionControl: false,
         })
@@ -171,6 +171,30 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
             new mapboxgl.Marker({ element: directionEl })
               .setLngLat([userLocation.longitude, userLocation.latitude])
               .addTo(map)
+          }
+
+          if (currentRoute && userLocation) {
+            // Center map on user location with proper zoom for highway view
+            map.flyTo({
+              center: [userLocation.longitude, userLocation.latitude],
+              zoom: 16,
+              pitch: 60,
+              bearing: userLocation.heading || 0,
+              duration: 1000,
+            })
+
+            // Ensure we're following the route
+            map.fitBounds(
+              [
+                [userLocation.longitude - 0.01, userLocation.latitude - 0.01],
+                [userLocation.longitude + 0.01, userLocation.latitude + 0.01],
+              ],
+              {
+                padding: 100,
+                pitch: 60,
+                bearing: userLocation.heading || 0,
+              },
+            )
           }
         })
 
@@ -374,33 +398,96 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     if (!currentRoute || !currentRoute.steps[currentStep]) return null
 
     return (
-      <div className="h-full relative bg-gray-100">
-        {/* Sky */}
-        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-blue-300 to-blue-200">
-          <div className="absolute left-10 top-10 w-12 h-6 bg-white rounded-full opacity-70"></div>
-          <div className="absolute left-40 top-20 w-16 h-8 bg-white rounded-full opacity-60"></div>
+      <div className="h-full relative overflow-hidden">
+        {/* Sky gradient */}
+        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-blue-400 via-blue-300 to-blue-200">
+          {/* Clouds */}
+          <div className="absolute left-20 top-8 w-16 h-8 bg-white rounded-full opacity-80"></div>
+          <div className="absolute right-32 top-12 w-20 h-10 bg-white rounded-full opacity-70"></div>
         </div>
 
-        {/* Ground */}
-        <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-b from-green-200 to-green-300"></div>
+        {/* Ground/landscape */}
+        <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-b from-green-300 to-green-400"></div>
 
-        {/* Road */}
-        <div className="absolute bottom-0 left-0 right-0 h-full flex items-center justify-center perspective">
-          <div className="w-full h-3/4 bg-gray-800 transform rotate-x-60 origin-bottom relative">
-            {/* Lane markings */}
-            <div className="absolute top-0 bottom-0 left-1/4 w-0.5 bg-white dashed-line"></div>
-            <div className="absolute top-0 bottom-0 left-1/2 w-1 bg-white"></div>
-            <div className="absolute top-0 bottom-0 left-3/4 w-0.5 bg-white dashed-line"></div>
+        {/* Highway perspective view */}
+        <div className="absolute bottom-0 left-0 right-0 h-full flex items-end justify-center">
+          <div className="relative w-full h-3/5" style={{ perspective: "800px" }}>
+            {/* Main highway surface */}
+            <div
+              className="absolute bottom-0 w-full bg-gray-700"
+              style={{
+                height: "100%",
+                transform: "rotateX(75deg)",
+                transformOrigin: "bottom center",
+              }}
+            >
+              {/* Highway lanes */}
+              <div className="relative w-full h-full">
+                {/* Left shoulder */}
+                <div className="absolute left-0 top-0 bottom-0 w-8 bg-gray-600 border-r-2 border-white"></div>
 
-            {/* Route guidance */}
-            <div className="absolute top-1/4 bottom-0 left-5/8 w-1/8 bg-cyan-400 opacity-70"></div>
+                {/* Lane 1 */}
+                <div className="absolute left-8 top-0 bottom-0 w-20 bg-gray-700">
+                  <div
+                    className="absolute right-0 top-0 bottom-0 w-0.5 bg-white opacity-60"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(to bottom, white 0px, white 20px, transparent 20px, transparent 40px)",
+                    }}
+                  ></div>
+                </div>
 
-            {/* Direction arrows */}
-            <div className="absolute bottom-1/4 left-5/8 w-1/8 flex justify-center">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-b-16 border-l-transparent border-r-transparent border-b-cyan-400"></div>
-            </div>
-            <div className="absolute bottom-2/5 left-5/8 w-1/8 flex justify-center">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-b-16 border-l-transparent border-r-transparent border-b-cyan-400"></div>
+                {/* Lane 2 (current lane with blue guidance) */}
+                <div className="absolute left-28 top-0 bottom-0 w-20 bg-gray-700 relative">
+                  <div className="absolute inset-0 bg-cyan-400 opacity-30"></div>
+                  <div
+                    className="absolute right-0 top-0 bottom-0 w-0.5 bg-white opacity-60"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(to bottom, white 0px, white 20px, transparent 20px, transparent 40px)",
+                    }}
+                  ></div>
+
+                  {/* Route arrows */}
+                  <div className="absolute left-1/2 transform -translate-x-1/2 top-10 text-cyan-400">
+                    <div className="w-0 h-0 border-l-4 border-r-4 border-b-8 border-l-transparent border-r-transparent border-b-cyan-400 mb-4"></div>
+                  </div>
+                  <div className="absolute left-1/2 transform -translate-x-1/2 top-20 text-cyan-400">
+                    <div className="w-0 h-0 border-l-4 border-r-4 border-b-8 border-l-transparent border-r-transparent border-b-cyan-400 mb-4"></div>
+                  </div>
+                  <div className="absolute left-1/2 transform -translate-x-1/2 top-32 text-cyan-400">
+                    <div className="w-0 h-0 border-l-4 border-r-4 border-b-8 border-l-transparent border-r-transparent border-b-cyan-400"></div>
+                  </div>
+                </div>
+
+                {/* Lane 3 */}
+                <div className="absolute left-48 top-0 bottom-0 w-20 bg-gray-700">
+                  <div
+                    className="absolute right-0 top-0 bottom-0 w-0.5 bg-white opacity-60"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(to bottom, white 0px, white 20px, transparent 20px, transparent 40px)",
+                    }}
+                  ></div>
+                </div>
+
+                {/* Lane 4 */}
+                <div className="absolute left-68 top-0 bottom-0 w-20 bg-gray-700">
+                  <div
+                    className="absolute right-0 top-0 bottom-0 w-0.5 bg-white opacity-60"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(to bottom, white 0px, white 20px, transparent 20px, transparent 40px)",
+                    }}
+                  ></div>
+                </div>
+
+                {/* Right shoulder */}
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gray-600 border-l-2 border-white"></div>
+
+                {/* Center divider */}
+                <div className="absolute left-1/2 transform -translate-x-1/2 top-0 bottom-0 w-1 bg-yellow-400"></div>
+              </div>
             </div>
           </div>
         </div>

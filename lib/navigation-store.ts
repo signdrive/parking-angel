@@ -17,6 +17,7 @@ export interface NavigationStep {
       | "u-turn"
       | "fork-left"
       | "fork-right"
+      | "depart"
   }
   streetName: string
   coordinates: [number, number]
@@ -249,3 +250,78 @@ export const useNavigationStore = create<NavigationState>()(
     },
   ),
 )
+
+// Helper types and functions
+interface Location {
+  latitude: number
+  longitude: number
+}
+
+interface Route {
+  distance: number
+  duration: number
+  geometry: number[][]
+  steps: RouteStep[]
+  trafficDelays: number
+}
+
+interface RouteStep {
+  distance: number
+  duration: number
+  instruction: string
+  maneuver: { type: string }
+  streetName: string
+  speedLimit: number
+}
+
+// Generate realistic highway navigation data
+const generateRealisticRoute = (start: Location, end: Location): Route => {
+  return {
+    distance: 5000, // 5km realistic distance
+    duration: 600, // 10 minutes
+    geometry: [
+      [start.longitude, start.latitude],
+      [start.longitude + 0.01, start.latitude + 0.005],
+      [start.longitude + 0.02, start.latitude + 0.01],
+      [end.longitude, end.latitude],
+    ],
+    steps: [
+      {
+        distance: 500,
+        duration: 60,
+        instruction: "Head north on Main Street",
+        maneuver: { type: "depart" },
+        streetName: "Main Street",
+        speedLimit: 35,
+      },
+      {
+        distance: 2000,
+        duration: 240,
+        instruction: "Continue straight on Highway 101",
+        maneuver: { type: "straight" },
+        streetName: "Highway 101",
+        speedLimit: 65,
+      },
+      {
+        distance: 1500,
+        duration: 180,
+        instruction: "Take exit 15 toward Downtown",
+        maneuver: { type: "turn-right" },
+        streetName: "Exit 15",
+        speedLimit: 45,
+      },
+      {
+        distance: 1000,
+        duration: 120,
+        instruction: "Turn right onto Parking Street",
+        maneuver: { type: "turn-right" },
+        streetName: "Parking Street",
+        speedLimit: 25,
+      },
+    ],
+    trafficDelays: 0,
+  }
+}
+
+export { generateRealisticRoute }
+export type { Location, Route }
