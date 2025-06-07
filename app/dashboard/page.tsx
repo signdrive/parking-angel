@@ -53,8 +53,8 @@ export default function DashboardPage() {
       case "map":
         return (
           <div className="flex h-full">
-            {/* Main Map Area (75%) */}
-            <div className="flex-1 bg-white">
+            {/* Main Map Area - Dynamic width based on right panel */}
+            <div className="flex-1 bg-white min-w-0">
               <div className="h-full">
                 <EnhancedParkingMap
                   onSpotSelect={setSelectedSpot}
@@ -69,16 +69,14 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Right Panel (25%) */}
-            <div className="w-80">
-              <RightPanel
-                spotsCount={spotsCount}
-                providersCount={providersCount}
-                clickedLocation={clickedLocation}
-                areaAnalysis={areaAnalysis}
-                loading={mapLoading}
-              />
-            </div>
+            {/* Collapsible Right Panel */}
+            <RightPanel
+              spotsCount={spotsCount}
+              providersCount={providersCount}
+              clickedLocation={clickedLocation}
+              areaAnalysis={areaAnalysis}
+              loading={mapLoading}
+            />
           </div>
         )
 

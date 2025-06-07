@@ -68,7 +68,7 @@ export function EnhancedParkingMap({
   // Navigation store
   const { isNavigating, startNavigation, stopNavigation } = useNavigationStore()
 
-  // Fetch Mapbox token
+  // Fetch Mapbox token securely from server
   useEffect(() => {
     const fetchMapboxToken = async () => {
       try {
@@ -77,10 +77,11 @@ export function EnhancedParkingMap({
           const data = await response.json()
           setMapboxToken(data.token)
         } else {
-          setMapboxError("Failed to load Mapbox token")
+          setMapboxError("Failed to load map configuration")
         }
       } catch (error) {
-        setMapboxError("Failed to connect to Mapbox service")
+        console.error("Error fetching map config:", error)
+        setMapboxError("Failed to connect to map service")
       }
     }
 
@@ -533,7 +534,7 @@ export function EnhancedParkingMap({
         <div className="text-center p-6">
           <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4 animate-pulse" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Map...</h3>
-          <p className="text-gray-600">Initializing Mapbox service</p>
+          <p className="text-gray-600">Initializing map service</p>
         </div>
       </div>
     )
@@ -786,3 +787,5 @@ export function EnhancedParkingMap({
     </div>
   )
 }
+
+export default EnhancedParkingMap
