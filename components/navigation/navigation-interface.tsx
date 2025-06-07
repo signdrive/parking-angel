@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
+import { NavigationMap } from "./navigation-map"
 import { cn } from "@/lib/utils"
 import {
   ArrowLeft,
@@ -55,16 +56,26 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     updateGpsSignal,
   } = useNavigationStore()
 
-  console.log("📊 Navigation state:", {
-    isNavigating: true,
-    currentRoute: !!currentRoute,
-    destination: destination?.name,
-    currentStep,
-  })
-
   const [showMiniMap, setShowMiniMap] = useState(false)
-  const [currentInstruction, setCurrentInstruction] = useState("")
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null)
   const navigationService = NavigationService.getInstance()
+
+  // Fetch Mapbox token
+  useEffect(() => {
+    const fetchMapboxToken = async () => {
+      try {
+        const response = await fetch("/api/mapbox/token")
+        if (response.ok) {
+          const data = await response.json()
+          setMapboxToken(data.token)
+        }
+      } catch (error) {
+        console.error("Failed to fetch Mapbox token:", error)
+      }
+    }
+
+    fetchMapboxToken()
+  }, [])
 
   // Auto day/night mode switching
   useEffect(() => {
@@ -102,7 +113,6 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     if (currentRoute && currentStep < currentRoute.steps.length) {
       const step = currentRoute.steps[currentStep]
       const instruction = `In ${navigationService.formatDistance(step.distance)}, ${step.instruction}`
-      setCurrentInstruction(instruction)
 
       if (voiceEnabled) {
         navigationService.speakInstruction(instruction, voiceEnabled)
@@ -300,15 +310,18 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           </div>
         )}
 
-        {/* Map Area Placeholder */}
-        <div className="flex-1 relative bg-gray-200">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <Navigation className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p className="text-sm opacity-75">Navigation Map</p>
-              <p className="text-xs opacity-50">Integrate with Mapbox GL Navigation</p>
+        {/* Navigation Map */}
+        <div className="flex-1 relative">
+          {mapboxToken ? (
+            <NavigationMap mapboxToken={mapboxToken} />
+          ) : (
+            <div className="h-full flex items-center justify-center bg-gray-200">
+              <div className="text-center">
+                <Navigation className="w-12 h-12 mx-auto mb-2 opacity-50 animate-pulse" />
+                <p className="text-sm opacity-75">Loading Navigation Map...</p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Mini Map Toggle */}
           <Button
