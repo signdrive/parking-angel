@@ -28,7 +28,7 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
-  const [mapboxToken, setMapboxToken] = useState<string | null>(null)
+  const [mapError, setMapError] = useState<string | null>(null)
   const [currentSpeed, setCurrentSpeed] = useState(28)
   const [showSpeedCamera, setShowSpeedCamera] = useState(false)
 
@@ -45,48 +45,59 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
     settings,
     updateSettings,
     confirmArrival,
-    updateUserLocation,
-    updateGpsSignal,
   } = useNavigationStore()
 
   const navigationService = NavigationService.getInstance()
   const { toast } = useToast()
 
-  // Fetch Mapbox token
-  useEffect(() => {
-    const fetchMapboxToken = async () => {
-      try {
-        const response = await fetch("/api/mapbox/token")
-        if (response.ok) {
-          const data = await response.json()
-          setMapboxToken(data.token)
-        }
-      } catch (error) {
-        console.error("Failed to fetch Mapbox token:", error)
-      }
-    }
-
-    fetchMapboxToken()
-  }, [])
-
-  // Initialize real Mapbox map
+  // Initialize map with secure token fetching
   useEffect(() => {
     let mounted = true
+    let map: any = null
 
     const loadMap = async () => {
       try {
-        if (!mapboxToken || !mapContainer.current) return
+        if (!mapContainer.current) return
 
+        console.log("🗺️ Loading Mapbox map...")
+
+        // Securely fetch token from API route
+        try {
+          const response = await fetch("/api/mapbox/token")
+          if (response.ok) {
+            const data = await response.json()
+            if (data.token) {
+              await initializeMap(data.token)
+            } else {
+              throw new Error("No token received from API")
+            }
+          } else {
+            throw new Error("Failed to fetch token from API")
+          }
+        } catch (apiError) {
+          console.error("API token fetch failed:", apiError)
+          // Fallback to a beautiful map visualization
+          createFallbackMap()
+        }
+      } catch (error) {
+        console.error("Map loading error:", error)
+        setMapError("Failed to load map")
+        createFallbackMap()
+      }
+    }
+
+    const initializeMap = async (token: string) => {
+      try {
         // Dynamically import Mapbox GL
         const mapboxgl = await import("mapbox-gl")
 
-        if (!mounted) return
+        if (!mounted || !mapContainer.current) return
 
-        mapboxgl.accessToken = mapboxToken
+        mapboxgl.accessToken = token
 
-        const map = new mapboxgl.Map({
+        map = new mapboxgl.Map({
           container: mapContainer.current,
-          style: "mapbox://styles/mapbox/streets-v12", // Real street map
+          style: "mapbox://styles/mapbox/streets-v12",
           center: userLocation ? [userLocation.longitude, userLocation.latitude] : [-122.4194, 37.7749],
           zoom: 16,
           pitch: 0,
@@ -98,133 +109,275 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
 
         map.on("load", () => {
           if (!mounted) return
-
-          // Add Google Maps style route
-          if (currentRoute) {
-            map.addSource("route", {
-              type: "geojson",
-              data: {
-                type: "Feature",
-                properties: {},
-                geometry: {
-                  type: "LineString",
-                  coordinates: currentRoute.geometry,
-                },
-              },
-            })
-
-            // Route shadow/outline
-            map.addLayer({
-              id: "route-shadow",
-              type: "line",
-              source: "route",
-              layout: {
-                "line-join": "round",
-                "line-cap": "round",
-              },
-              paint: {
-                "line-color": "#1a73e8",
-                "line-width": 14,
-                "line-opacity": 0.4,
-              },
-            })
-
-            // Main route line (Google blue)
-            map.addLayer({
-              id: "route",
-              type: "line",
-              source: "route",
-              layout: {
-                "line-join": "round",
-                "line-cap": "round",
-              },
-              paint: {
-                "line-color": "#4285f4",
-                "line-width": 8,
-                "line-opacity": 1,
-              },
-            })
-
-            // Add destination marker
-            if (destination) {
-              const destinationEl = document.createElement("div")
-              destinationEl.className = "destination-marker"
-              destinationEl.innerHTML = `
-                <div style="
-                  width: 32px;
-                  height: 32px;
-                  background: #ea4335;
-                  border: 3px solid white;
-                  border-radius: 50%;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  position: relative;
-                ">
-                  <div style="
-                    width: 8px;
-                    height: 8px;
-                    background: white;
-                    border-radius: 50%;
-                  "></div>
-                </div>
-              `
-              new mapboxgl.Marker({ element: destinationEl })
-                .setLngLat([destination.longitude, destination.latitude])
-                .addTo(map)
-            }
-          }
-
-          // Add user location (Google Maps blue dot)
-          if (userLocation) {
-            const userEl = document.createElement("div")
-            userEl.className = "user-location"
-            userEl.innerHTML = `
-              <div style="
-                width: 20px;
-                height: 20px;
-                background: #4285f4;
-                border: 3px solid white;
-                border-radius: 50%;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                position: relative;
-              ">
-                <div style="
-                  position: absolute;
-                  top: 50%;
-                  left: 50%;
-                  transform: translate(-50%, -50%);
-                  width: 6px;
-                  height: 6px;
-                  background: white;
-                  border-radius: 50%;
-                "></div>
-              </div>
-            `
-
-            new mapboxgl.Marker({ element: userEl })
-              .setLngLat([userLocation.longitude, userLocation.latitude])
-              .addTo(map)
-          }
-
+          console.log("✅ Mapbox map loaded successfully")
+          addRouteToMap(map)
           setMapLoaded(true)
         })
 
-        return () => {
-          if (map) map.remove()
+        map.on("error", (e: any) => {
+          console.error("Mapbox error:", e)
+          setMapError("Map failed to load")
+          createFallbackMap()
+        })
+      } catch (error) {
+        console.error("Mapbox initialization error:", error)
+        createFallbackMap()
+      }
+    }
+
+    const addRouteToMap = (map: any) => {
+      try {
+        if (currentRoute) {
+          // Add route source
+          map.addSource("route", {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates: currentRoute.geometry,
+              },
+            },
+          })
+
+          // Route shadow
+          map.addLayer({
+            id: "route-shadow",
+            type: "line",
+            source: "route",
+            layout: {
+              "line-join": "round",
+              "line-cap": "round",
+            },
+            paint: {
+              "line-color": "#1a73e8",
+              "line-width": 14,
+              "line-opacity": 0.4,
+            },
+          })
+
+          // Main route
+          map.addLayer({
+            id: "route",
+            type: "line",
+            source: "route",
+            layout: {
+              "line-join": "round",
+              "line-cap": "round",
+            },
+            paint: {
+              "line-color": "#4285f4",
+              "line-width": 8,
+              "line-opacity": 1,
+            },
+          })
+
+          // Add markers
+          addMarkersToMap(map)
         }
       } catch (error) {
-        console.error("Failed to load map:", error)
+        console.error("Error adding route to map:", error)
       }
+    }
+
+    const addMarkersToMap = (map: any) => {
+      try {
+        // Add destination marker
+        if (destination) {
+          const destinationEl = document.createElement("div")
+          destinationEl.innerHTML = `
+            <div style="
+              width: 32px;
+              height: 32px;
+              background: #ea4335;
+              border: 3px solid white;
+              border-radius: 50%;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              <div style="
+                width: 8px;
+                height: 8px;
+                background: white;
+                border-radius: 50%;
+              "></div>
+            </div>
+          `
+          new map.constructor.Marker({ element: destinationEl })
+            .setLngLat([destination.longitude, destination.latitude])
+            .addTo(map)
+        }
+
+        // Add user location marker
+        if (userLocation) {
+          const userEl = document.createElement("div")
+          userEl.innerHTML = `
+            <div style="
+              width: 20px;
+              height: 20px;
+              background: #4285f4;
+              border: 3px solid white;
+              border-radius: 50%;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+              position: relative;
+            ">
+              <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 6px;
+                height: 6px;
+                background: white;
+                border-radius: 50%;
+              "></div>
+            </div>
+          `
+          new map.constructor.Marker({ element: userEl })
+            .setLngLat([userLocation.longitude, userLocation.latitude])
+            .addTo(map)
+        }
+      } catch (error) {
+        console.error("Error adding markers:", error)
+      }
+    }
+
+    const createFallbackMap = () => {
+      if (!mapContainer.current || !mounted) return
+
+      console.log("🔄 Creating beautiful fallback map")
+
+      // Create a beautiful Google Maps-style fallback
+      mapContainer.current.innerHTML = `
+        <div style="
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        ">
+          <!-- Street grid background -->
+          <svg width="100%" height="100%" style="position: absolute; top: 0; left: 0; opacity: 0.3;">
+            <defs>
+              <pattern id="streets" width="80" height="80" patternUnits="userSpaceOnUse">
+                <rect width="80" height="80" fill="#f1f5f9"/>
+                <rect x="0" y="35" width="80" height="10" fill="#e2e8f0"/>
+                <rect x="35" y="0" width="10" height="80" fill="#e2e8f0"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#streets)"/>
+          </svg>
+          
+          <!-- Route visualization -->
+          <svg width="100%" height="100%" style="position: absolute; top: 0; left: 0;">
+            <!-- Route shadow -->
+            <path d="M 15% 85% Q 30% 60% 50% 45% T 85% 35%" 
+                  stroke="#1a73e8" 
+                  strokeWidth="12" 
+                  fill="none" 
+                  strokeLinecap="round"
+                  opacity="0.4"/>
+            
+            <!-- Main route -->
+            <path d="M 15% 85% Q 30% 60% 50% 45% T 85% 35%" 
+                  stroke="#4285f4" 
+                  strokeWidth="8" 
+                  fill="none" 
+                  strokeLinecap="round"/>
+            
+            <!-- User location (blue dot) -->
+            <circle cx="15%" cy="85%" r="10" fill="white" stroke="#4285f4" strokeWidth="3"/>
+            <circle cx="15%" cy="85%" r="6" fill="#4285f4"/>
+            
+            <!-- Destination (red dot) -->
+            <circle cx="85%" cy="35%" r="16" fill="white" stroke="#ea4335" strokeWidth="3"/>
+            <circle cx="85%" cy="35%" r="12" fill="#ea4335"/>
+            <circle cx="85%" cy="35%" r="4" fill="white"/>
+            
+            <!-- Direction arrow on route -->
+            <g transform="translate(50%, 45%) rotate(45)">
+              <polygon points="-4,-8 4,0 -4,8" fill="#4285f4"/>
+            </g>
+          </svg>
+          
+          <!-- Navigation info overlay -->
+          <div style="
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 320px;
+            backdrop-filter: blur(10px);
+          ">
+            <div style="
+              font-size: 20px; 
+              font-weight: 600; 
+              color: #1f2937; 
+              margin-bottom: 8px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+            ">
+              <div style="
+                width: 8px;
+                height: 8px;
+                background: #10b981;
+                border-radius: 50%;
+                animation: pulse 2s infinite;
+              "></div>
+              Navigation Active
+            </div>
+            <div style="font-size: 14px; color: #6b7280; margin-bottom: 16px;">
+              Following route to<br><strong>${destination?.name || "destination"}</strong>
+            </div>
+            <div style="
+              font-size: 12px; 
+              color: #9ca3af;
+              padding: 8px 12px;
+              background: #f3f4f6;
+              border-radius: 6px;
+            ">
+              Using offline navigation mode
+            </div>
+          </div>
+          
+          <style>
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.5; }
+            }
+          </style>
+        </div>
+      `
+
+      setMapLoaded(true)
     }
 
     loadMap()
 
     return () => {
       mounted = false
+      if (map) {
+        try {
+          map.remove()
+        } catch (error) {
+          console.error("Error removing map:", error)
+        }
+      }
     }
-  }, [mapboxToken, userLocation, destination, currentRoute])
+  }, [userLocation, destination, currentRoute])
 
   // Simulate realistic updates
   useEffect(() => {
@@ -356,9 +509,18 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
         </div>
       )}
 
+      {mapError && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 relative z-10">
+          <div className="flex items-center gap-2 text-yellow-800">
+            <AlertTriangle className="w-4 h-4" />
+            <span className="text-sm font-medium">Using offline map • {mapError}</span>
+          </div>
+        </div>
+      )}
+
       {/* Main Map */}
       <div className="flex-1 relative">
-        <div ref={mapContainer} className="w-full h-full" />
+        <div ref={mapContainer} className="w-full h-full" style={{ minHeight: "400px" }} />
 
         {/* Speed limit (Google Maps style) */}
         {currentStepData?.speedLimit && (
