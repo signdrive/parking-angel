@@ -1,35 +1,27 @@
 "use client"
 
-import { useEffect } from "react"
-import { useNavigationStore } from "@/lib/navigation-store"
-import { NavigationService } from "@/lib/navigation-service"
-import { ProfessionalNavigation } from "./professional-navigation"
+import { useState } from "react"
+import { BulletproofNavigation } from "./bulletproof-navigation"
+import { Button } from "@/components/ui/button"
+import { Navigation } from "lucide-react"
 
-interface NavigationInterfaceProps {
-  onExit: () => void
-}
+export function NavigationInterface() {
+  const [isNavigating, setIsNavigating] = useState(false)
 
-export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
-  const { updateUserLocation, updateGpsSignal } = useNavigationStore()
-  const navigationService = NavigationService.getInstance()
+  if (isNavigating) {
+    return <BulletproofNavigation onExit={() => setIsNavigating(false)} />
+  }
 
-  // Professional location tracking
-  useEffect(() => {
-    navigationService.startLocationTracking(
-      (location) => {
-        updateUserLocation(location)
-        updateGpsSignal("strong")
-      },
-      (error) => {
-        console.error("Location error:", error)
-        updateGpsSignal("lost")
-      },
-    )
-
-    return () => {
-      navigationService.stopLocationTracking()
-    }
-  }, [updateUserLocation, updateGpsSignal, navigationService])
-
-  return <ProfessionalNavigation onExit={onExit} />
+  return (
+    <div className="h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <Navigation className="w-16 h-16 mx-auto mb-4 text-blue-600" />
+        <h2 className="text-2xl font-bold mb-2">Professional Navigation</h2>
+        <p className="text-gray-600 mb-6">Experience bulletproof navigation with advanced fallback</p>
+        <Button onClick={() => setIsNavigating(true)} className="bg-blue-600 hover:bg-blue-700">
+          Start Navigation
+        </Button>
+      </div>
+    </div>
+  )
 }
