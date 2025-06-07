@@ -48,6 +48,7 @@
     "fs": "latest",
     "immer": "latest",
     "input-otp": "1.4.1",
+    "leaflet": "latest",
     "lucide-react": "^0.454.0",
     "mapbox-gl": "latest",
     "next": "15.2.4",
