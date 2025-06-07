@@ -211,12 +211,14 @@ export function EnhancedParkingMap({
       console.log("✅ Navigation started successfully!")
       toast({
         title: "Navigation started",
-        // Corrected usage of formatDistance
+        // CRITICAL FIX: Use the imported formatDistance directly
         description: `Navigating to ${spot.name} - ${formatDistance(route.distance)} away`,
       })
     } catch (error) {
       console.error("❌ Failed to start navigation:", error)
+
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+
       toast({
         title: "Navigation failed",
         description: `Could not calculate route: ${errorMessage}`,
