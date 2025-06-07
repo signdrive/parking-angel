@@ -8,24 +8,42 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { from, to, options = {} } = body
 
-    console.log("Route request:", { from, to, options })
+    console.log("Route request (raw):", { from, to, options })
 
-    // Validate input
-    if (!from || !to || !Array.isArray(from) || !Array.isArray(to)) {
-      console.error("Invalid route request parameters")
+    // Validate input structure
+    if (!from || !to || !Array.isArray(from) || from.length !== 2 || !Array.isArray(to) || to.length !== 2) {
+      console.error("Invalid route request parameters structure")
       return NextResponse.json(
-        { error: "Invalid parameters. Expected from and to as [longitude, latitude] arrays." },
+        { error: "Invalid parameters. Expected 'from' and 'to' as [longitude, latitude] arrays." },
         { status: 400 },
       )
     }
 
-    if (from.length !== 2 || to.length !== 2) {
-      console.error("Invalid coordinate format")
-      return NextResponse.json({ error: "Invalid coordinate format. Expected [longitude, latitude]." }, { status: 400 })
+    // Validate coordinate values
+    const [fromLng, fromLat] = from
+    const [toLng, toLat] = to
+
+    if (
+      typeof fromLng !== "number" ||
+      isNaN(fromLng) ||
+      typeof fromLat !== "number" ||
+      isNaN(fromLat) ||
+      typeof toLng !== "number" ||
+      isNaN(toLng) ||
+      typeof toLat !== "number" ||
+      isNaN(toLat)
+    ) {
+      console.error("Invalid coordinate values (NaN or not a number):", { from, to })
+      return NextResponse.json(
+        { error: "Invalid coordinate values. Longitude and latitude must be valid numbers." },
+        { status: 400 },
+      )
     }
 
+    console.log("Validated route request coordinates:", { from: [fromLng, fromLat], to: [toLng, toLat], options })
+
     // Calculate realistic distance and duration
-    const distance = calculateDistance(from, to)
+    const distance = calculateDistance([fromLng, fromLat], [toLng, toLat])
     const baseSpeed = options.routeType === "eco" ? 25 : options.routeType === "shortest" ? 35 : 30 // km/h
     const duration = Math.max(300, (distance / 1000 / baseSpeed) * 3600) // Minimum 5 minutes
     const trafficMultiplier = options.avoidTraffic ? 1.0 : 1.2
@@ -37,8 +55,8 @@ export async function POST(request: NextRequest) {
       distance: Math.round(distance),
       duration: Math.round(duration * trafficMultiplier),
       trafficDelays: Math.round(duration * (trafficMultiplier - 1)),
-      geometry: generateGeometry(from, to),
-      steps: generateSteps(from, to, distance, duration * trafficMultiplier),
+      geometry: generateGeometry([fromLng, fromLat], [toLng, toLat]),
+      steps: generateSteps([fromLng, fromLat], [toLng, toLat], distance, duration * trafficMultiplier),
     }
 
     console.log("✅ Route generated successfully")
@@ -49,10 +67,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(mockRoute)
   } catch (error) {
     console.error("❌ Route calculation error:", error)
-
-    // Return a more detailed error response
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
-
     return NextResponse.json(
       {
         error: "Failed to calculate route",
@@ -78,20 +93,14 @@ function calculateDistance(from: [number, number], to: [number, number]): number
 }
 
 function generateGeometry(from: [number, number], to: [number, number]): [number, number][] {
-  // Generate a more realistic route with multiple waypoints
   const waypoints: [number, number][] = [from]
-
-  // Add intermediate points for a more realistic route
   for (let i = 1; i <= 3; i++) {
     const progress = i / 4
     const lat = from[1] + (to[1] - from[1]) * progress
     const lng = from[0] + (to[0] - from[0]) * progress
-
-    // Add some variation to make the route more realistic
-    const variation = 0.0001 * Math.sin(progress * Math.PI * 2)
+    const variation = 0.0001 * Math.sin(progress * Math.PI * 2) // Small variation
     waypoints.push([lng + variation, lat + variation])
   }
-
   waypoints.push(to)
   return waypoints
 }
@@ -154,6 +163,5 @@ function generateSteps(
       coordinates: to,
     },
   ]
-
   return steps
 }
