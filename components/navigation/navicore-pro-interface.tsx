@@ -8,7 +8,11 @@ import { ArrowLeft, Navigation, Loader2, WifiOff, Volume2, MoreHorizontal } from
 import type { NavigationRoute, NavigationStep } from "@/lib/navigation-store"
 import { formatDistance, formatDuration } from "@/lib/utils" // Corrected import
 
-// --- Helper Functions (validateCoordinates, calculateSafeBounds, validateRouteData) ---
+import bbox from "@turf/bbox" // Import Turf.js bbox
+import { lineString as turfLineString } from "@turf/helpers" // Import Turf.js lineString helper
+
+// --- Helper Functions (validateCoordinates, validateRouteData) ---
+// calculateSafeBounds is no longer needed as Turf.js will handle bounds calculation
 function validateCoordinates(coords: any): coords is [number, number] {
   if (!Array.isArray(coords) || coords.length !== 2) return false
   const [lng, lat] = coords
@@ -24,31 +28,7 @@ function validateCoordinates(coords: any): coords is [number, number] {
   )
 }
 
-function calculateSafeBounds(geometry: [number, number][]): LngLatBoundsLike | null {
-  // console.log("NaviCoreProInterface: Calculating safe bounds for geometry:", geometry) // Keep for debugging if needed
-  const validCoords = geometry.filter(validateCoordinates)
-
-  if (validCoords.length === 0) {
-    console.error("NaviCoreProInterface: No valid coordinates found in geometry for calculateSafeBounds")
-    return null
-  }
-
-  const lngs = validCoords.map((coord) => coord[0])
-  const lats = validCoords.map((coord) => coord[1])
-
-  const sw: [number, number] = [Math.min(...lngs), Math.min(...lats)]
-  const ne: [number, number] = [Math.max(...lngs), Math.max(...lats)]
-
-  if (!validateCoordinates(sw) || !validateCoordinates(ne)) {
-    console.error("NaviCoreProInterface: Calculated SW or NE bounds points are invalid. SW:", sw, "NE:", ne)
-    return null
-  }
-  // console.log("NaviCoreProInterface: Calculated safe SW, NE:", sw, ne) // Keep for debugging
-  return [sw, ne]
-}
-
 function validateRouteData(routeData: NavigationRoute | null): boolean {
-  // console.log("NaviCoreProInterface: 🔍 Validating route data:", routeData) // Keep for debugging
   if (!routeData || !routeData.geometry) {
     console.error("NaviCoreProInterface: ❌ Route data or geometry is missing")
     return false
@@ -57,11 +37,17 @@ function validateRouteData(routeData: NavigationRoute | null): boolean {
     console.error("NaviCoreProInterface: ❌ Geometry is not an array")
     return false
   }
-  const validCoords = routeData.geometry.filter(validateCoordinates)
-  // console.log(
-  //   `NaviCoreProInterface: ✅ Found ${validCoords.length}/${routeData.geometry.length} valid coordinates in routeData`,
-  // ) // Keep for debugging
-  return validCoords.length > 0
+  // Ensure all coordinates in the geometry are valid
+  if (routeData.geometry.some((coord) => !validateCoordinates(coord))) {
+    console.error("NaviCoreProInterface: ❌ Route geometry contains invalid coordinates")
+    return false
+  }
+  // Ensure there are at least two points to form a line for Turf.js
+  if (routeData.geometry.length < 2) {
+    console.error("NaviCoreProInterface: ❌ Route geometry must have at least two points for bounds calculation.")
+    return false
+  }
+  return true
 }
 // --- End of Helper Functions ---
 
@@ -212,15 +198,13 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
         const newRoute: NavigationRoute = await response.json()
 
         if (!validateRouteData(newRoute)) {
-          throw new Error("Received invalid route data structure or content from API.")
+          // This now checks for geometry length >= 2 as well
+          throw new Error("Received invalid route data structure, content, or insufficient points from API.")
         }
-        if (newRoute.geometry.some((coord) => !validateCoordinates(coord))) {
-          // console.error(
-          //   "NaviCoreProInterface: Route geometry from API contains invalid/NaN or out-of-bounds values after validateRouteData:",
-          //   JSON.stringify(newRoute.geometry),
-          // )
-          throw new Error("Route calculation resulted in invalid geometry points. Please check API response.")
-        }
+        // Redundant check, validateRouteData covers this
+        // if (newRoute.geometry.some((coord) => !validateCoordinates(coord))) {
+        //   throw new Error("Route calculation resulted in invalid geometry points. Please check API response.")
+        // }
 
         setRouteData(newRoute)
         setCurrentStep(newRoute.steps[0] || null)
@@ -243,22 +227,13 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
       !mapContainer.current ||
       !mapboxToken ||
       !userLocation ||
-      !routeData
+      !routeData // routeData must be validated and have geometry by now
     ) {
       return
     }
 
-    // console.log("NaviCoreProInterface: 🗺️ Pre-fitBounds validation:")
-    // console.log("NaviCoreProInterface: Route geometry:", routeData.geometry)
-
-    routeData.geometry.forEach((coord, index) => {
-      if (!validateCoordinates(coord)) {
-        console.error(`NaviCoreProInterface: ❌ Invalid coordinate at index ${index} in routeData.geometry:`, coord)
-      }
-    })
-
     mapboxgl.accessToken = mapboxToken
-    const initialCenter: LngLatLike = routeData.geometry[0]
+    const initialCenter: LngLatLike = routeData.geometry[0] // Safe because validateRouteData checks geometry
 
     try {
       map.current = new mapboxgl.Map({
@@ -279,24 +254,22 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     }
 
     map.current.on("load", () => {
-      // console.log("NaviCore Pro: Map style loaded.")
       const mapInstance = map.current!
-      // console.log("NaviCoreProInterface: Map ready state:", mapInstance.loaded())
-      // console.log("NaviCoreProInterface: Map style loaded:", mapInstance.isStyleLoaded())
       mapInstance.resize()
 
+      // Add markers for user and destination
       if (validateCoordinates([userLocation.longitude, userLocation.latitude])) {
         new mapboxgl.Marker({ color: "#007AFF" })
           .setLngLat([userLocation.longitude, userLocation.latitude])
           .addTo(mapInstance)
       }
-
       if (destination && validateCoordinates([destination.longitude, destination.latitude])) {
-        new mapboxgl.Marker({ color: "#34C759" }) // Green for destination
+        new mapboxgl.Marker({ color: "#34C759" })
           .setLngLat([destination.longitude, destination.latitude])
           .addTo(mapInstance)
       }
 
+      // Add route line
       const sourceId = "route"
       if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId)
       if (mapInstance.getLayer(sourceId)) mapInstance.removeLayer(sourceId)
@@ -308,7 +281,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
           properties: {},
           geometry: {
             type: "LineString",
-            coordinates: routeData.geometry,
+            coordinates: routeData.geometry, // Already validated to have >= 2 points
           },
         },
       })
@@ -322,14 +295,23 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
       setMapStatus("loaded")
 
-      const geometryForBounds = routeData.geometry
+      // --- FitBounds Implementation using Turf.js ---
       let boundsToFit: LngLatBoundsLike | null = null
+      try {
+        // Ensure routeData.geometry is valid for turfLineString (array of positions)
+        // validateRouteData already ensures geometry exists, is an array, has valid coords, and has >= 2 points.
+        const line = turfLineString(routeData.geometry)
+        const turfBounds = bbox(line) // Returns [minLng, minLat, maxLng, maxLat]
 
-      if (Array.isArray(geometryForBounds) && geometryForBounds.length > 0) {
-        boundsToFit = calculateSafeBounds(geometryForBounds)
-        // console.log("NaviCoreProInterface: Calculated bounds via calculateSafeBounds:", boundsToFit)
-      } else {
-        console.warn("NaviCoreProInterface: ❌ Geometry for bounds is invalid or empty.")
+        // Convert Turf bbox to Mapbox LngLatBoundsLike: [[minLng, minLat], [maxLng, maxLat]]
+        boundsToFit = [
+          [turfBounds[0], turfBounds[1]], // SW
+          [turfBounds[2], turfBounds[3]], // NE
+        ]
+        console.log("NaviCoreProInterface: Bounds calculated by Turf.js:", boundsToFit)
+      } catch (turfError) {
+        console.error("NaviCoreProInterface: ❌ Error calculating bounds with Turf.js:", turfError)
+        boundsToFit = null // Ensure fallback if Turf.js fails
       }
 
       const isValidBoundsArray =
@@ -340,7 +322,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
         validateCoordinates(boundsToFit[1] as [number, number])
 
       if (isValidBoundsArray && boundsToFit) {
-        // console.log("NaviCoreProInterface: ✅ Bounds array is valid, attempting fitBounds:", boundsToFit)
+        console.log("NaviCoreProInterface: ✅ Turf.js bounds are valid, attempting fitBounds:", boundsToFit)
         try {
           mapInstance.fitBounds(boundsToFit, {
             padding: 50,
@@ -348,10 +330,10 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
             duration: 1000,
             essential: true,
           })
-          // console.log("NaviCoreProInterface: ✅ Map bounds set successfully using validated bounds:", boundsToFit)
+          console.log("NaviCoreProInterface: ✅ Map bounds set successfully using Turf.js bounds:", boundsToFit)
         } catch (error) {
           console.error(
-            "NaviCoreProInterface: ❌ fitBounds failed even with validated bounds, using flyTo fallback:",
+            "NaviCoreProInterface: ❌ fitBounds failed even with Turf.js bounds, using flyTo fallback:",
             error,
             "Bounds were:",
             boundsToFit,
@@ -361,7 +343,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
           if (validateCoordinates([centerLng, centerLat])) {
             mapInstance.flyTo({ center: [centerLng, centerLat], zoom: 13, duration: 1000 })
           } else {
-            const firstValidGeoPoint = geometryForBounds.find(validateCoordinates)
+            const firstValidGeoPoint = routeData.geometry.find(validateCoordinates) // routeData.geometry is safe here
             if (firstValidGeoPoint) {
               mapInstance.flyTo({ center: firstValidGeoPoint, zoom: 13, duration: 1000 })
             } else if (userLocation && validateCoordinates([userLocation.longitude, userLocation.latitude])) {
@@ -370,19 +352,17 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
           }
         }
       } else {
-        // console.warn("NaviCoreProInterface: ❌ Invalid bounds calculated or geometry empty. Using fallback flyTo.")
-        const firstValidGeoPoint =
-          geometryForBounds && geometryForBounds.length > 0 ? geometryForBounds.find(validateCoordinates) : null
+        console.warn("NaviCoreProInterface: ❌ Invalid bounds from Turf.js or Turf.js failed. Using fallback flyTo.")
+        const firstValidGeoPoint = routeData.geometry.find(validateCoordinates) // routeData.geometry is safe
         if (firstValidGeoPoint) {
-          // console.log("NaviCoreProInterface: Flying to first valid geometry point:", firstValidGeoPoint)
           mapInstance.flyTo({ center: firstValidGeoPoint, zoom: 13, duration: 1000 })
         } else if (userLocation && validateCoordinates([userLocation.longitude, userLocation.latitude])) {
-          // console.log("NaviCoreProInterface: Flying to user location as fallback:", userLocation)
           mapInstance.flyTo({ center: [userLocation.longitude, userLocation.latitude], zoom: 12 })
         } else {
           console.error("NaviCoreProInterface: ❌ No valid coordinates available for map positioning.")
         }
       }
+      // --- End of FitBounds Implementation ---
     })
 
     map.current.on("error", (e) => {
@@ -403,7 +383,6 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     const speedTimer = setInterval(() => {
       if (routeData) {
-        // Only simulate speed if there's a route
         setCurrentSpeed((prev) => Math.max(0, Math.min(75, prev + (Math.random() - 0.5) * 10))) // Adjusted simulation
       } else {
         setCurrentSpeed(0)
@@ -557,7 +536,6 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
               style={{ backgroundColor: "rgba(28, 28, 30, 0.9)", border: "1px solid rgba(255, 255, 255, 0.1)" }}
             >
               <div className="flex items-center gap-4">
-                {/* <Clock className="w-5 h-5 text-gray-400" /> Replaced with Volume2 and MoreHorizontal */}
                 <div style={{ fontWeight: 400, fontSize: "16px" }}>{displayTimeRemaining}</div>
               </div>
               {/* Example Traffic Delay Indicator - adapt based on your routeData structure */}
