@@ -29,7 +29,7 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
   const mapRef = useRef<any>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapboxToken, setMapboxToken] = useState<string | null>(null)
-  const [currentSpeed, setCurrentSpeed] = useState(0)
+  const [currentSpeed, setCurrentSpeed] = useState(28)
   const [showSpeedCamera, setShowSpeedCamera] = useState(false)
 
   const {
@@ -69,7 +69,7 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
     fetchMapboxToken()
   }, [])
 
-  // Initialize Google Maps style map
+  // Initialize real Mapbox map
   useEffect(() => {
     let mounted = true
 
@@ -77,8 +77,8 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
       try {
         if (!mapboxToken || !mapContainer.current) return
 
+        // Dynamically import Mapbox GL
         const mapboxgl = await import("mapbox-gl")
-        await import("mapbox-gl/dist/mapbox-gl.css")
 
         if (!mounted) return
 
@@ -86,10 +86,10 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
 
         const map = new mapboxgl.Map({
           container: mapContainer.current,
-          style: "mapbox://styles/mapbox/navigation-day-v1", // Google Maps style
+          style: "mapbox://styles/mapbox/streets-v12", // Real street map
           center: userLocation ? [userLocation.longitude, userLocation.latitude] : [-122.4194, 37.7749],
-          zoom: 17,
-          pitch: 0, // Google Maps uses 2D by default
+          zoom: 16,
+          pitch: 0,
           bearing: 0,
           attributionControl: false,
         })
@@ -101,7 +101,6 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
 
           // Add Google Maps style route
           if (currentRoute) {
-            // Main route line (Google Maps blue)
             map.addSource("route", {
               type: "geojson",
               data: {
@@ -114,9 +113,9 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
               },
             })
 
-            // Route outline (darker blue)
+            // Route shadow/outline
             map.addLayer({
-              id: "route-outline",
+              id: "route-shadow",
               type: "line",
               source: "route",
               layout: {
@@ -124,13 +123,13 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
                 "line-cap": "round",
               },
               paint: {
-                "line-color": "#1a73e8", // Google blue
-                "line-width": 12,
-                "line-opacity": 0.8,
+                "line-color": "#1a73e8",
+                "line-width": 14,
+                "line-opacity": 0.4,
               },
             })
 
-            // Route main line
+            // Main route line (Google blue)
             map.addLayer({
               id: "route",
               type: "line",
@@ -140,18 +139,35 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
                 "line-cap": "round",
               },
               paint: {
-                "line-color": "#4285f4", // Google Maps blue
+                "line-color": "#4285f4",
                 "line-width": 8,
                 "line-opacity": 1,
               },
             })
 
-            // Add destination marker (Google Maps style)
+            // Add destination marker
             if (destination) {
               const destinationEl = document.createElement("div")
+              destinationEl.className = "destination-marker"
               destinationEl.innerHTML = `
-                <div class="w-8 h-8 bg-red-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
-                  <div class="w-3 h-3 bg-white rounded-full"></div>
+                <div style="
+                  width: 32px;
+                  height: 32px;
+                  background: #ea4335;
+                  border: 3px solid white;
+                  border-radius: 50%;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  position: relative;
+                ">
+                  <div style="
+                    width: 8px;
+                    height: 8px;
+                    background: white;
+                    border-radius: 50%;
+                  "></div>
                 </div>
               `
               new mapboxgl.Marker({ element: destinationEl })
@@ -160,15 +176,30 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
             }
           }
 
-          // Add user location (Google Maps style blue dot)
+          // Add user location (Google Maps blue dot)
           if (userLocation) {
             const userEl = document.createElement("div")
+            userEl.className = "user-location"
             userEl.innerHTML = `
-              <div class="relative">
-                <div class="w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg"></div>
-                <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                  <div class="w-2 h-2 bg-white rounded-full"></div>
-                </div>
+              <div style="
+                width: 20px;
+                height: 20px;
+                background: #4285f4;
+                border: 3px solid white;
+                border-radius: 50%;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                position: relative;
+              ">
+                <div style="
+                  position: absolute;
+                  top: 50%;
+                  left: 50%;
+                  transform: translate(-50%, -50%);
+                  width: 6px;
+                  height: 6px;
+                  background: white;
+                  border-radius: 50%;
+                "></div>
               </div>
             `
 
@@ -195,12 +226,12 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
     }
   }, [mapboxToken, userLocation, destination, currentRoute])
 
-  // Simulate speed updates
+  // Simulate realistic updates
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentSpeed(Math.floor(Math.random() * 20) + 25) // 25-45 mph
-      setShowSpeedCamera(Math.random() > 0.8) // Occasionally show speed camera
-    }, 3000)
+      setCurrentSpeed(Math.floor(Math.random() * 15) + 20) // 20-35 mph
+      setShowSpeedCamera(Math.random() > 0.9) // Rarely show speed camera
+    }, 4000)
 
     return () => clearInterval(interval)
   }, [])
@@ -254,20 +285,25 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col">
       {/* Google Maps Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-3">
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-3 relative z-10">
         <div className="flex items-center justify-between">
           {/* Left side - Back button and destination */}
-          <div className="flex items-center gap-3 flex-1">
-            <Button variant="ghost" size="icon" onClick={onExit} className="rounded-full hover:bg-gray-100">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onExit}
+              className="rounded-full hover:bg-gray-100 flex-shrink-0"
+            >
               <ArrowLeft className="w-5 h-5" />
             </Button>
 
             <div className="flex flex-col min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />
-                <span className="font-medium text-gray-900 truncate">{destination.name}</span>
+                <span className="font-medium text-gray-900 truncate text-sm">{destination.name}</span>
               </div>
-              <div className="flex items-center gap-3 text-sm text-gray-600">
+              <div className="flex items-center gap-2 text-xs text-gray-600">
                 <span>{navigationService.formatDistance(remainingDistance)}</span>
                 <span>•</span>
                 <span>{navigationService.formatDuration(remainingTime)}</span>
@@ -280,30 +316,30 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
           </div>
 
           {/* Right side - Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => updateSettings({ voiceGuidance: !settings.voiceGuidance })}
-              className="rounded-full hover:bg-gray-100"
+              className="rounded-full hover:bg-gray-100 w-8 h-8"
             >
               {settings.voiceGuidance ? (
-                <Volume2 className="w-5 h-5 text-blue-600" />
+                <Volume2 className="w-4 h-4 text-blue-600" />
               ) : (
-                <VolumeX className="w-5 h-5 text-gray-600" />
+                <VolumeX className="w-4 h-4 text-gray-600" />
               )}
             </Button>
 
-            <Button variant="ghost" size="icon" className="rounded-full hover:bg-gray-100">
-              <MoreVertical className="w-5 h-5" />
+            <Button variant="ghost" size="icon" className="rounded-full hover:bg-gray-100 w-8 h-8">
+              <MoreVertical className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Rerouting banner */}
+      {/* Status alerts */}
       {isRecalculating && (
-        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
+        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 relative z-10">
           <div className="flex items-center gap-2 text-blue-800">
             <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm font-medium">Rerouting...</span>
@@ -311,9 +347,8 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
         </div>
       )}
 
-      {/* Off route banner */}
       {isOffRoute && !isRecalculating && (
-        <div className="bg-orange-50 border-b border-orange-200 px-4 py-2">
+        <div className="bg-orange-50 border-b border-orange-200 px-4 py-2 relative z-10">
           <div className="flex items-center gap-2 text-orange-800">
             <AlertTriangle className="w-4 h-4" />
             <span className="text-sm font-medium">Off route • Rerouting</span>
@@ -326,10 +361,10 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
         <div ref={mapContainer} className="w-full h-full" />
 
         {/* Speed limit (Google Maps style) */}
-        {currentStepData.speedLimit && (
+        {currentStepData?.speedLimit && (
           <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-2">
             <div className="w-12 h-12 border-2 border-red-600 rounded-full flex flex-col items-center justify-center">
-              <span className="text-lg font-bold text-black">{currentStepData.speedLimit}</span>
+              <span className="text-sm font-bold text-black">{currentStepData.speedLimit}</span>
               <span className="text-xs text-gray-600 -mt-1">mph</span>
             </div>
           </div>
@@ -337,40 +372,40 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
 
         {/* Speed camera alert */}
         {showSpeedCamera && (
-          <div className="absolute top-20 right-4 bg-red-600 text-white rounded-lg shadow-lg p-3 flex items-center gap-2">
+          <div className="absolute top-20 right-4 bg-red-600 text-white rounded-lg shadow-lg p-3 flex items-center gap-2 animate-pulse">
             <Camera className="w-4 h-4" />
             <span className="text-sm font-medium">Speed camera ahead</span>
           </div>
         )}
 
         {/* Current speed */}
-        <div className="absolute bottom-32 right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-3">
+        <div className="absolute bottom-40 right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-3">
           <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{currentSpeed}</div>
+            <div className="text-xl font-bold text-gray-900">{currentSpeed}</div>
             <div className="text-xs text-gray-600">mph</div>
           </div>
         </div>
 
-        {/* Lane guidance (Google Maps style) */}
-        {currentStepData.laneGuidance && (
-          <div className="absolute bottom-40 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 p-3">
+        {/* Lane guidance */}
+        {currentStepData?.laneGuidance && (
+          <div className="absolute bottom-48 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 p-3">
             <div className="flex gap-1">
               {currentStepData.laneGuidance.lanes.map((lane, idx) => (
                 <div
                   key={idx}
                   className={cn(
-                    "w-8 h-12 border-2 rounded flex items-end justify-center pb-1",
+                    "w-6 h-10 border-2 rounded flex items-end justify-center pb-1",
                     lane.valid ? "border-blue-600 bg-blue-50" : "border-gray-300 bg-gray-50",
                   )}
                 >
                   {lane.indications.includes("straight") && (
-                    <div className={cn("text-lg", lane.valid ? "text-blue-600" : "text-gray-400")}>↑</div>
+                    <div className={cn("text-sm", lane.valid ? "text-blue-600" : "text-gray-400")}>↑</div>
                   )}
                   {lane.indications.includes("right") && (
-                    <div className={cn("text-lg", lane.valid ? "text-blue-600" : "text-gray-400")}>↗</div>
+                    <div className={cn("text-sm", lane.valid ? "text-blue-600" : "text-gray-400")}>↗</div>
                   )}
                   {lane.indications.includes("left") && (
-                    <div className={cn("text-lg", lane.valid ? "text-blue-600" : "text-gray-400")}>↖</div>
+                    <div className={cn("text-sm", lane.valid ? "text-blue-600" : "text-gray-400")}>↖</div>
                   )}
                 </div>
               ))}
@@ -380,24 +415,24 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
       </div>
 
       {/* Google Maps Bottom Sheet */}
-      <div className="bg-white border-t border-gray-200 shadow-lg">
+      <div className="bg-white border-t border-gray-200 shadow-lg relative z-10">
         {/* Main instruction */}
         <div className="px-4 py-4">
           <div className="flex items-center gap-4">
             {/* Turn icon */}
-            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
               {getTurnIcon()}
             </div>
 
             {/* Instruction text */}
-            <div className="flex-1">
-              <div className="text-lg font-medium text-gray-900">{getNextInstruction()}</div>
-              {nextStep && <div className="text-sm text-gray-600 mt-1">on {nextStep.streetName}</div>}
+            <div className="flex-1 min-w-0">
+              <div className="text-base font-medium text-gray-900 truncate">{getNextInstruction()}</div>
+              {nextStep && <div className="text-sm text-gray-600 mt-1 truncate">on {nextStep.streetName}</div>}
             </div>
 
             {/* Distance */}
-            <div className="text-right">
-              <div className="text-2xl font-bold text-gray-900">
+            <div className="text-right flex-shrink-0">
+              <div className="text-xl font-bold text-gray-900">
                 {navigationService.formatDistance(getNextDistance())}
               </div>
             </div>
@@ -408,21 +443,21 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
         <div className="border-t border-gray-100 px-4 py-3">
           <div className="flex items-center justify-between">
             {/* Left actions */}
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
-                <Share className="w-4 h-4 mr-2" />
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50 h-8 px-3 text-sm">
+                <Share className="w-3 h-3 mr-2" />
                 Share
               </Button>
-              <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
-                <Star className="w-4 h-4 mr-2" />
+              <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50 h-8 px-3 text-sm">
+                <Star className="w-3 h-3 mr-2" />
                 Save
               </Button>
             </div>
 
             {/* Right actions */}
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
-                <Phone className="w-4 h-4 mr-2" />
+              <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50 h-8 px-3 text-sm">
+                <Phone className="w-3 h-3 mr-2" />
                 Call
               </Button>
 
@@ -430,7 +465,7 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
               {isLastStep && remainingDistance < 100 && (
                 <Button
                   onClick={confirmArrival}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full h-8 text-sm"
                 >
                   I'm here
                 </Button>
@@ -443,12 +478,12 @@ export function GoogleMapsNavigation({ onExit }: GoogleMapsNavigationProps) {
         <div className="border-t border-gray-100 px-4 py-2 bg-gray-50">
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2 text-gray-600">
-              <Clock className="w-4 h-4" />
+              <Clock className="w-3 h-3" />
               <span>Typical traffic for this time</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full" />
-              <span className="text-green-600 font-medium">Light traffic</span>
+              <span className="text-green-600 font-medium text-xs">Light traffic</span>
             </div>
           </div>
         </div>

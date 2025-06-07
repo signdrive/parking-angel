@@ -1,3 +1,4 @@
+@import url("https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -68,71 +69,47 @@
   }
 }
 
-/* Navigation-specific styles */
-.user-location-marker {
-  z-index: 1000;
+/* Mapbox GL styles */
+.mapboxgl-map {
+  font-family: inherit;
 }
 
-.destination-marker {
-  z-index: 999;
-}
-
-.turn-marker {
-  z-index: 998;
-}
-
-/* Mapbox navigation customizations */
-.mapboxgl-ctrl-nav-compass {
-  display: block !important;
-}
-
-.mapboxgl-ctrl-nav-compass .mapboxgl-ctrl-icon {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 29 29' xmlns='http://www.w3.org/2000/svg' fill='%23333'%3E%3Cpath d='m10.5 14 4-8 4 8h-8z'/%3E%3Cpath d='m10.5 16 4 8 4-8h-8z' fill='%23ccc'/%3E%3C/svg%3E") !important;
-}
-
-/* Hide default attribution in navigation mode */
 .mapboxgl-ctrl-attrib {
   display: none !important;
 }
 
-/* Custom route styling */
-.mapboxgl-popup-content {
-  background: rgba(0, 0, 0, 0.8) !important;
-  color: white !important;
-  border-radius: 8px !important;
-  padding: 12px !important;
+.mapboxgl-ctrl-logo {
+  display: none !important;
 }
 
-.mapboxgl-popup-tip {
-  border-top-color: rgba(0, 0, 0, 0.8) !important;
+/* Custom marker styles */
+.destination-marker {
+  cursor: pointer;
 }
 
-/* Navigation overlay animations */
-@keyframes pulse-gps {
-  0%,
+.user-location {
+  cursor: pointer;
+}
+
+/* Navigation specific styles */
+.navigation-container {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Google Maps style animations */
+@keyframes pulse-blue {
+  0% {
+    box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(66, 133, 244, 0);
+  }
   100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
+    box-shadow: 0 0 0 0 rgba(66, 133, 244, 0);
   }
 }
 
-.gps-pulse {
-  animation: pulse-gps 2s infinite;
-}
-
-/* Turn arrow animations */
-@keyframes turn-highlight {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-}
-
-.turn-highlight {
-  animation: turn-highlight 1s ease-in-out infinite;
+.user-location > div {
+  animation: pulse-blue 2s infinite;
 }
