@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
-import { RealisticNavigation } from "./realistic-navigation"
+import { ProfessionalNavigation } from "./professional-navigation"
 
 interface NavigationInterfaceProps {
   onExit: () => void
@@ -13,7 +13,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
   const { updateUserLocation, updateGpsSignal } = useNavigationStore()
   const navigationService = NavigationService.getInstance()
 
-  // Location tracking
+  // Professional location tracking
   useEffect(() => {
     navigationService.startLocationTracking(
       (location) => {
@@ -31,5 +31,5 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     }
   }, [updateUserLocation, updateGpsSignal, navigationService])
 
-  return <RealisticNavigation onExit={onExit} />
+  return <ProfessionalNavigation onExit={onExit} />
 }
