@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
-import { SecureNavigationMap } from "./secure-navigation-map"
+import { SecureGoogleMapsNavigation } from "./secure-google-maps-navigation"
 
 interface NavigationInterfaceProps {
   onExit: () => void
@@ -46,5 +46,5 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     )
   }
 
-  return <SecureNavigationMap onExit={onExit} />
+  return <SecureGoogleMapsNavigation onExit={onExit} />
 }
