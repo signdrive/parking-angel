@@ -253,132 +253,96 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
       return
     }
 
-    map.current.on("load", () => {
+    map.current.on("style.load", () => {
       const mapInstance = map.current!
       mapInstance.resize()
 
-      // Add markers for user and destination
-      if (validateCoordinates([userLocation.longitude, userLocation.latitude])) {
-        new mapboxgl.Marker({ color: "#007AFF" })
-          .setLngLat([userLocation.longitude, userLocation.latitude])
-          .addTo(mapInstance)
-      }
-      if (destination && validateCoordinates([destination.longitude, destination.latitude])) {
-        new mapboxgl.Marker({ color: "#34C759" })
-          .setLngLat([destination.longitude, destination.latitude])
-          .addTo(mapInstance)
-      }
+      // Wait a bit for the style to fully render before adding content
+      setTimeout(() => {
+        // Add markers for user and destination
+        if (validateCoordinates([userLocation.longitude, userLocation.latitude])) {
+          new mapboxgl.Marker({ color: "#007AFF" })
+            .setLngLat([userLocation.longitude, userLocation.latitude])
+            .addTo(mapInstance)
+        }
+        if (destination && validateCoordinates([destination.longitude, destination.latitude])) {
+          new mapboxgl.Marker({ color: "#34C759" })
+            .setLngLat([destination.longitude, destination.latitude])
+            .addTo(mapInstance)
+        }
 
-      // Add route line
-      const sourceId = "route"
-      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId)
-      if (mapInstance.getLayer(sourceId)) mapInstance.removeLayer(sourceId)
+        // Add route line
+        const sourceId = "route"
+        if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId)
+        if (mapInstance.getLayer(sourceId)) mapInstance.removeLayer(sourceId)
 
-      mapInstance.addSource(sourceId, {
-        type: "geojson",
-        data: {
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "LineString",
-            coordinates: routeData.geometry, // Already validated to have >= 2 points
+        mapInstance.addSource(sourceId, {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: routeData.geometry,
+            },
           },
-        },
-      })
-      mapInstance.addLayer({
-        id: sourceId,
-        type: "line",
-        source: sourceId,
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#007AFF", "line-width": 8, "line-opacity": 0.9 },
-      })
+        })
+        mapInstance.addLayer({
+          id: sourceId,
+          type: "line",
+          source: sourceId,
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#007AFF", "line-width": 8, "line-opacity": 0.9 },
+        })
 
-      setMapStatus("loaded")
+        setMapStatus("loaded")
 
-      // --- FitBounds Implementation using Turf.js ---
-      let boundsToFit: LngLatBoundsLike | null = null
-      try {
-        // Ensure routeData.geometry is valid for turfLineString (array of positions)
-        // validateRouteData already ensures geometry exists, is an array, has valid coords, and has >= 2 points.
-        const line = turfLineString(routeData.geometry)
-        const turfBounds = bbox(line) // Returns [minLng, minLat, maxLng, maxLat]
+        // Add another small delay before fitBounds
+        setTimeout(() => {
+          // --- FitBounds Implementation using Turf.js ---
+          let boundsToFit: LngLatBoundsLike | null = null
+          try {
+            const line = turfLineString(routeData.geometry)
+            const turfBounds = bbox(line)
+            boundsToFit = [
+              [turfBounds[0], turfBounds[1]],
+              [turfBounds[2], turfBounds[3]],
+            ]
+            console.log("NaviCoreProInterface: Bounds calculated by Turf.js:", boundsToFit)
+          } catch (turfError) {
+            console.error("NaviCoreProInterface: ❌ Error calculating bounds with Turf.js:", turfError)
+            boundsToFit = null
+          }
 
-        // Convert Turf bbox to Mapbox LngLatBoundsLike: [[minLng, minLat], [maxLng, maxLat]]
-        boundsToFit = [
-          [turfBounds[0], turfBounds[1]], // SW
-          [turfBounds[2], turfBounds[3]], // NE
-        ]
-        console.log("NaviCoreProInterface: Bounds calculated by Turf.js:", boundsToFit)
-      } catch (turfError) {
-        console.error("NaviCoreProInterface: ❌ Error calculating bounds with Turf.js:", turfError)
-        boundsToFit = null // Ensure fallback if Turf.js fails
-      }
+          const isValidBoundsArray =
+            boundsToFit &&
+            Array.isArray(boundsToFit) &&
+            boundsToFit.length === 2 &&
+            validateCoordinates(boundsToFit[0] as [number, number]) &&
+            validateCoordinates(boundsToFit[1] as [number, number])
 
-      const isValidBoundsArray =
-        boundsToFit &&
-        Array.isArray(boundsToFit) &&
-        boundsToFit.length === 2 &&
-        validateCoordinates(boundsToFit[0] as [number, number]) &&
-        validateCoordinates(boundsToFit[1] as [number, number])
-
-      if (isValidBoundsArray && boundsToFit) {
-        console.log("NaviCoreProInterface: ✅ Turf.js bounds are valid, attempting fitBounds:", boundsToFit)
-        try {
-          mapInstance.fitBounds(boundsToFit, {
-            padding: 50,
-            maxZoom: 15,
-            duration: 1000,
-            essential: true,
-          })
-          console.log("NaviCoreProInterface: ✅ Map bounds set successfully using Turf.js bounds:", boundsToFit)
-        } catch (error) {
-          console.error(
-            "NaviCoreProInterface: ❌ fitBounds failed even with Turf.js bounds, using flyTo fallback:",
-            error,
-            "Bounds were:",
-            boundsToFit,
-          )
-          const centerLng = (boundsToFit[0][0] + boundsToFit[1][0]) / 2
-          const centerLat = (boundsToFit[0][1] + boundsToFit[1][1]) / 2
-          if (validateCoordinates([centerLng, centerLat])) {
-            mapInstance.flyTo({ center: [centerLng, centerLat], zoom: 13, duration: 1000 })
-          } else {
-            const firstValidGeoPoint = routeData.geometry.find(validateCoordinates) // routeData.geometry is safe here
-            if (firstValidGeoPoint) {
-              mapInstance.flyTo({ center: firstValidGeoPoint, zoom: 13, duration: 1000 })
-            } else if (userLocation && validateCoordinates([userLocation.longitude, userLocation.latitude])) {
-              mapInstance.flyTo({ center: [userLocation.longitude, userLocation.latitude], zoom: 12 })
+          if (isValidBoundsArray && boundsToFit) {
+            console.log("NaviCoreProInterface: ✅ Turf.js bounds are valid, attempting fitBounds:", boundsToFit)
+            try {
+              mapInstance.fitBounds(boundsToFit, {
+                padding: 50,
+                maxZoom: 15,
+                duration: 1000,
+                essential: true,
+              })
+              console.log("NaviCoreProInterface: ✅ Map bounds set successfully using Turf.js bounds:", boundsToFit)
+            } catch (error) {
+              console.error("NaviCoreProInterface: ❌ fitBounds failed, using flyTo fallback:", error)
+              const centerLng = (boundsToFit[0][0] + boundsToFit[1][0]) / 2
+              const centerLat = (boundsToFit[0][1] + boundsToFit[1][1]) / 2
+              if (validateCoordinates([centerLng, centerLat])) {
+                mapInstance.flyTo({ center: [centerLng, centerLat], zoom: 13, duration: 1000 })
+              }
             }
           }
-        }
-      } else {
-        console.warn("NaviCoreProInterface: ❌ Invalid bounds from Turf.js or Turf.js failed. Using fallback flyTo.")
-        const firstValidGeoPoint = routeData.geometry.find(validateCoordinates) // routeData.geometry is safe
-        if (firstValidGeoPoint) {
-          mapInstance.flyTo({ center: firstValidGeoPoint, zoom: 13, duration: 1000 })
-        } else if (userLocation && validateCoordinates([userLocation.longitude, userLocation.latitude])) {
-          mapInstance.flyTo({ center: [userLocation.longitude, userLocation.latitude], zoom: 12 })
-        } else {
-          console.error("NaviCoreProInterface: ❌ No valid coordinates available for map positioning.")
-        }
-      }
-      // --- End of FitBounds Implementation ---
-
-      // try {
-      //   if (mapInstance.isStyleLoaded() && mapInstance.isSourceLoaded("route")) {
-      //     console.log("NaviCoreProInterface: Attempting triggerRepaint after fitBounds.")
-      //     mapInstance.triggerRepaint()
-      //   } else {
-      //     console.log("NaviCoreProInterface: Style or source not fully loaded, skipping triggerRepaint for now.")
-      //     // Optionally, set up a one-time event listener for 'render' or 'idle' to trigger repaint
-      //     mapInstance.once("idle", () => {
-      //       console.log("NaviCoreProInterface: Map idle, attempting triggerRepaint.")
-      //       mapInstance.triggerRepaint()
-      //     })
-      //   }
-      // } catch (repaintError) {
-      //   console.error("NaviCoreProInterface: Error during triggerRepaint:", repaintError)
-      // }
+          // --- End of FitBounds Implementation ---
+        }, 500) // 500ms delay before fitBounds
+      }, 1000) // 1 second delay before adding sources/layers
     })
 
     map.current.on("error", (e) => {
