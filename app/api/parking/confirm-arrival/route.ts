@@ -1,30 +1,64 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+interface ArrivalConfirmation {
+  spotId: string
+  userId: string
+  arrivalTime: string
+  reservationId?: string
+  vehicleLocation: {
+    latitude: number
+    longitude: number
+    accuracy: number
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { spotId, arrivalTime } = await request.json()
+    const confirmation: ArrivalConfirmation = await request.json()
 
-    console.log("🎯 Confirming arrival at spot:", spotId, "at", arrivalTime)
+    console.log("🎯 Confirming parking arrival:", confirmation)
 
-    // Simulate arrival confirmation processing
+    // Simulate arrival processing
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    // Here you would typically:
-    // 1. Update the parking spot status in the database
-    // 2. Start a parking session
-    // 3. Send confirmation notifications
-    // 4. Update user's parking history
+    // Generate parking session
+    const sessionId = `session_${Date.now()}`
+    const maxDuration = 2 * 60 * 60 * 1000 // 2 hours in milliseconds
+    const sessionExpiry = new Date(Date.now() + maxDuration)
 
     const response = {
       success: true,
-      message: "Arrival confirmed successfully",
-      spotId,
-      arrivalTime,
-      sessionId: `session_${Date.now()}`,
-      parkingDuration: "2 hours", // Default or user-selected duration
+      sessionId,
+      spotId: confirmation.spotId,
+      arrivalTime: confirmation.arrivalTime,
+      sessionExpiry: sessionExpiry.toISOString(),
+      parkingInstructions: [
+        "Park within the designated lines",
+        "Display parking confirmation on dashboard",
+        "Maximum stay: 2 hours",
+        "Payment will be processed automatically",
+      ],
+      walkingDirections: {
+        distance: Math.floor(Math.random() * 200) + 50, // 50-250m walk
+        duration: Math.floor(Math.random() * 180) + 60, // 1-4 minutes
+        instructions: [
+          "Exit your vehicle",
+          "Walk north towards the main entrance",
+          "Your destination is 150 meters ahead",
+        ],
+      },
+      paymentInfo: confirmation.reservationId
+        ? {
+            amount: "$3.50",
+            duration: "2 hours",
+            paymentMethod: "Credit Card ending in 4242",
+            receiptId: `receipt_${Date.now()}`,
+          }
+        : null,
     }
 
-    console.log("✅ Arrival confirmed:", response)
+    console.log("✅ Arrival confirmed successfully")
+
     return NextResponse.json(response)
   } catch (error) {
     console.error("❌ Arrival confirmation error:", error)

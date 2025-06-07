@@ -12,9 +12,11 @@ import { ParkingDataService, type RealParkingSpot } from "@/lib/parking-data-ser
 import { AISpotPredictor, type SpotPrediction } from "@/lib/ai-spot-predictor"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
-import { NavigationInterface } from "@/components/navigation/navigation-interface"
 import { SpotReportDialog } from "./spot-report-dialog"
 import { toast } from "@/components/ui/use-toast"
+import { useDispatch, useSelector } from "react-redux"
+import { startNavigation as startNavigationRedux, stopNavigation } from "@/lib/navigation-redux-store"
+import { TomTomNavigation } from "@/components/navigation/tomtom-navigation"
 
 interface AreaAnalysis {
   clickLocation: { lat: number; lng: number }
@@ -67,8 +69,11 @@ export function EnhancedParkingMap({
   const aiPredictor = AISpotPredictor.getInstance()
   const navigationService = NavigationService.getInstance()
 
+  const dispatch = useDispatch()
+  const navigation = useSelector((state: any) => state.navigation)
+
   // Navigation store
-  const { isNavigating, startNavigation, stopNavigation } = useNavigationStore()
+  const { isNavigating, startNavigation, stopNavigation: stopNavigationLegacy } = useNavigationStore()
 
   // Fetch Mapbox token securely from server
   useEffect(() => {
@@ -213,7 +218,7 @@ export function EnhancedParkingMap({
     }
 
     try {
-      console.log("🚗 Starting navigation to spot:", spot.name)
+      console.log("🚗 Starting TomTom-like navigation to spot:", spot.name)
       setLoading(true)
 
       toast({
@@ -221,38 +226,51 @@ export function EnhancedParkingMap({
         description: `Finding the best route to ${spot.name}`,
       })
 
-      // Calculate route to the parking spot
-      const route = await navigationService.calculateRoute([longitude, latitude], [spot.longitude, spot.latitude], {
-        avoidTraffic: true,
-        routeType: "fastest",
+      // Call the new API endpoint
+      const response = await fetch("/api/navigation/start-route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origin: { latitude, longitude },
+          destination: {
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            spotId: spot.id.toString(),
+          },
+          preferences: {
+            avoidTraffic: true,
+            routeType: "fastest",
+            avoidTolls: false,
+          },
+        }),
       })
 
-      console.log("📍 Route calculated, starting navigation...")
+      const data = await response.json()
 
-      // Start navigation
-      startNavigation(
-        {
-          latitude: spot.latitude,
-          longitude: spot.longitude,
-          name: spot.name,
-          spotId: spot.id.toString(),
-        },
-        route,
+      // Start navigation with Redux
+      dispatch(
+        startNavigationRedux({
+          destination: {
+            id: spot.id.toString(),
+            name: spot.name,
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            price: spot.price_per_hour,
+          },
+          route: data.route,
+        }),
       )
 
-      console.log("✅ Navigation started successfully!")
+      console.log("✅ TomTom navigation started successfully!")
       toast({
         title: "Navigation started",
-        description: `Navigating to ${spot.name} - ${navigationService.formatDistance(route.distance)} away`,
+        description: `Navigating to ${spot.name} with TomTom-like interface`,
       })
     } catch (error) {
       console.error("❌ Failed to start navigation:", error)
-
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
-
       toast({
         title: "Navigation failed",
-        description: `Could not calculate route: ${errorMessage}`,
+        description: "Could not start navigation. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -578,7 +596,7 @@ export function EnhancedParkingMap({
       case "garage":
         return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v1a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/></svg>`
       case "meter":
-        return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1a2 2 0 002 2V4zM4 13v3a2 2 0 002 2h8a2 2 0 002-2v-3a2 2 0 002-2V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"/></svg>`
+        return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1a2 2 0 002 2V4zM4 13v3a2 2 0 002 2h8a2 2 0 002 2z"/></svg>`
       default:
         return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/></svg>`
     }
@@ -599,11 +617,6 @@ export function EnhancedParkingMap({
     })
 
     analyzeAreaWithAI(clickLocation)
-  }
-
-  // Show navigation interface if navigating
-  if (isNavigating) {
-    return <NavigationInterface onExit={stopNavigation} />
   }
 
   if (mapboxError) {
@@ -642,6 +655,11 @@ export function EnhancedParkingMap({
         </div>
       </div>
     )
+  }
+
+  // Show TomTom navigation interface if navigating
+  if (navigation?.isNavigating) {
+    return <TomTomNavigation onExit={() => dispatch(stopNavigation())} />
   }
 
   return (
