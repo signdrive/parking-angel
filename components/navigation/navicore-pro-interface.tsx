@@ -1,11 +1,69 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import mapboxgl, { type LngLatLike } from "mapbox-gl"
+import mapboxgl, { type LngLatLike, type LngLatBoundsLike } from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { Button } from "@/components/ui/button"
-import { Phone, ArrowLeft, Navigation, AlertTriangle, Clock, Loader2, WifiOff } from "lucide-react"
+import { ArrowLeft, Navigation, Loader2, WifiOff, Volume2, MoreHorizontal } from "lucide-react"
 import type { NavigationRoute, NavigationStep } from "@/lib/navigation-store"
+import { formatDistance, formatDuration } from "@/lib/utils" // Corrected import
+
+// --- Helper Functions (validateCoordinates, calculateSafeBounds, validateRouteData) ---
+function validateCoordinates(coords: any): coords is [number, number] {
+  if (!Array.isArray(coords) || coords.length !== 2) return false
+  const [lng, lat] = coords
+  return (
+    typeof lng === "number" &&
+    typeof lat === "number" &&
+    !isNaN(lng) &&
+    !isNaN(lat) &&
+    lng >= -180 &&
+    lng <= 180 &&
+    lat >= -90 &&
+    lat <= 90
+  )
+}
+
+function calculateSafeBounds(geometry: [number, number][]): LngLatBoundsLike | null {
+  // console.log("NaviCoreProInterface: Calculating safe bounds for geometry:", geometry) // Keep for debugging if needed
+  const validCoords = geometry.filter(validateCoordinates)
+
+  if (validCoords.length === 0) {
+    console.error("NaviCoreProInterface: No valid coordinates found in geometry for calculateSafeBounds")
+    return null
+  }
+
+  const lngs = validCoords.map((coord) => coord[0])
+  const lats = validCoords.map((coord) => coord[1])
+
+  const sw: [number, number] = [Math.min(...lngs), Math.min(...lats)]
+  const ne: [number, number] = [Math.max(...lngs), Math.max(...lats)]
+
+  if (!validateCoordinates(sw) || !validateCoordinates(ne)) {
+    console.error("NaviCoreProInterface: Calculated SW or NE bounds points are invalid. SW:", sw, "NE:", ne)
+    return null
+  }
+  // console.log("NaviCoreProInterface: Calculated safe SW, NE:", sw, ne) // Keep for debugging
+  return [sw, ne]
+}
+
+function validateRouteData(routeData: NavigationRoute | null): boolean {
+  // console.log("NaviCoreProInterface: 🔍 Validating route data:", routeData) // Keep for debugging
+  if (!routeData || !routeData.geometry) {
+    console.error("NaviCoreProInterface: ❌ Route data or geometry is missing")
+    return false
+  }
+  if (!Array.isArray(routeData.geometry)) {
+    console.error("NaviCoreProInterface: ❌ Geometry is not an array")
+    return false
+  }
+  const validCoords = routeData.geometry.filter(validateCoordinates)
+  // console.log(
+  //   `NaviCoreProInterface: ✅ Found ${validCoords.length}/${routeData.geometry.length} valid coordinates in routeData`,
+  // ) // Keep for debugging
+  return validCoords.length > 0
+}
+// --- End of Helper Functions ---
 
 interface NaviCoreProInterfaceProps {
   onExit: () => void
@@ -28,19 +86,13 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [currentSpeed, setCurrentSpeed] = useState(0)
+  // Removed navigationData state as it was not fully utilized and speedLimit/distance can be derived
 
-  const isValidCoordinatePair = (coord: any): coord is [number, number] => {
-    return (
-      Array.isArray(coord) &&
-      coord.length === 2 &&
-      typeof coord[0] === "number" &&
-      !isNaN(coord[0]) &&
-      Math.abs(coord[0]) <= 180 && // Check longitude bounds
-      typeof coord[1] === "number" &&
-      !isNaN(coord[1]) &&
-      Math.abs(coord[1]) <= 90 // Check latitude bounds
-    )
-  }
+  let loadingMessage = "Loading Professional Navigation..."
+  if (mapStatus === "loading_token") loadingMessage = "Initializing secure connection..."
+  else if (mapStatus === "loading_config") loadingMessage = "Acquiring satellite signal..."
+  else if (mapStatus === "loading_route") loadingMessage = "Calculating optimal route..."
+  else if (mapStatus === "loading_map") loadingMessage = "Rendering 3D map view..."
 
   // 1. Fetch Mapbox token
   useEffect(() => {
@@ -49,7 +101,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     setErrorDetails(null)
     async function fetchMapboxToken() {
       try {
-        const response = await fetch("/api/mapbox-token")
+        const response = await fetch("/api/mapbox/token") // Ensure this API route exists and is correct
         if (!response.ok) {
           const errorText = await response.text()
           throw new Error(`Token API Error: ${response.statusText} (${response.status}). Server said: ${errorText}`)
@@ -82,8 +134,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords
-          if (!isValidCoordinatePair([longitude, latitude])) {
-            // Use helper here
+          if (!validateCoordinates([longitude, latitude])) {
             console.error("Invalid user location coordinates from Geolocation API:", position.coords)
             setErrorMessage("Invalid Location Data")
             setErrorDetails(
@@ -123,8 +174,8 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     setErrorDetails(null)
 
     if (
-      !isValidCoordinatePair([userLocation.longitude, userLocation.latitude]) ||
-      !isValidCoordinatePair([destination.longitude, destination.latitude])
+      !validateCoordinates([userLocation.longitude, userLocation.latitude]) ||
+      !validateCoordinates([destination.longitude, destination.latitude])
     ) {
       console.error("NaviCoreProInterface: Invalid coordinates for route calculation (client-side pre-check):", {
         userLocation,
@@ -138,16 +189,16 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
     const calculate = async () => {
       try {
-        console.log(
-          `NaviCoreProInterface: Fetching route from [${userLocation.longitude}, ${userLocation.latitude}] to [${destination.longitude}, ${destination.latitude}]`,
-        )
+        // console.log(
+        //   `NaviCoreProInterface: Fetching route from [${userLocation.longitude}, ${userLocation.latitude}] to [${destination.longitude}, ${destination.latitude}]`,
+        // )
         const response = await fetch("/api/navigation/calculate-route", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             from: [userLocation.longitude, userLocation.latitude],
             to: [destination.longitude, destination.latitude],
-            options: { routeType: "fastest" },
+            options: { routeType: "fastest" }, // Example option
           }),
         })
         if (!response.ok) {
@@ -159,28 +210,16 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
           throw new Error(errorData.details || errorData.error || `Route calculation failed: ${response.statusText}`)
         }
         const newRoute: NavigationRoute = await response.json()
-        console.log(
-          "NaviCoreProInterface: Received route from API:",
-          JSON.stringify(newRoute).substring(0, 500) + "...",
-        )
 
-        if (
-          !newRoute ||
-          !newRoute.steps ||
-          newRoute.steps.length === 0 ||
-          !newRoute.geometry ||
-          newRoute.geometry.length === 0
-        ) {
-          console.error("NaviCoreProInterface: Invalid route data structure from server:", newRoute)
-          throw new Error("Invalid route data received from server (empty steps or geometry).")
+        if (!validateRouteData(newRoute)) {
+          throw new Error("Received invalid route data structure or content from API.")
         }
-
-        if (newRoute.geometry.some((coord) => !isValidCoordinatePair(coord))) {
-          console.error(
-            "NaviCoreProInterface: Route geometry from API contains invalid/NaN or out-of-bounds values:",
-            JSON.stringify(newRoute.geometry),
-          )
-          throw new Error("Route calculation resulted in invalid geometry. Please check API response or source data.")
+        if (newRoute.geometry.some((coord) => !validateCoordinates(coord))) {
+          // console.error(
+          //   "NaviCoreProInterface: Route geometry from API contains invalid/NaN or out-of-bounds values after validateRouteData:",
+          //   JSON.stringify(newRoute.geometry),
+          // )
+          throw new Error("Route calculation resulted in invalid geometry points. Please check API response.")
         }
 
         setRouteData(newRoute)
@@ -209,28 +248,17 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
       return
     }
 
-    console.log(
-      "NaviCoreProInterface: Attempting to initialize map. Validating routeData.geometry:",
-      JSON.stringify(routeData.geometry).substring(0, 500) + "...",
-    )
-    if (
-      !routeData.geometry ||
-      routeData.geometry.length === 0 ||
-      routeData.geometry.some((coord) => !isValidCoordinatePair(coord))
-    ) {
-      console.error(
-        "NaviCoreProInterface: CRITICAL - routeData.geometry is invalid just before map initialization:",
-        JSON.stringify(routeData.geometry),
-      )
-      setErrorMessage("Map Display Error")
-      setErrorDetails("Cannot display map due to invalid route data. Coordinates might be NaN or malformed.")
-      setMapStatus("error")
-      return
-    }
-    console.log("NaviCoreProInterface: routeData.geometry appears valid for map initialization.")
+    // console.log("NaviCoreProInterface: 🗺️ Pre-fitBounds validation:")
+    // console.log("NaviCoreProInterface: Route geometry:", routeData.geometry)
+
+    routeData.geometry.forEach((coord, index) => {
+      if (!validateCoordinates(coord)) {
+        console.error(`NaviCoreProInterface: ❌ Invalid coordinate at index ${index} in routeData.geometry:`, coord)
+      }
+    })
 
     mapboxgl.accessToken = mapboxToken
-    const initialCenter: LngLatLike = routeData.geometry[0] as LngLatLike
+    const initialCenter: LngLatLike = routeData.geometry[0]
 
     try {
       map.current = new mapboxgl.Map({
@@ -240,7 +268,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
         zoom: 14,
         pitch: 60,
         bearing: -20,
-        interactive: false,
+        interactive: false, // Set to true if you want map interaction
       })
     } catch (mapInitError) {
       console.error("Mapbox GL Init Error:", mapInitError)
@@ -251,19 +279,20 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     }
 
     map.current.on("load", () => {
-      console.log("NaviCore Pro: Map style loaded.")
-
+      // console.log("NaviCore Pro: Map style loaded.")
       const mapInstance = map.current!
+      // console.log("NaviCoreProInterface: Map ready state:", mapInstance.loaded())
+      // console.log("NaviCoreProInterface: Map style loaded:", mapInstance.isStyleLoaded())
       mapInstance.resize()
 
-      if (isValidCoordinatePair([userLocation.longitude, userLocation.latitude])) {
+      if (validateCoordinates([userLocation.longitude, userLocation.latitude])) {
         new mapboxgl.Marker({ color: "#007AFF" })
           .setLngLat([userLocation.longitude, userLocation.latitude])
           .addTo(mapInstance)
       }
 
-      if (destination && isValidCoordinatePair([destination.longitude, destination.latitude])) {
-        new mapboxgl.Marker({ color: "#34C759" })
+      if (destination && validateCoordinates([destination.longitude, destination.latitude])) {
+        new mapboxgl.Marker({ color: "#34C759" }) // Green for destination
           .setLngLat([destination.longitude, destination.latitude])
           .addTo(mapInstance)
       }
@@ -293,76 +322,65 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
       setMapStatus("loaded")
 
-      // MODIFIED/ENHANCED fitBounds LOGIC
-      try {
-        if (routeData.geometry.length > 0) {
-          const bounds = new mapboxgl.LngLatBounds()
-          routeData.geometry.forEach((coord) => {
-            // isValidCoordinatePair has already validated these points
-            bounds.extend(coord as LngLatLike)
-          })
+      const geometryForBounds = routeData.geometry
+      let boundsToFit: LngLatBoundsLike | null = null
 
-          // Check if the created bounds are valid before trying to use them
-          const sw = bounds.getSouthWest()
-          const ne = bounds.getNorthEast()
+      if (Array.isArray(geometryForBounds) && geometryForBounds.length > 0) {
+        boundsToFit = calculateSafeBounds(geometryForBounds)
+        // console.log("NaviCoreProInterface: Calculated bounds via calculateSafeBounds:", boundsToFit)
+      } else {
+        console.warn("NaviCoreProInterface: ❌ Geometry for bounds is invalid or empty.")
+      }
 
-          if (!sw || !ne || isNaN(sw.lng) || isNaN(sw.lat) || isNaN(ne.lng) || isNaN(ne.lat)) {
-            console.error(
-              "NaviCoreProInterface: Calculated LngLatBounds is invalid (contains NaN). SW:",
-              sw,
-              "NE:",
-              ne,
-              "Original Geometry:",
-              JSON.stringify(routeData.geometry),
-            )
-            // Fallback: try to fly to the first point if it's valid
-            if (routeData.geometry.length > 0 && isValidCoordinatePair(routeData.geometry[0])) {
-              console.log("NaviCoreProInterface: Falling back to flyTo due to invalid bounds.")
-              mapInstance.flyTo({
-                center: routeData.geometry[0] as LngLatLike,
-                zoom: 15,
-                pitch: 60,
-                bearing: mapInstance.getBearing(),
-              })
-            } else {
-              console.error(
-                "NaviCoreProInterface: Fallback flyTo also not possible, first geometry point is invalid or geometry is empty.",
-              )
-            }
-            return // Prevent calling fitBounds with invalid bounds
-          }
+      const isValidBoundsArray =
+        boundsToFit &&
+        Array.isArray(boundsToFit) &&
+        boundsToFit.length === 2 &&
+        validateCoordinates(boundsToFit[0] as [number, number]) &&
+        validateCoordinates(boundsToFit[1] as [number, number])
 
-          console.log("NaviCoreProInterface: Fitting to calculated valid bounds:", bounds.toArray())
-          mapInstance.fitBounds(bounds, {
-            padding: { top: 150, bottom: 150, left: 50, right: 50 },
-            pitch: 60,
-            bearing: mapInstance.getBearing(),
+      if (isValidBoundsArray && boundsToFit) {
+        // console.log("NaviCoreProInterface: ✅ Bounds array is valid, attempting fitBounds:", boundsToFit)
+        try {
+          mapInstance.fitBounds(boundsToFit, {
+            padding: 50,
+            maxZoom: 15,
             duration: 1000,
             essential: true,
           })
-        } else {
-          console.warn("NaviCoreProInterface: No geometry points to fit or fly to.")
-          if (userLocation && isValidCoordinatePair([userLocation.longitude, userLocation.latitude])) {
-            mapInstance.flyTo({ center: [userLocation.longitude, userLocation.latitude] as LngLatLike, zoom: 14 })
+          // console.log("NaviCoreProInterface: ✅ Map bounds set successfully using validated bounds:", boundsToFit)
+        } catch (error) {
+          console.error(
+            "NaviCoreProInterface: ❌ fitBounds failed even with validated bounds, using flyTo fallback:",
+            error,
+            "Bounds were:",
+            boundsToFit,
+          )
+          const centerLng = (boundsToFit[0][0] + boundsToFit[1][0]) / 2
+          const centerLat = (boundsToFit[0][1] + boundsToFit[1][1]) / 2
+          if (validateCoordinates([centerLng, centerLat])) {
+            mapInstance.flyTo({ center: [centerLng, centerLat], zoom: 13, duration: 1000 })
+          } else {
+            const firstValidGeoPoint = geometryForBounds.find(validateCoordinates)
+            if (firstValidGeoPoint) {
+              mapInstance.flyTo({ center: firstValidGeoPoint, zoom: 13, duration: 1000 })
+            } else if (userLocation && validateCoordinates([userLocation.longitude, userLocation.latitude])) {
+              mapInstance.flyTo({ center: [userLocation.longitude, userLocation.latitude], zoom: 12 })
+            }
           }
         }
-      } catch (fitBoundsError) {
-        console.warn(
-          "Mapbox fitBounds error (even after validation), falling back to flyTo:",
-          fitBoundsError,
-          "Geometry was:",
-          JSON.stringify(routeData.geometry),
-        )
-        if (routeData.geometry.length > 0 && isValidCoordinatePair(routeData.geometry[0])) {
-          mapInstance.flyTo({
-            center: routeData.geometry[0] as LngLatLike,
-            zoom: 14,
-            pitch: 45,
-          })
+      } else {
+        // console.warn("NaviCoreProInterface: ❌ Invalid bounds calculated or geometry empty. Using fallback flyTo.")
+        const firstValidGeoPoint =
+          geometryForBounds && geometryForBounds.length > 0 ? geometryForBounds.find(validateCoordinates) : null
+        if (firstValidGeoPoint) {
+          // console.log("NaviCoreProInterface: Flying to first valid geometry point:", firstValidGeoPoint)
+          mapInstance.flyTo({ center: firstValidGeoPoint, zoom: 13, duration: 1000 })
+        } else if (userLocation && validateCoordinates([userLocation.longitude, userLocation.latitude])) {
+          // console.log("NaviCoreProInterface: Flying to user location as fallback:", userLocation)
+          mapInstance.flyTo({ center: [userLocation.longitude, userLocation.latitude], zoom: 12 })
         } else {
-          console.error(
-            "NaviCoreProInterface: Fallback flyTo also failed due to invalid first coordinate in geometry or empty geometry.",
-          )
+          console.error("NaviCoreProInterface: ❌ No valid coordinates available for map positioning.")
         }
       }
     })
@@ -385,7 +403,8 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     const speedTimer = setInterval(() => {
       if (routeData) {
-        setCurrentSpeed((prev) => Math.max(20, Math.min(75, prev + (Math.random() - 0.5) * 5)))
+        // Only simulate speed if there's a route
+        setCurrentSpeed((prev) => Math.max(0, Math.min(75, prev + (Math.random() - 0.5) * 10))) // Adjusted simulation
       } else {
         setCurrentSpeed(0)
       }
@@ -395,18 +414,6 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
       clearInterval(speedTimer)
     }
   }, [routeData])
-
-  const formatDistance = (meters: number): string => {
-    if (meters < 1000) return `${Math.round(meters)} m`
-    return `${(meters / 1000).toFixed(1)} km`
-  }
-
-  const formatDuration = (seconds: number): string => {
-    const h = Math.floor(seconds / 3600)
-    const m = Math.floor((seconds % 3600) / 60)
-    if (h > 0) return `${h}h ${m}m remaining`
-    return `${m}m remaining`
-  }
 
   const calculateETA = (durationSeconds: number): string => {
     const etaDate = new Date(Date.now() + durationSeconds * 1000)
@@ -436,12 +443,6 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     if (isNaN(displayProgress) || displayProgress < 0) displayProgress = 0
     if (displayProgress > 100) displayProgress = 100
   }
-
-  let loadingMessage = "Loading Professional Navigation..."
-  if (mapStatus === "loading_token") loadingMessage = "Initializing secure connection..."
-  else if (mapStatus === "loading_config") loadingMessage = "Acquiring satellite signal..."
-  else if (mapStatus === "loading_route") loadingMessage = "Calculating optimal route..."
-  else if (mapStatus === "loading_map") loadingMessage = "Rendering 3D map view..."
 
   return (
     <div className="h-full w-full flex flex-col font-sans text-white overflow-hidden bg-[#1C1C1E]">
@@ -509,7 +510,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
                   className="w-14 h-14 rounded-full flex items-center justify-center"
                   style={{ backgroundColor: "#007AFF" }}
                 >
-                  <Navigation className="w-7 h-7 text-white" />
+                  <Navigation className="w-7 h-7 text-white" /> {/* Or use a dynamic icon based on maneuver */}
                 </div>
                 <div className="flex-1">
                   <div style={{ fontWeight: 700, fontSize: "24px" }}>{displayInstruction}</div>
@@ -534,11 +535,11 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
             </div>
             <div
               className="w-14 h-14 rounded-full border-4 flex items-center justify-center"
-              style={{ backgroundColor: "#1C1C1E", borderColor: "#FFFFFF" }}
+              style={{ backgroundColor: "#1C1C1E", borderColor: "#FFFFFF" }} // Example speed limit display
             >
               <div className="text-center">
                 <div className="font-bold text-lg">
-                  {currentStep?.speedLimit || routeData?.steps[0]?.speedLimit || 35}
+                  {currentStep?.speedLimit || routeData?.steps[0]?.speedLimit || "N/A"}
                 </div>
                 <div className="text-xs text-gray-400">LIMIT</div>
               </div>
@@ -549,23 +550,27 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
         {/* Bottom Info Bar */}
         {mapStatus === "loaded" && routeData && (
           <div className="absolute bottom-16 left-4 right-4 z-20">
+            {" "}
+            {/* Adjusted bottom from 20 to 16 to make space for progress bar */}
             <div
               className="rounded-lg p-3 flex items-center justify-between"
               style={{ backgroundColor: "rgba(28, 28, 30, 0.9)", border: "1px solid rgba(255, 255, 255, 0.1)" }}
             >
               <div className="flex items-center gap-4">
-                <Clock className="w-5 h-5 text-gray-400" />
+                {/* <Clock className="w-5 h-5 text-gray-400" /> Replaced with Volume2 and MoreHorizontal */}
                 <div style={{ fontWeight: 400, fontSize: "16px" }}>{displayTimeRemaining}</div>
               </div>
-              {routeData.trafficDelays > 0 && (
+              {/* Example Traffic Delay Indicator - adapt based on your routeData structure */}
+              {routeData.trafficDelays && routeData.trafficDelays > 0 && (
                 <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: "#FF3B30" }}>
-                  <AlertTriangle className="w-4 h-4" />
+                  {/* <AlertTriangle className="w-4 h-4" /> */}
                   <span className="text-sm font-medium">
                     {formatDuration(routeData.trafficDelays).replace(" remaining", " delay")}
                   </span>
                 </div>
               )}
             </div>
+            {/* Progress Bar */}
             <div className="mt-2 w-full bg-gray-700 rounded-full h-1" style={{ height: "4px" }}>
               <div
                 className="h-1 rounded-full"
@@ -583,23 +588,21 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
       {/* Bottom Action Bar */}
       <div
-        className="flex items-center justify-center gap-4 p-3 border-t shrink-0"
+        className="flex items-center justify-around gap-4 p-3 border-t shrink-0" // Changed to justify-around
         style={{ height: "60px", borderColor: "rgba(255, 255, 255, 0.1)" }}
       >
-        <Button className="rounded-full w-12 h-12 shadow-lg" style={{ backgroundColor: "#34C759", color: "#FFFFFF" }}>
-          <Phone className="w-5 h-5" />
+        <Button variant="ghost" size="icon" className="rounded-full hover:bg-gray-700">
+          <Volume2 className="w-5 h-5" />
         </Button>
         <Button
-          variant="outline"
-          className="h-12 flex-1 rounded-lg text-base font-semibold border-gray-600 hover:bg-gray-700"
+          variant="solid" // Changed to solid for emphasis
+          className="h-12 flex-1 rounded-lg text-base font-semibold bg-red-600 hover:bg-red-700 text-white"
+          onClick={onExit} // Assuming onExit ends navigation
         >
-          Routes
+          End
         </Button>
-        <Button
-          variant="outline"
-          className="h-12 flex-1 rounded-lg text-base font-semibold border-gray-600 hover:bg-gray-700"
-        >
-          Options
+        <Button variant="ghost" size="icon" className="rounded-full hover:bg-gray-700">
+          <MoreHorizontal className="w-5 h-5" />
         </Button>
       </div>
     </div>
