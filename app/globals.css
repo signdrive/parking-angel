@@ -68,43 +68,71 @@
   }
 }
 
-/* Offline Navigation Styles */
-.offline-navigation {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+/* Navigation-specific styles */
+.user-location-marker {
+  z-index: 1000;
 }
 
-.navigation-grid {
-  background-image: linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-  background-size: 50px 50px;
+.destination-marker {
+  z-index: 999;
 }
 
-.route-line {
-  stroke-dasharray: 10, 5;
-  animation: dash 2s linear infinite;
+.turn-marker {
+  z-index: 998;
 }
 
-@keyframes dash {
-  to {
-    stroke-dashoffset: -15;
-  }
+/* Mapbox navigation customizations */
+.mapboxgl-ctrl-nav-compass {
+  display: block !important;
 }
 
-.user-pulse {
-  animation: pulse-location 2s infinite;
+.mapboxgl-ctrl-nav-compass .mapboxgl-ctrl-icon {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 29 29' xmlns='http://www.w3.org/2000/svg' fill='%23333'%3E%3Cpath d='m10.5 14 4-8 4 8h-8z'/%3E%3Cpath d='m10.5 16 4 8 4-8h-8z' fill='%23ccc'/%3E%3C/svg%3E") !important;
 }
 
-@keyframes pulse-location {
-  0% {
-    transform: scale(1);
+/* Hide default attribution in navigation mode */
+.mapboxgl-ctrl-attrib {
+  display: none !important;
+}
+
+/* Custom route styling */
+.mapboxgl-popup-content {
+  background: rgba(0, 0, 0, 0.8) !important;
+  color: white !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+}
+
+.mapboxgl-popup-tip {
+  border-top-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Navigation overlay animations */
+@keyframes pulse-gps {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
-    transform: scale(1.2);
-    opacity: 0.7;
+    opacity: 0.5;
   }
+}
+
+.gps-pulse {
+  animation: pulse-gps 2s infinite;
+}
+
+/* Turn arrow animations */
+@keyframes turn-highlight {
+  0%,
   100% {
     transform: scale(1);
-    opacity: 1;
   }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.turn-highlight {
+  animation: turn-highlight 1s ease-in-out infinite;
 }

@@ -26,9 +26,10 @@ export class NavigationService {
       routeType?: "fastest" | "shortest" | "eco"
     },
   ): Promise<NavigationRoute> {
-    console.log("🗺️ Calculating Google Maps style route")
+    console.log("🗺️ Calculating route from", from, "to", to, "with options:", options)
 
     try {
+      // Call the API to calculate the route
       const response = await fetch("/api/navigation/calculate-route", {
         method: "POST",
         headers: {
@@ -42,18 +43,22 @@ export class NavigationService {
       })
 
       if (!response.ok) {
-        throw new Error(`Route calculation failed: ${response.status}`)
+        throw new Error(`Route calculation failed: ${response.status} ${response.statusText}`)
       }
 
       const route: NavigationRoute = await response.json()
+      console.log("✅ Route calculated successfully:", route)
       return route
     } catch (error) {
       console.error("❌ Route calculation error:", error)
-      return this.generateGoogleMapsRoute(from, to, options)
+
+      // Fallback to local route generation if API fails
+      console.log("🔄 Falling back to local route generation")
+      return this.generateRealisticRoute(from, to, options)
     }
   }
 
-  private generateGoogleMapsRoute(
+  private generateRealisticRoute(
     from: [number, number],
     to: [number, number],
     options?: {
@@ -61,42 +66,41 @@ export class NavigationService {
       routeType?: "fastest" | "shortest" | "eco"
     },
   ): NavigationRoute {
-    console.log("🛠️ Generating Google Maps style route")
+    console.log("🛠️ Generating realistic navigation route")
 
-    const distance = this.calculateDistance(from, to)
-    const baseSpeed = 30 // mph average
-    const duration = (distance / 1609.34 / baseSpeed) * 3600 // Convert to seconds
+    // Calculate realistic distance and duration
+    const distance = this.calculateDistance(from, to) // This returns meters
+    const baseSpeed = 35 // km/h average city speed
+    const duration = (distance / 1000 / baseSpeed) * 3600 // Convert to seconds
 
-    // Realistic values for city driving
-    const clampedDistance = Math.max(500, Math.min(20000, distance))
-    const clampedDuration = Math.max(60, Math.min(3600, duration))
+    // Ensure realistic values for local navigation (200m to 15km)
+    const clampedDistance = Math.max(200, Math.min(15000, distance))
+    const clampedDuration = Math.max(30, Math.min(2700, duration)) // 30 seconds to 45 minutes
 
-    // Google Maps style street names
+    // Generate realistic street names
     const streetNames = [
-      "Main St",
-      "1st Ave",
-      "Oak St",
-      "Pine Ave",
-      "Elm Dr",
-      "Maple Rd",
-      "Cedar Ln",
-      "Park Blvd",
+      "Main Street",
+      "Oak Avenue",
+      "Pine Street",
+      "Elm Drive",
+      "Maple Road",
+      "Cedar Lane",
+      "Park Boulevard",
+      "First Avenue",
+      "Second Street",
       "Broadway",
-      "Market St",
-      "Union St",
-      "Mission St",
     ]
 
-    // Generate realistic Google Maps style steps
+    // Generate realistic route steps
     const steps: NavigationStep[] = [
       {
-        id: "start",
-        instruction: `Head ${this.getCardinalDirection(from, to)} on ${streetNames[0]}`,
-        distance: Math.round(clampedDistance * 0.25),
-        duration: Math.round(clampedDuration * 0.25),
+        id: "1",
+        instruction: `Head ${this.getDirection(from, to)} on ${streetNames[0]}`,
+        distance: Math.round(clampedDistance * 0.3),
+        duration: Math.round(clampedDuration * 0.3),
         maneuver: { type: "straight" },
         streetName: streetNames[0],
-        coordinates: [from[0] + (to[0] - from[0]) * 0.25, from[1] + (to[1] - from[1]) * 0.25],
+        coordinates: [from[0] + (to[0] - from[0]) * 0.3, from[1] + (to[1] - from[1]) * 0.3],
         speedLimit: 35,
         laneGuidance: {
           lanes: [
@@ -107,13 +111,13 @@ export class NavigationService {
         },
       },
       {
-        id: "turn1",
+        id: "2",
         instruction: `Turn right onto ${streetNames[1]}`,
-        distance: Math.round(clampedDistance * 0.35),
-        duration: Math.round(clampedDuration * 0.35),
+        distance: Math.round(clampedDistance * 0.4),
+        duration: Math.round(clampedDuration * 0.4),
         maneuver: { type: "turn-right" },
         streetName: streetNames[1],
-        coordinates: [from[0] + (to[0] - from[0]) * 0.6, from[1] + (to[1] - from[1]) * 0.6],
+        coordinates: [from[0] + (to[0] - from[0]) * 0.7, from[1] + (to[1] - from[1]) * 0.7],
         speedLimit: 30,
         laneGuidance: {
           lanes: [
@@ -124,65 +128,59 @@ export class NavigationService {
         },
       },
       {
-        id: "continue",
-        instruction: `Continue straight on ${streetNames[1]}`,
-        distance: Math.round(clampedDistance * 0.25),
-        duration: Math.round(clampedDuration * 0.25),
+        id: "3",
+        instruction: `Continue on ${streetNames[1]}`,
+        distance: Math.round(clampedDistance * 0.2),
+        duration: Math.round(clampedDuration * 0.2),
         maneuver: { type: "straight" },
         streetName: streetNames[1],
-        coordinates: [from[0] + (to[0] - from[0]) * 0.85, from[1] + (to[1] - from[1]) * 0.85],
+        coordinates: [from[0] + (to[0] - from[0]) * 0.9, from[1] + (to[1] - from[1]) * 0.9],
         speedLimit: 25,
       },
       {
-        id: "arrive",
-        instruction: `Your destination will be on the right`,
-        distance: Math.round(clampedDistance * 0.15),
-        duration: Math.round(clampedDuration * 0.15),
+        id: "4",
+        instruction: `Arrive at your destination`,
+        distance: Math.round(clampedDistance * 0.1),
+        duration: Math.round(clampedDuration * 0.1),
         maneuver: { type: "arrive" },
         streetName: streetNames[2],
         coordinates: to,
       },
     ]
 
-    // Generate smooth route geometry (Google Maps style)
-    const geometry: [number, number][] = []
-    const numPoints = 20
-    for (let i = 0; i <= numPoints; i++) {
-      const t = i / numPoints
-      const lng = from[0] + (to[0] - from[0]) * t
-      const lat = from[1] + (to[1] - from[1]) * t
-      geometry.push([lng, lat])
-    }
+    // Generate route geometry with more points for smoother line
+    const geometry: [number, number][] = [
+      from,
+      [from[0] + (to[0] - from[0]) * 0.2, from[1] + (to[1] - from[1]) * 0.2],
+      [from[0] + (to[0] - from[0]) * 0.3, from[1] + (to[1] - from[1]) * 0.3],
+      [from[0] + (to[0] - from[0]) * 0.5, from[1] + (to[1] - from[1]) * 0.5],
+      [from[0] + (to[0] - from[0]) * 0.7, from[1] + (to[1] - from[1]) * 0.7],
+      [from[0] + (to[0] - from[0]) * 0.9, from[1] + (to[1] - from[1]) * 0.9],
+      to,
+    ]
 
     const totalDistance = steps.reduce((sum, step) => sum + step.distance, 0)
     const totalDuration = steps.reduce((sum, step) => sum + step.duration, 0)
 
     return {
-      id: `google_maps_route_${Date.now()}`,
+      id: `realistic_route_${Date.now()}`,
       distance: totalDistance,
       duration: totalDuration,
       steps,
       geometry,
-      trafficDelays: options?.avoidTraffic ? 0 : Math.round(totalDuration * 0.1),
+      trafficDelays: options?.avoidTraffic ? 0 : Math.round(totalDuration * 0.15),
     }
   }
 
-  private getCardinalDirection(from: [number, number], to: [number, number]): string {
+  private getDirection(from: [number, number], to: [number, number]): string {
     const deltaLng = to[0] - from[0]
     const deltaLat = to[1] - from[1]
 
-    const angle = Math.atan2(deltaLat, deltaLng) * (180 / Math.PI)
-
-    if (angle >= -22.5 && angle < 22.5) return "east"
-    if (angle >= 22.5 && angle < 67.5) return "northeast"
-    if (angle >= 67.5 && angle < 112.5) return "north"
-    if (angle >= 112.5 && angle < 157.5) return "northwest"
-    if (angle >= 157.5 || angle < -157.5) return "west"
-    if (angle >= -157.5 && angle < -112.5) return "southwest"
-    if (angle >= -112.5 && angle < -67.5) return "south"
-    if (angle >= -67.5 && angle < -22.5) return "southeast"
-
-    return "north"
+    if (Math.abs(deltaLat) > Math.abs(deltaLng)) {
+      return deltaLat > 0 ? "north" : "south"
+    } else {
+      return deltaLng > 0 ? "east" : "west"
+    }
   }
 
   startLocationTracking(
@@ -199,7 +197,7 @@ export class NavigationService {
       return
     }
 
-    // Start with simulated location
+    // Start with a simulated location for demo purposes
     const simulatedLocation = {
       latitude: 37.7749,
       longitude: -122.4194,
@@ -237,25 +235,41 @@ export class NavigationService {
   speakInstruction(instruction: string, enabled: boolean): void {
     if (!enabled || !this.speechSynthesis) return
 
+    // Cancel any ongoing speech
     this.speechSynthesis.cancel()
 
     const utterance = new SpeechSynthesisUtterance(instruction)
     utterance.rate = 0.9
     utterance.pitch = 1
     utterance.volume = 0.8
-    utterance.lang = "en-US"
 
     this.speechSynthesis.speak(utterance)
   }
 
+  getManeuverIcon(maneuver: NavigationStep["maneuver"]): string {
+    switch (maneuver.type) {
+      case "turn-left":
+        return "↰"
+      case "turn-right":
+        return "↱"
+      case "straight":
+        return "↑"
+      case "merge":
+        return "⤴"
+      case "roundabout":
+        return "↻"
+      case "arrive":
+        return "🏁"
+      default:
+        return "↑"
+    }
+  }
+
   formatDistance(meters: number): string {
-    if (meters < 1609) {
-      // Less than 1 mile
-      const feet = Math.round(meters * 3.28084)
-      return `${feet} ft`
+    if (meters < 1000) {
+      return `${Math.round(meters)}m`
     } else {
-      const miles = (meters / 1609.34).toFixed(1)
-      return `${miles} mi`
+      return `${(meters / 1000).toFixed(1)}km`
     }
   }
 
@@ -266,8 +280,22 @@ export class NavigationService {
     } else {
       const hours = Math.floor(minutes / 60)
       const remainingMinutes = minutes % 60
-      return `${hours} hr ${remainingMinutes} min`
+      return `${hours}h ${remainingMinutes}m`
     }
+  }
+
+  calculateOffRouteDistance(userLocation: [number, number], routeGeometry: [number, number][]): number {
+    // Simplified distance calculation
+    let minDistance = Number.POSITIVE_INFINITY
+
+    for (const point of routeGeometry) {
+      const distance = this.calculateDistance(userLocation, point)
+      if (distance < minDistance) {
+        minDistance = distance
+      }
+    }
+
+    return minDistance * 1000 // Convert to meters
   }
 
   private calculateDistance(point1: [number, number], point2: [number, number]): number {
@@ -281,5 +309,9 @@ export class NavigationService {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
     return R * c
+  }
+
+  private toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180)
   }
 }
