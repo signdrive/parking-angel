@@ -20,7 +20,8 @@ import {
   Target,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useEffect } from "react"
+import { usePersistentState } from "@/hooks/use-persistent-state"
 
 interface RightPanelProps {
   spotsCount: number
@@ -28,15 +29,33 @@ interface RightPanelProps {
   clickedLocation: { lat: number; lng: number } | null
   areaAnalysis: any
   loading: boolean
+  onCollapseChange?: (isCollapsed: boolean) => void
 }
 
-export function RightPanel({ spotsCount, providersCount, clickedLocation, areaAnalysis, loading }: RightPanelProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+export function RightPanel({
+  spotsCount,
+  providersCount,
+  clickedLocation,
+  areaAnalysis,
+  loading,
+  onCollapseChange,
+}: RightPanelProps) {
+  const [isCollapsed, setIsCollapsed] = usePersistentState("rightPanelCollapsed", false)
+
+  const handleToggle = () => {
+    const newCollapsed = !isCollapsed
+    setIsCollapsed(newCollapsed)
+    onCollapseChange?.(newCollapsed)
+  }
+
+  useEffect(() => {
+    onCollapseChange?.(isCollapsed)
+  }, [isCollapsed, onCollapseChange])
 
   return (
     <div
       className={cn(
-        "h-full bg-gray-50 border-l border-gray-200 transition-all duration-300 ease-in-out relative",
+        "h-full bg-gray-50 border-l border-gray-200 transition-all duration-300 ease-in-out relative flex-shrink-0",
         isCollapsed ? "w-12" : "w-80",
       )}
     >
@@ -44,7 +63,7 @@ export function RightPanel({ spotsCount, providersCount, clickedLocation, areaAn
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => setIsCollapsed(!isCollapsed)}
+        onClick={handleToggle}
         className="absolute top-4 -left-6 z-10 bg-white border border-gray-200 shadow-md hover:shadow-lg h-8 w-8 rounded-full"
       >
         {isCollapsed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}

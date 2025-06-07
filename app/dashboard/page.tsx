@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { EnhancedParkingMap } from "@/components/map/enhanced-parking-map"
@@ -12,20 +12,25 @@ import { ParkingHistory } from "@/components/dashboard/parking-history"
 import { SmartAssistant } from "@/components/ai/smart-assistant"
 import { MapPin } from "lucide-react"
 import { PWADebug } from "@/components/pwa/pwa-debug"
+import { usePersistentState } from "@/hooks/use-persistent-state"
 
 export default function DashboardPage() {
   const { user, loading, signOut } = useAuth()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState("map")
-  const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
-  const [showDebug, setShowDebug] = useState(false)
+  const [activeTab, setActiveTab] = usePersistentState("dashboardActiveTab", "map")
+  const [selectedSpot, setSelectedSpot] = usePersistentState<string | null>("selectedSpot", null)
+  const [showDebug, setShowDebug] = usePersistentState("showDebug", false)
+  const [rightPanelCollapsed, setRightPanelCollapsed] = usePersistentState("rightPanelCollapsed", false)
 
-  // Map state
-  const [spotsCount, setSpotsCount] = useState(0)
-  const [providersCount, setProvidersCount] = useState(0)
-  const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [areaAnalysis, setAreaAnalysis] = useState<any>(null)
-  const [mapLoading, setMapLoading] = useState(false)
+  // Map state (these don't need to persist as they're live data)
+  const [spotsCount, setSpotsCount] = usePersistentState("spotsCount", 0)
+  const [providersCount, setProvidersCount] = usePersistentState("providersCount", 0)
+  const [clickedLocation, setClickedLocation] = usePersistentState<{ lat: number; lng: number } | null>(
+    "clickedLocation",
+    null,
+  )
+  const [areaAnalysis, setAreaAnalysis] = usePersistentState<any>("areaAnalysis", null)
+  const [mapLoading, setMapLoading] = usePersistentState("mapLoading", false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -53,7 +58,7 @@ export default function DashboardPage() {
       case "map":
         return (
           <div className="flex h-full">
-            {/* Main Map Area - Dynamic width based on right panel */}
+            {/* Main Map Area - Responsive to right panel state */}
             <div className="flex-1 bg-white min-w-0">
               <div className="h-full">
                 <EnhancedParkingMap
@@ -76,6 +81,7 @@ export default function DashboardPage() {
               clickedLocation={clickedLocation}
               areaAnalysis={areaAnalysis}
               loading={mapLoading}
+              onCollapseChange={setRightPanelCollapsed}
             />
           </div>
         )
@@ -109,6 +115,31 @@ export default function DashboardPage() {
             <div className="max-w-4xl mx-auto space-y-6">
               <UserProfileEnhanced user={user} />
               {showDebug && <PWADebug />}
+
+              {/* Settings Panel */}
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">App Preferences</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900">Debug Mode</h3>
+                      <p className="text-sm text-gray-500">Show technical information and diagnostics</p>
+                    </div>
+                    <button
+                      onClick={() => setShowDebug(!showDebug)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        showDebug ? "bg-blue-600" : "bg-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          showDebug ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )
