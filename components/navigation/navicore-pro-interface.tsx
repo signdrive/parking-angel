@@ -176,7 +176,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     const calculate = async () => {
       try {
         // console.log(
-        //   `NaviCoreProInterface: Fetching route from [${userLocation.longitude}, ${userLocation.latitude}] to [${destination.longitude}, ${destination.latitude}]`,
+        //   `NaviCoreProInterface: Fetching route from [${userLocation.longitude}, ${userLocation.latitude}] to [${destination.longitude}, ${userLocation.latitude}]`,
         // )
         const response = await fetch("/api/navigation/calculate-route", {
           method: "POST",
@@ -238,12 +238,12 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
     try {
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: "mapbox://styles/mapbox/navigation-night-v1",
+        style: "mapbox://styles/mapbox/streets-v12",
         center: initialCenter,
         zoom: 14,
         pitch: 60,
         bearing: -20,
-        interactive: true, // Temporarily enable interaction for testing
+        interactive: false, // Temporarily enable interaction for testing
       })
     } catch (mapInitError) {
       console.error("Mapbox GL Init Error:", mapInitError)
@@ -364,21 +364,21 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
       }
       // --- End of FitBounds Implementation ---
 
-      try {
-        if (mapInstance.isStyleLoaded() && mapInstance.isSourceLoaded("route")) {
-          console.log("NaviCoreProInterface: Attempting triggerRepaint after fitBounds.")
-          mapInstance.triggerRepaint()
-        } else {
-          console.log("NaviCoreProInterface: Style or source not fully loaded, skipping triggerRepaint for now.")
-          // Optionally, set up a one-time event listener for 'render' or 'idle' to trigger repaint
-          mapInstance.once("idle", () => {
-            console.log("NaviCoreProInterface: Map idle, attempting triggerRepaint.")
-            mapInstance.triggerRepaint()
-          })
-        }
-      } catch (repaintError) {
-        console.error("NaviCoreProInterface: Error during triggerRepaint:", repaintError)
-      }
+      // try {
+      //   if (mapInstance.isStyleLoaded() && mapInstance.isSourceLoaded("route")) {
+      //     console.log("NaviCoreProInterface: Attempting triggerRepaint after fitBounds.")
+      //     mapInstance.triggerRepaint()
+      //   } else {
+      //     console.log("NaviCoreProInterface: Style or source not fully loaded, skipping triggerRepaint for now.")
+      //     // Optionally, set up a one-time event listener for 'render' or 'idle' to trigger repaint
+      //     mapInstance.once("idle", () => {
+      //       console.log("NaviCoreProInterface: Map idle, attempting triggerRepaint.")
+      //       mapInstance.triggerRepaint()
+      //     })
+      //   }
+      // } catch (repaintError) {
+      //   console.error("NaviCoreProInterface: Error during triggerRepaint:", repaintError)
+      // }
     })
 
     map.current.on("error", (e) => {
@@ -471,7 +471,7 @@ export const NaviCoreProInterface = ({ onExit, destination }: NaviCoreProInterfa
 
       {/* Main Content Area */}
       <div className="flex-1 relative">
-        <div ref={mapContainer} className="absolute inset-0" style={{ backgroundColor: "lime" }} />
+        <div ref={mapContainer} className="absolute inset-0" />
         {mapStatus !== "loaded" && (
           <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-10 p-4 text-center">
             {mapStatus !== "error" && <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-blue-400" />}
