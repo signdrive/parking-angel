@@ -1,12 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import mapboxgl from "mapbox-gl"
-import "mapbox-gl/dist/mapbox-gl.css"
-import { useGeolocation } from "@/hooks/use-geolocation"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapPin, Plus, Navigation, DollarSign, Car, Brain, Zap, TrendingUp, Route } from "lucide-react"
 import { ParkingDataService, type RealParkingSpot } from "@/lib/parking-data-service"
 import { AISpotPredictor, type SpotPrediction } from "@/lib/ai-spot-predictor"
@@ -15,6 +12,7 @@ import { NavigationService } from "@/lib/navigation-service"
 import { NavigationInterface } from "@/components/navigation/navigation-interface"
 import { SpotReportDialog } from "./spot-report-dialog"
 import { toast } from "@/components/ui/use-toast"
+import { useGeolocation } from "@/hooks/use-geolocation"
 
 interface AreaAnalysis {
   clickLocation: { lat: number; lng: number }
@@ -49,7 +47,7 @@ export function EnhancedParkingMap({
   onLoadingChange,
 }: EnhancedParkingMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
-  const map = useRef<mapboxgl.Map | null>(null)
+  const map = useRef<any>(null)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportLocation, setReportLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [mapboxError, setMapboxError] = useState<string | null>(null)
@@ -61,6 +59,7 @@ export function EnhancedParkingMap({
   const [analyzingArea, setAnalyzingArea] = useState(false)
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [mapInitialized, setMapInitialized] = useState(false)
+  const [mapboxLoaded, setMapboxLoaded] = useState(false)
 
   const { latitude, longitude, error: locationError } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
@@ -92,7 +91,7 @@ export function EnhancedParkingMap({
 
   // Handle map click - defined outside the initialization to avoid recreation
   const handleMapClick = useCallback(
-    async (e: mapboxgl.MapMouseEvent) => {
+    async (e: any) => {
       console.log("Map clicked at:", e.lngLat)
 
       const clickLocation = {
@@ -128,79 +127,95 @@ export function EnhancedParkingMap({
     [onLocationClick, onLoadingChange],
   )
 
-  // Initialize map
+  // Load Mapbox dynamically
   useEffect(() => {
-    if (!mapContainer.current || map.current || !mapboxToken) return
+    if (!mapboxToken || mapboxLoaded) return
 
-    try {
-      mapboxgl.accessToken = mapboxToken
+    const loadMapbox = async () => {
+      try {
+        // Dynamically import mapbox-gl
+        const mapboxModule = await import("mapbox-gl")
+        const mapboxgl = mapboxModule.default
 
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: "mapbox://styles/mapbox/streets-v12",
-        center: [-122.4194, 37.7749],
-        zoom: 15,
-      })
+        // Import CSS
+        await import("mapbox-gl/dist/mapbox-gl.css")
 
-      map.current.addControl(
-        new mapboxgl.GeolocateControl({
-          positionOptions: { enableHighAccuracy: true },
-          trackUserLocation: true,
-          showUserHeading: true,
-        }),
-      )
+        // Set the token
+        mapboxgl.accessToken = mapboxToken
 
-      map.current.addControl(new mapboxgl.NavigationControl())
+        setMapboxLoaded(true)
 
-      // Wait for map to load before adding click handler
-      map.current.on("load", () => {
-        console.log("Map loaded successfully")
-        setMapInitialized(true)
+        // Initialize map after mapbox is loaded
+        if (mapContainer.current && !map.current) {
+          map.current = new mapboxgl.Map({
+            container: mapContainer.current,
+            style: "mapbox://styles/mapbox/streets-v12",
+            center: [longitude || -122.4194, latitude || 37.7749],
+            zoom: 15,
+          })
 
-        if (map.current) {
-          // Add click handler
-          map.current.on("click", handleMapClick)
+          map.current.addControl(
+            new mapboxgl.GeolocateControl({
+              positionOptions: { enableHighAccuracy: true },
+              trackUserLocation: true,
+              showUserHeading: true,
+            }),
+          )
 
-          // Add debug click handler
-          map.current.on("click", (e) => {
-            console.log("Debug: Map clicked at:", e.lngLat)
+          map.current.addControl(new mapboxgl.NavigationControl())
+
+          // Wait for map to load before adding click handler
+          map.current.on("load", () => {
+            console.log("Map loaded successfully")
+            setMapInitialized(true)
+
+            // Add click handler
+            map.current.on("click", handleMapClick)
+          })
+
+          map.current.on("error", (e: any) => {
+            console.error("Mapbox error:", e)
+            setMapboxError("Failed to load map. Please check your internet connection.")
           })
         }
-      })
-
-      map.current.on("error", (e) => {
-        console.error("Mapbox error:", e)
-        setMapboxError("Failed to load map. Please check your internet connection.")
-      })
-    } catch (error) {
-      console.error("Failed to initialize Mapbox:", error)
-      setMapboxError("Failed to initialize map.")
+      } catch (error) {
+        console.error("Failed to initialize Mapbox:", error)
+        setMapboxError("Failed to initialize map.")
+      }
     }
+
+    loadMapbox()
 
     return () => {
       if (map.current) {
-        // Clean up event listeners
         map.current.off("click", handleMapClick)
         map.current.remove()
         map.current = null
       }
     }
-  }, [mapboxToken, handleMapClick])
+  }, [mapboxToken, handleMapClick, latitude, longitude, mapboxLoaded])
 
   // Update map center when user location is available
   useEffect(() => {
-    if (map.current && latitude && longitude) {
+    if (map.current && mapInitialized && latitude && longitude) {
       map.current.setCenter([longitude, latitude])
 
-      new mapboxgl.Marker({ color: "#3B82F6" })
-        .setLngLat([longitude, latitude])
-        .setPopup(new mapboxgl.Popup().setHTML("<p>Your Location</p>"))
-        .addTo(map.current)
+      // Import mapbox-gl dynamically to avoid the accessToken setter issue
+      import("mapbox-gl")
+        .then(({ default: mapboxgl }) => {
+          new mapboxgl.Marker({ color: "#3B82F6" })
+            .setLngLat([longitude, latitude])
+            .setPopup(new mapboxgl.Popup().setHTML("<p>Your Location</p>"))
+            .addTo(map.current)
 
-      // Fetch real parking data for this location
-      fetchRealParkingData(latitude, longitude)
+          // Fetch real parking data for this location
+          fetchRealParkingData(latitude, longitude)
+        })
+        .catch((err) => {
+          console.error("Error importing mapbox-gl for marker:", err)
+        })
     }
-  }, [latitude, longitude])
+  }, [latitude, longitude, mapInitialized])
 
   const startNavigationToSpot = async (spot: RealParkingSpot) => {
     if (!latitude || !longitude) {
@@ -334,25 +349,32 @@ export function EnhancedParkingMap({
       })
 
       // Add click marker to map
-      if (map.current) {
-        // Remove existing click marker
-        const existingMarker = document.querySelector(".click-marker")
-        if (existingMarker) {
-          existingMarker.remove()
-        }
+      if (map.current && mapInitialized) {
+        // Import mapbox-gl dynamically to avoid the accessToken setter issue
+        import("mapbox-gl")
+          .then(({ default: mapboxgl }) => {
+            // Remove existing click marker
+            const existingMarker = document.querySelector(".click-marker")
+            if (existingMarker) {
+              existingMarker.remove()
+            }
 
-        // Add new click marker
-        const el = document.createElement("div")
-        el.className = "click-marker"
-        el.innerHTML = `
-          <div class="w-8 h-8 bg-purple-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center animate-pulse">
-            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-        `
+            // Add new click marker
+            const el = document.createElement("div")
+            el.className = "click-marker"
+            el.innerHTML = `
+            <div class="w-8 h-8 bg-purple-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center animate-pulse">
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          `
 
-        new mapboxgl.Marker(el).setLngLat([clickLocation.lng, clickLocation.lat]).addTo(map.current)
+            new mapboxgl.Marker(el).setLngLat([clickLocation.lng, clickLocation.lat]).addTo(map.current)
+          })
+          .catch((err) => {
+            console.error("Error importing mapbox-gl for click marker:", err)
+          })
       }
 
       setClickedLocation(clickLocation)
@@ -493,9 +515,26 @@ export function EnhancedParkingMap({
   const fetchRealParkingData = async (lat: number, lng: number) => {
     setLoading(true)
     try {
-      const spots = await parkingService.getRealParkingSpots(lat, lng, 2000, {
-        requireAvailability: true,
-      })
+      // Add retry logic for Supabase 503 errors
+      const MAX_RETRIES = 3
+      let retries = 0
+      let spots: RealParkingSpot[] = []
+
+      while (retries < MAX_RETRIES) {
+        try {
+          spots = await parkingService.getRealParkingSpots(lat, lng, 2000, {
+            requireAvailability: true,
+          })
+          break // Success, exit retry loop
+        } catch (error) {
+          retries++
+          console.log(`Attempt ${retries}/${MAX_RETRIES} failed. Retrying...`)
+          if (retries >= MAX_RETRIES) throw error
+          // Exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, retries)))
+        }
+      }
+
       setRealSpots(spots)
 
       toast({
@@ -506,7 +545,7 @@ export function EnhancedParkingMap({
       console.error("Error fetching real parking data:", error)
       toast({
         title: "Data loading error",
-        description: "Could not load parking data. Please try again.",
+        description: "Could not load parking data. Using cached data if available.",
         variant: "destructive",
       })
     } finally {
@@ -516,54 +555,61 @@ export function EnhancedParkingMap({
 
   // Update parking spot markers
   useEffect(() => {
-    if (!map.current) return
+    if (!map.current || !mapInitialized || realSpots.length === 0) return
 
-    // Clear existing markers
-    const existingMarkers = document.querySelectorAll(".parking-spot-marker")
-    existingMarkers.forEach((marker) => marker.remove())
+    // Import mapbox-gl dynamically to avoid the accessToken setter issue
+    import("mapbox-gl")
+      .then(({ default: mapboxgl }) => {
+        // Clear existing markers
+        const existingMarkers = document.querySelectorAll(".parking-spot-marker")
+        existingMarkers.forEach((marker) => marker.remove())
 
-    realSpots.forEach((spot) => {
-      const el = document.createElement("div")
-      el.className = "parking-spot-marker"
+        realSpots.forEach((spot) => {
+          const el = document.createElement("div")
+          el.className = "parking-spot-marker"
 
-      const markerColor = getMarkerColor(spot)
-      const markerIcon = getMarkerIcon(spot)
+          const markerColor = getMarkerColor(spot)
+          const markerIcon = getMarkerIcon(spot)
 
-      el.innerHTML = `
-        <div class="w-10 h-10 ${markerColor} rounded-full border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-110 transition-transform">
-          ${markerIcon}
-        </div>
-      `
-
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-        <div class="p-3 max-w-sm">
-          <h3 class="font-semibold text-lg mb-2">${spot.name}</h3>
-          <div class="space-y-1 text-sm">
-            <p class="text-gray-600">${spot.address}</p>
-            <div class="flex items-center gap-2">
-              <span class="px-2 py-1 bg-gray-100 rounded text-xs">${spot.spot_type}</span>
-              <span class="px-2 py-1 bg-blue-100 rounded text-xs">${spot.provider}</span>
-              ${spot.real_time_data ? '<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Live</span>' : ""}
-            </div>
-            ${spot.price_per_hour ? `<p class="text-green-600 font-medium">$${spot.price_per_hour}/hour</p>` : '<p class="text-blue-600">Free</p>'}
-            ${spot.total_spaces ? `<p class="text-gray-500">${spot.available_spaces || "?"}/${spot.total_spaces} spaces</p>` : ""}
+          el.innerHTML = `
+          <div class="w-10 h-10 ${markerColor} rounded-full border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-110 transition-transform">
+            ${markerIcon}
           </div>
-        </div>
-      `)
+        `
 
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([spot.longitude, spot.latitude])
-        .setPopup(popup)
-        .addTo(map.current!)
+          const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+          <div class="p-3 max-w-sm">
+            <h3 class="font-semibold text-lg mb-2">${spot.name}</h3>
+            <div class="space-y-1 text-sm">
+              <p class="text-gray-600">${spot.address}</p>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-1 bg-gray-100 rounded text-xs">${spot.spot_type}</span>
+                <span class="px-2 py-1 bg-blue-100 rounded text-xs">${spot.provider}</span>
+                ${spot.real_time_data ? '<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Live</span>' : ""}
+              </div>
+              ${spot.price_per_hour ? `<p class="text-green-600 font-medium">$${spot.price_per_hour}/hour</p>` : '<p class="text-blue-600">Free</p>'}
+              ${spot.total_spaces ? `<p class="text-gray-500">${spot.available_spaces || "?"}/${spot.total_spaces} spaces</p>` : ""}
+            </div>
+          </div>
+        `)
 
-      el.addEventListener("click", () => {
-        setSelectedSpot(spot)
-        onSpotSelect?.(spot)
+          const marker = new mapboxgl.Marker(el)
+            .setLngLat([spot.longitude, spot.latitude])
+            .setPopup(popup)
+            .addTo(map.current)
+
+          el.addEventListener("click", () => {
+            setSelectedSpot(spot)
+            onSpotSelect?.(spot)
+          })
+        })
+
+        onStatsUpdate?.(realSpots.length, new Set(realSpots.map((s) => s.provider)).size)
       })
-    })
-
-    onStatsUpdate?.(realSpots.length, new Set(realSpots.map((s) => s.provider)).size)
-  }, [realSpots, onSpotSelect, onStatsUpdate])
+      .catch((err) => {
+        console.error("Error importing mapbox-gl for markers:", err)
+      })
+  }, [realSpots, onSpotSelect, onStatsUpdate, mapInitialized])
 
   const getMarkerColor = (spot: RealParkingSpot): string => {
     if (!spot.is_available) return "bg-red-500"
@@ -586,7 +632,7 @@ export function EnhancedParkingMap({
 
   // Add a manual click handler for testing
   const handleManualClick = () => {
-    if (!map.current || !latitude || !longitude) return
+    if (!latitude || !longitude) return
 
     const clickLocation = {
       lat: latitude,
@@ -632,7 +678,7 @@ export function EnhancedParkingMap({
     )
   }
 
-  if (!mapboxToken) {
+  if (!mapboxToken || !mapboxLoaded) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-100">
         <div className="text-center p-6">
@@ -718,13 +764,7 @@ export function EnhancedParkingMap({
       {/* AI Analysis Panel */}
       {(analyzingArea || areaAnalysis) && (
         <Card className="absolute top-4 right-4 w-80 max-h-96 overflow-y-auto">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Brain className="w-5 h-5 text-purple-600" />
-              {analyzingArea ? "Analyzing Area..." : "AI Area Analysis"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             {analyzingArea ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
@@ -858,10 +898,8 @@ export function EnhancedParkingMap({
       {/* Selected Spot Details */}
       {selectedSpot && (
         <Card className="absolute bottom-6 left-6 max-w-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">{selectedSpot.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 pt-6">
+            <h3 className="text-lg font-bold">{selectedSpot.name}</h3>
             <p className="text-sm text-gray-600">{selectedSpot.address}</p>
 
             <div className="flex gap-2 flex-wrap">
