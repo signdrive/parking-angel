@@ -21,31 +21,100 @@ export class NavigationService {
   async calculateRoute(
     from: [number, number],
     to: [number, number],
-    destinationName: string,
+    options?: {
+      avoidTraffic?: boolean
+      routeType?: "fastest" | "shortest" | "eco"
+    },
   ): Promise<NavigationRoute> {
-    console.log("🗺️ Calculating route from", from, "to", to)
+    console.log("🗺️ Calculating Google Maps style route")
 
-    // Generate realistic route with multiple steps
+    try {
+      const response = await fetch("/api/navigation/calculate-route", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to,
+          options: options || {},
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Route calculation failed: ${response.status}`)
+      }
+
+      const route: NavigationRoute = await response.json()
+      return route
+    } catch (error) {
+      console.error("❌ Route calculation error:", error)
+      return this.generateGoogleMapsRoute(from, to, options)
+    }
+  }
+
+  private generateGoogleMapsRoute(
+    from: [number, number],
+    to: [number, number],
+    options?: {
+      avoidTraffic?: boolean
+      routeType?: "fastest" | "shortest" | "eco"
+    },
+  ): NavigationRoute {
+    console.log("🛠️ Generating Google Maps style route")
+
+    const distance = this.calculateDistance(from, to)
+    const baseSpeed = 30 // mph average
+    const duration = (distance / 1609.34 / baseSpeed) * 3600 // Convert to seconds
+
+    // Realistic values for city driving
+    const clampedDistance = Math.max(500, Math.min(20000, distance))
+    const clampedDuration = Math.max(60, Math.min(3600, duration))
+
+    // Google Maps style street names
+    const streetNames = [
+      "Main St",
+      "1st Ave",
+      "Oak St",
+      "Pine Ave",
+      "Elm Dr",
+      "Maple Rd",
+      "Cedar Ln",
+      "Park Blvd",
+      "Broadway",
+      "Market St",
+      "Union St",
+      "Mission St",
+    ]
+
+    // Generate realistic Google Maps style steps
     const steps: NavigationStep[] = [
       {
-        id: "1",
-        instruction: "Head north on Main Street",
-        distance: 500,
-        duration: 60,
+        id: "start",
+        instruction: `Head ${this.getCardinalDirection(from, to)} on ${streetNames[0]}`,
+        distance: Math.round(clampedDistance * 0.25),
+        duration: Math.round(clampedDuration * 0.25),
         maneuver: { type: "straight" },
-        streetName: "Main Street",
-        coordinates: [from[0], from[1] + 0.001],
+        streetName: streetNames[0],
+        coordinates: [from[0] + (to[0] - from[0]) * 0.25, from[1] + (to[1] - from[1]) * 0.25],
         speedLimit: 35,
+        laneGuidance: {
+          lanes: [
+            { valid: true, indications: ["straight"] },
+            { valid: true, indications: ["straight"] },
+            { valid: false, indications: ["right"] },
+          ],
+        },
       },
       {
-        id: "2",
-        instruction: "Turn right onto Oak Avenue",
-        distance: 300,
-        duration: 45,
+        id: "turn1",
+        instruction: `Turn right onto ${streetNames[1]}`,
+        distance: Math.round(clampedDistance * 0.35),
+        duration: Math.round(clampedDuration * 0.35),
         maneuver: { type: "turn-right" },
-        streetName: "Oak Avenue",
-        coordinates: [from[0] + 0.002, from[1] + 0.001],
-        speedLimit: 25,
+        streetName: streetNames[1],
+        coordinates: [from[0] + (to[0] - from[0]) * 0.6, from[1] + (to[1] - from[1]) * 0.6],
+        speedLimit: 30,
         laneGuidance: {
           lanes: [
             { valid: false, indications: ["straight"] },
@@ -55,68 +124,65 @@ export class NavigationService {
         },
       },
       {
-        id: "3",
-        instruction: "Continue straight for 800 meters",
-        distance: 800,
-        duration: 120,
+        id: "continue",
+        instruction: `Continue straight on ${streetNames[1]}`,
+        distance: Math.round(clampedDistance * 0.25),
+        duration: Math.round(clampedDuration * 0.25),
         maneuver: { type: "straight" },
-        streetName: "Oak Avenue",
-        coordinates: [from[0] + 0.004, from[1] + 0.001],
+        streetName: streetNames[1],
+        coordinates: [from[0] + (to[0] - from[0]) * 0.85, from[1] + (to[1] - from[1]) * 0.85],
         speedLimit: 25,
       },
       {
-        id: "4",
-        instruction: "Turn left onto Pine Street",
-        distance: 200,
-        duration: 30,
-        maneuver: { type: "turn-left" },
-        streetName: "Pine Street",
-        coordinates: [from[0] + 0.004, from[1] + 0.003],
-        speedLimit: 30,
-      },
-      {
-        id: "5",
-        instruction: "Enter roundabout and take 2nd exit",
-        distance: 150,
-        duration: 45,
-        maneuver: { type: "roundabout" },
-        streetName: "Pine Street",
-        coordinates: [from[0] + 0.003, from[1] + 0.004],
-        speedLimit: 20,
-      },
-      {
-        id: "6",
-        instruction: `Arrive at ${destinationName}`,
-        distance: 100,
-        duration: 20,
+        id: "arrive",
+        instruction: `Your destination will be on the right`,
+        distance: Math.round(clampedDistance * 0.15),
+        duration: Math.round(clampedDuration * 0.15),
         maneuver: { type: "arrive" },
-        streetName: "Pine Street",
+        streetName: streetNames[2],
         coordinates: to,
       },
     ]
 
-    // Generate route geometry (simplified)
-    const geometry: [number, number][] = [
-      from,
-      [from[0], from[1] + 0.001],
-      [from[0] + 0.002, from[1] + 0.001],
-      [from[0] + 0.004, from[1] + 0.001],
-      [from[0] + 0.004, from[1] + 0.003],
-      [from[0] + 0.003, from[1] + 0.004],
-      to,
-    ]
+    // Generate smooth route geometry (Google Maps style)
+    const geometry: [number, number][] = []
+    const numPoints = 20
+    for (let i = 0; i <= numPoints; i++) {
+      const t = i / numPoints
+      const lng = from[0] + (to[0] - from[0]) * t
+      const lat = from[1] + (to[1] - from[1]) * t
+      geometry.push([lng, lat])
+    }
 
     const totalDistance = steps.reduce((sum, step) => sum + step.distance, 0)
     const totalDuration = steps.reduce((sum, step) => sum + step.duration, 0)
 
     return {
-      id: `route_${Date.now()}`,
+      id: `google_maps_route_${Date.now()}`,
       distance: totalDistance,
       duration: totalDuration,
       steps,
       geometry,
-      trafficDelays: 0,
+      trafficDelays: options?.avoidTraffic ? 0 : Math.round(totalDuration * 0.1),
     }
+  }
+
+  private getCardinalDirection(from: [number, number], to: [number, number]): string {
+    const deltaLng = to[0] - from[0]
+    const deltaLat = to[1] - from[1]
+
+    const angle = Math.atan2(deltaLat, deltaLng) * (180 / Math.PI)
+
+    if (angle >= -22.5 && angle < 22.5) return "east"
+    if (angle >= 22.5 && angle < 67.5) return "northeast"
+    if (angle >= 67.5 && angle < 112.5) return "north"
+    if (angle >= 112.5 && angle < 157.5) return "northwest"
+    if (angle >= 157.5 || angle < -157.5) return "west"
+    if (angle >= -157.5 && angle < -112.5) return "southwest"
+    if (angle >= -112.5 && angle < -67.5) return "south"
+    if (angle >= -67.5 && angle < -22.5) return "southeast"
+
+    return "north"
   }
 
   startLocationTracking(
@@ -133,7 +199,7 @@ export class NavigationService {
       return
     }
 
-    // Start with a simulated location for demo purposes
+    // Start with simulated location
     const simulatedLocation = {
       latitude: 37.7749,
       longitude: -122.4194,
@@ -171,85 +237,49 @@ export class NavigationService {
   speakInstruction(instruction: string, enabled: boolean): void {
     if (!enabled || !this.speechSynthesis) return
 
-    // Cancel any ongoing speech
     this.speechSynthesis.cancel()
 
     const utterance = new SpeechSynthesisUtterance(instruction)
     utterance.rate = 0.9
     utterance.pitch = 1
     utterance.volume = 0.8
+    utterance.lang = "en-US"
 
     this.speechSynthesis.speak(utterance)
   }
 
-  getManeuverIcon(maneuver: NavigationStep["maneuver"]): string {
-    switch (maneuver.type) {
-      case "turn-left":
-        return "↰"
-      case "turn-right":
-        return "↱"
-      case "straight":
-        return "↑"
-      case "merge":
-        return "⤴"
-      case "roundabout":
-        return "↻"
-      case "arrive":
-        return "🏁"
-      default:
-        return "↑"
-    }
-  }
-
   formatDistance(meters: number): string {
-    if (meters < 1000) {
-      return `${Math.round(meters)}m`
+    if (meters < 1609) {
+      // Less than 1 mile
+      const feet = Math.round(meters * 3.28084)
+      return `${feet} ft`
     } else {
-      return `${(meters / 1000).toFixed(1)}km`
+      const miles = (meters / 1609.34).toFixed(1)
+      return `${miles} mi`
     }
   }
 
   formatDuration(seconds: number): string {
     const minutes = Math.floor(seconds / 60)
     if (minutes < 60) {
-      return `${minutes}m`
+      return `${minutes} min`
     } else {
       const hours = Math.floor(minutes / 60)
       const remainingMinutes = minutes % 60
-      return `${hours}h ${remainingMinutes}m`
+      return `${hours} hr ${remainingMinutes} min`
     }
-  }
-
-  calculateOffRouteDistance(userLocation: [number, number], routeGeometry: [number, number][]): number {
-    // Simplified distance calculation
-    let minDistance = Number.POSITIVE_INFINITY
-
-    for (const point of routeGeometry) {
-      const distance = this.calculateDistance(userLocation, point)
-      if (distance < minDistance) {
-        minDistance = distance
-      }
-    }
-
-    return minDistance * 1000 // Convert to meters
   }
 
   private calculateDistance(point1: [number, number], point2: [number, number]): number {
-    const R = 6371 // Earth's radius in km
-    const dLat = this.toRadians(point2[1] - point1[1])
-    const dLon = this.toRadians(point2[0] - point1[0])
-    const lat1 = this.toRadians(point1[1])
-    const lat2 = this.toRadians(point2[1])
+    const R = 6371e3 // Earth's radius in meters
+    const φ1 = (point1[1] * Math.PI) / 180
+    const φ2 = (point2[1] * Math.PI) / 180
+    const Δφ = ((point2[1] - point1[1]) * Math.PI) / 180
+    const Δλ = ((point2[0] - point1[0]) * Math.PI) / 180
 
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2)
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
     return R * c
-  }
-
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180)
   }
 }
