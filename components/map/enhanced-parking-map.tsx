@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState } from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { useGeolocation } from "@/hooks/use-geolocation"
@@ -14,7 +14,6 @@ import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
 import { NavigationInterface } from "@/components/navigation/navigation-interface"
 import { SpotReportDialog } from "./spot-report-dialog"
-import { toast } from "@/components/ui/use-toast"
 
 interface AreaAnalysis {
   clickLocation: { lat: number; lng: number }
@@ -60,7 +59,6 @@ export function EnhancedParkingMap({
   const [areaAnalysis, setAreaAnalysis] = useState<AreaAnalysis | null>(null)
   const [analyzingArea, setAnalyzingArea] = useState(false)
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [mapInitialized, setMapInitialized] = useState(false)
 
   const { latitude, longitude, error: locationError } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
@@ -70,7 +68,7 @@ export function EnhancedParkingMap({
   // Navigation store
   const { isNavigating, startNavigation, stopNavigation } = useNavigationStore()
 
-  // Fetch Mapbox token securely from server
+  // Fetch Mapbox token
   useEffect(() => {
     const fetchMapboxToken = async () => {
       try {
@@ -79,54 +77,15 @@ export function EnhancedParkingMap({
           const data = await response.json()
           setMapboxToken(data.token)
         } else {
-          setMapboxError("Failed to load map configuration")
+          setMapboxError("Failed to load Mapbox token")
         }
       } catch (error) {
-        console.error("Error fetching map config:", error)
-        setMapboxError("Failed to connect to map service")
+        setMapboxError("Failed to connect to Mapbox service")
       }
     }
 
     fetchMapboxToken()
   }, [])
-
-  // Handle map click - defined outside the initialization to avoid recreation
-  const handleMapClick = useCallback(
-    async (e: mapboxgl.MapMouseEvent) => {
-      console.log("Map clicked at:", e.lngLat)
-
-      const clickLocation = {
-        lat: e.lngLat.lat,
-        lng: e.lngLat.lng,
-      }
-
-      // Show loading indicator
-      setAnalyzingArea(true)
-      setAreaAnalysis(null)
-      onLocationClick?.(clickLocation)
-      onLoadingChange?.(true)
-
-      toast({
-        title: "Analyzing area...",
-        description: `Coordinates: ${clickLocation.lat.toFixed(4)}, ${clickLocation.lng.toFixed(4)}`,
-      })
-
-      try {
-        // Analyze the clicked area with AI
-        await analyzeAreaWithAI(clickLocation)
-      } catch (error) {
-        console.error("Error analyzing area:", error)
-        toast({
-          title: "Analysis failed",
-          description: "Could not analyze this area. Please try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setAnalyzingArea(false)
-      }
-    },
-    [onLocationClick, onLoadingChange],
-  )
 
   // Initialize map
   useEffect(() => {
@@ -152,19 +111,26 @@ export function EnhancedParkingMap({
 
       map.current.addControl(new mapboxgl.NavigationControl())
 
-      // Wait for map to load before adding click handler
-      map.current.on("load", () => {
-        console.log("Map loaded successfully")
-        setMapInitialized(true)
+      // Handle map clicks for AI area analysis
+      map.current.on("click", async (e) => {
+        const clickLocation = {
+          lat: e.lngLat.lat,
+          lng: e.lngLat.lng,
+        }
 
-        if (map.current) {
-          // Add click handler
-          map.current.on("click", handleMapClick)
+        // Show loading indicator
+        setAnalyzingArea(true)
+        setAreaAnalysis(null)
+        onLocationClick?.(clickLocation)
+        onLoadingChange?.(true)
 
-          // Add debug click handler
-          map.current.on("click", (e) => {
-            console.log("Debug: Map clicked at:", e.lngLat)
-          })
+        try {
+          // Analyze the clicked area with AI
+          await analyzeAreaWithAI(clickLocation)
+        } catch (error) {
+          console.error("Error analyzing area:", error)
+        } finally {
+          setAnalyzingArea(false)
         }
       })
 
@@ -179,13 +145,11 @@ export function EnhancedParkingMap({
 
     return () => {
       if (map.current) {
-        // Clean up event listeners
-        map.current.off("click", handleMapClick)
         map.current.remove()
         map.current = null
       }
     }
-  }, [mapboxToken, handleMapClick])
+  }, [mapboxToken, onLocationClick, onLoadingChange])
 
   // Update map center when user location is available
   useEffect(() => {
@@ -204,22 +168,12 @@ export function EnhancedParkingMap({
 
   const startNavigationToSpot = async (spot: RealParkingSpot) => {
     if (!latitude || !longitude) {
-      toast({
-        title: "Location unavailable",
-        description: "Please enable location services to use navigation.",
-        variant: "destructive",
-      })
+      alert("Current location not available")
       return
     }
 
     try {
-      console.log("🚗 Starting navigation to spot:", spot.name)
       setLoading(true)
-
-      toast({
-        title: "Calculating route...",
-        description: `Finding the best route to ${spot.name}`,
-      })
 
       // Calculate route to the parking spot
       const route = await navigationService.calculateRoute([longitude, latitude], [spot.longitude, spot.latitude], {
@@ -227,34 +181,19 @@ export function EnhancedParkingMap({
         routeType: "fastest",
       })
 
-      console.log("📍 Route calculated, starting navigation...")
-
       // Start navigation
       startNavigation(
         {
           latitude: spot.latitude,
           longitude: spot.longitude,
           name: spot.name,
-          spotId: spot.id.toString(),
+          spotId: spot.id,
         },
         route,
       )
-
-      console.log("✅ Navigation started successfully!")
-      toast({
-        title: "Navigation started",
-        description: `Navigating to ${spot.name} - ${navigationService.formatDistance(route.distance)} away`,
-      })
     } catch (error) {
-      console.error("❌ Failed to start navigation:", error)
-
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
-
-      toast({
-        title: "Navigation failed",
-        description: `Could not calculate route: ${errorMessage}`,
-        variant: "destructive",
-      })
+      console.error("Failed to start navigation:", error)
+      alert("Failed to calculate route. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -262,8 +201,6 @@ export function EnhancedParkingMap({
 
   const analyzeAreaWithAI = async (clickLocation: { lat: number; lng: number }) => {
     try {
-      console.log("Analyzing area at:", clickLocation)
-
       // Find all parking spots within 500m of clicked location
       const nearbySpots = await parkingService.getRealParkingSpots(
         clickLocation.lat,
@@ -274,8 +211,6 @@ export function EnhancedParkingMap({
         },
       )
 
-      console.log(`Found ${nearbySpots.length} nearby spots`)
-
       // Update the displayed spots and map markers for the clicked area
       setRealSpots(nearbySpots)
 
@@ -284,7 +219,6 @@ export function EnhancedParkingMap({
       setTimeout(() => setLoading(false), 500)
 
       if (nearbySpots.length === 0) {
-        console.log("No spots found in this area")
         setAreaAnalysis({
           clickLocation,
           nearbySpots: [],
@@ -296,11 +230,6 @@ export function EnhancedParkingMap({
             demandLevel: "low",
             bestTimeToArrive: "Now",
           },
-        })
-
-        toast({
-          title: "No parking spots found",
-          description: "We couldn't find any parking spots in this area.",
         })
         return
       }
@@ -320,18 +249,11 @@ export function EnhancedParkingMap({
         }
       }
 
-      console.log(`Generated ${predictions.length} predictions`)
-
       // Analyze the area and find best recommendation
       const analysis = await performAreaAnalysis(clickLocation, nearbySpots, predictions)
       setAreaAnalysis(analysis)
       onAreaAnalysis?.(analysis)
       onLoadingChange?.(false)
-
-      toast({
-        title: "Area analyzed",
-        description: `Found ${nearbySpots.length} parking spots in this area.`,
-      })
 
       // Add click marker to map
       if (map.current) {
@@ -358,11 +280,6 @@ export function EnhancedParkingMap({
       setClickedLocation(clickLocation)
     } catch (error) {
       console.error("Error in AI area analysis:", error)
-      toast({
-        title: "Analysis error",
-        description: "An error occurred while analyzing this area.",
-        variant: "destructive",
-      })
     }
   }
 
@@ -497,18 +414,8 @@ export function EnhancedParkingMap({
         requireAvailability: true,
       })
       setRealSpots(spots)
-
-      toast({
-        title: "Parking data loaded",
-        description: `Found ${spots.length} parking spots nearby.`,
-      })
     } catch (error) {
       console.error("Error fetching real parking data:", error)
-      toast({
-        title: "Data loading error",
-        description: "Could not load parking data. Please try again.",
-        variant: "destructive",
-      })
     } finally {
       setLoading(false)
     }
@@ -584,23 +491,6 @@ export function EnhancedParkingMap({
     }
   }
 
-  // Add a manual click handler for testing
-  const handleManualClick = () => {
-    if (!map.current || !latitude || !longitude) return
-
-    const clickLocation = {
-      lat: latitude,
-      lng: longitude,
-    }
-
-    toast({
-      title: "Manual analysis triggered",
-      description: "Analyzing your current location",
-    })
-
-    analyzeAreaWithAI(clickLocation)
-  }
-
   // Show navigation interface if navigating
   if (isNavigating) {
     return <NavigationInterface onExit={stopNavigation} />
@@ -638,7 +528,7 @@ export function EnhancedParkingMap({
         <div className="text-center p-6">
           <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4 animate-pulse" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Map...</h3>
-          <p className="text-gray-600">Initializing map service</p>
+          <p className="text-gray-600">Initializing Mapbox service</p>
         </div>
       </div>
     )
@@ -689,29 +579,9 @@ export function EnhancedParkingMap({
             <Brain className="w-4 h-4 text-purple-600" />
             <span className="text-sm font-medium text-purple-900">AI Assistant</span>
           </div>
-          <p className="text-xs text-purple-700 mb-2">
+          <p className="text-xs text-purple-700">
             Click anywhere on the map to get AI-powered parking analysis for that area
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full text-xs"
-            onClick={handleManualClick}
-            disabled={loading || analyzingArea}
-          >
-            {loading || analyzingArea ? "Analyzing..." : "Analyze Current Location"}
-          </Button>
-        </Card>
-
-        {/* Map Status */}
-        <Card className="p-3 bg-blue-50">
-          <div className="text-xs text-blue-800">
-            <div className="font-medium mb-1">Map Status</div>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${mapInitialized ? "bg-green-500" : "bg-yellow-500"}`}></div>
-              <span>{mapInitialized ? "Ready" : "Initializing..."}</span>
-            </div>
-          </div>
         </Card>
       </div>
 
@@ -784,14 +654,11 @@ export function EnhancedParkingMap({
                       <Button
                         size="sm"
                         className="w-full"
-                        onClick={() => {
-                          console.log("🎯 AI Recommendation Navigate clicked")
-                          startNavigationToSpot(areaAnalysis.bestRecommendation!.spot)
-                        }}
+                        onClick={() => startNavigationToSpot(areaAnalysis.bestRecommendation!.spot)}
                         disabled={loading}
                       >
                         <Route className="w-3 h-3 mr-1" />
-                        {loading ? "Calculating..." : "Navigate Here"}
+                        Navigate Here
                       </Button>
                     </div>
                   </div>
@@ -892,14 +759,11 @@ export function EnhancedParkingMap({
               <Button
                 size="sm"
                 className="flex-1"
-                onClick={() => {
-                  console.log("📍 Selected Spot Navigate clicked")
-                  startNavigationToSpot(selectedSpot)
-                }}
+                onClick={() => startNavigationToSpot(selectedSpot)}
                 disabled={loading}
               >
                 <Route className="w-4 h-4 mr-2" />
-                {loading ? "Starting..." : "Navigate"}
+                Navigate
               </Button>
               <Button size="sm" variant="outline" onClick={() => setSelectedSpot(null)}>
                 Close
@@ -911,5 +775,3 @@ export function EnhancedParkingMap({
     </div>
   )
 }
-
-export default EnhancedParkingMap
