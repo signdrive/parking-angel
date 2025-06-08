@@ -33,7 +33,6 @@ import {
   RouteIcon as Highway,
   FootprintsIcon as Walking,
 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
 
 interface NavigationInterfaceProps {
   onExit: () => void
@@ -64,7 +63,6 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [mapboxToken, setMapboxToken] = useState<string | null>(null)
   const navigationService = NavigationService.getInstance()
-  const { toast } = useToast()
 
   // Fetch Mapbox token
   useEffect(() => {
@@ -210,65 +208,20 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
             <span className="font-medium truncate max-w-48">{destination.name}</span>
           </div>
 
-          {/* Active Settings Indicators - Make them clickable */}
+          {/* Active Settings Indicators */}
           <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-6 px-2"
-              onClick={() => {
-                const nextViewMode = settings.viewMode === "3d" ? "2d" : "3d"
-                updateSettings({ viewMode: nextViewMode })
-                toast({
-                  title: "View Mode Changed",
-                  description: `Switched to ${nextViewMode.toUpperCase()} view`,
-                  duration: 2000,
-                })
-              }}
-            >
+            <Badge variant="outline" className="text-xs">
               <ViewModeIcon className="w-3 h-3 mr-1" />
               {settings.viewMode.toUpperCase()}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-6 px-2"
-              onClick={() => {
-                const styles = ["navigation", "satellite", "terrain", "street", "hybrid"] as const
-                const currentIndex = styles.indexOf(settings.mapStyle)
-                const nextStyle = styles[(currentIndex + 1) % styles.length]
-                updateSettings({ mapStyle: nextStyle })
-                toast({
-                  title: "Map Style Changed",
-                  description: `Switched to ${nextStyle} style`,
-                  duration: 2000,
-                })
-              }}
-            >
+            </Badge>
+            <Badge variant="outline" className="text-xs">
               <MapStyleIcon className="w-3 h-3 mr-1" />
               {settings.mapStyle}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-6 px-2"
-              onClick={() => {
-                const preferences = ["fastest", "shortest", "eco", "avoid-highways"] as const
-                const currentIndex = preferences.indexOf(settings.routePreference)
-                const nextPreference = preferences[(currentIndex + 1) % preferences.length]
-                updateSettings({ routePreference: nextPreference })
-                toast({
-                  title: "Route Preference Changed",
-                  description: `Switched to ${nextPreference} route`,
-                  duration: 2000,
-                })
-              }}
-            >
+            </Badge>
+            <Badge variant="outline" className="text-xs">
               <RoutePreferenceIcon className="w-3 h-3 mr-1" />
               {settings.routePreference}
-            </Button>
+            </Badge>
           </div>
         </div>
 
