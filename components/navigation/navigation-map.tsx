@@ -1,39 +1,264 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { MapPin, NavigationIcon } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
 import { cn } from "@/lib/utils"
-import { Navigation, MapPin, ArrowUp, ArrowRight, ArrowLeft, RotateCcw } from "lucide-react"
+import { ArrowUp, ArrowRight, ArrowLeft, RotateCcw } from "lucide-react"
+import { setMapboxToken } from "@/lib/mapbox-token" // Declare the variable before using it
 
 interface NavigationMapProps {
+  origin: [number, number]
+  destination: [number, number]
+  route?: any
+  onArrival?: () => void
   mapboxToken?: string
 }
 
-export function NavigationMap({ mapboxToken }: NavigationMapProps) {
+export function NavigationMap({ origin, destination, route, onArrival, mapboxToken }: NavigationMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
-  const [mapLoaded, setMapLoaded] = useState(false)
-  const [mapError, setMapError] = useState(false)
+  const map = useRef<any>(null)
+  const [mapboxError, setMapboxError] = useState<string | null>(null)
+  const [mapInitialized, setMapInitialized] = useState(false)
+  const [mapboxLoaded, setMapboxLoaded] = useState(false)
+  const [estimatedTime, setEstimatedTime] = useState<string | null>(null)
+  const [distance, setDistance] = useState<string | null>(null)
+  const [currentStep, setCurrentStep] = useState<any | null>(null)
+  const [nextStep, setNextStep] = useState<any | null>(null)
+  const [progress, setProgress] = useState(0)
 
-  const { currentRoute, userLocation, destination, currentStep, isDayMode, settings } = useNavigationStore()
+  const { userLocation, settings } = useNavigationStore()
   const navigationService = NavigationService.getInstance()
+
+  // Fetch Mapbox token securely from server
+  useEffect(() => {
+    const fetchMapboxToken = async () => {
+      try {
+        const response = await fetch("/api/mapbox/token")
+        if (response.ok) {
+          const data = await response.json()
+          setMapboxToken(data.token)
+        } else {
+          setMapboxError("Failed to load map configuration")
+        }
+      } catch (error) {
+        console.error("Error fetching map config:", error)
+        setMapboxError("Failed to connect to map service")
+      }
+    }
+
+    if (!mapboxToken) {
+      fetchMapboxToken()
+    }
+  }, [mapboxToken])
+
+  // Load Mapbox dynamically
+  useEffect(() => {
+    if (!mapboxToken || mapboxLoaded) return
+
+    const loadMapbox = async () => {
+      try {
+        // Dynamically import mapbox-gl
+        const mapboxModule = await import("mapbox-gl")
+        const mapboxgl = mapboxModule.default
+
+        // Import CSS
+        await import("mapbox-gl/dist/mapbox-gl.css")
+
+        // Set the token
+        mapboxgl.accessToken = mapboxToken
+
+        setMapboxLoaded(true)
+
+        // Initialize map after mapbox is loaded
+        if (mapContainer.current && !map.current) {
+          map.current = new mapboxgl.Map({
+            container: mapContainer.current,
+            style:
+              settings.viewMode === "3d"
+                ? "mapbox://styles/mapbox/navigation-day-v1"
+                : "mapbox://styles/mapbox/navigation-night-v1",
+            center: origin,
+            zoom: 14,
+            pitch: settings.viewMode === "3d" ? 45 : 0,
+          })
+
+          map.current.addControl(
+            new mapboxgl.GeolocateControl({
+              positionOptions: { enableHighAccuracy: true },
+              trackUserLocation: true,
+              showUserHeading: true,
+            }),
+          )
+
+          // Wait for map to load before adding route
+          map.current.on("load", () => {
+            console.log("Navigation map loaded successfully")
+            setMapInitialized(true)
+          })
+
+          map.current.on("error", (e: any) => {
+            console.error("Mapbox navigation error:", e)
+            setMapboxError("Failed to load navigation map. Please check your internet connection.")
+          })
+        }
+      } catch (error) {
+        console.error("Failed to initialize Mapbox for navigation:", error)
+        setMapboxError("Failed to initialize navigation map.")
+      }
+    }
+
+    loadMapbox()
+
+    return () => {
+      if (map.current) {
+        map.current.remove()
+        map.current = null
+      }
+    }
+  }, [mapboxToken, origin, mapboxLoaded, settings.viewMode])
+
+  // Add route to map when it's available
+  useEffect(() => {
+    if (!map.current || !mapInitialized || !route || !route.geometry) return
+
+    const addRouteToMap = async () => {
+      try {
+        // Import mapbox-gl dynamically to avoid the accessToken setter issue
+        const { default: mapboxgl } = await import("mapbox-gl")
+
+        // Add the route source and layer
+        if (!map.current.getSource("route")) {
+          map.current.addSource("route", {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              properties: {},
+              geometry: route.geometry,
+            },
+          })
+
+          map.current.addLayer({
+            id: "route",
+            type: "line",
+            source: "route",
+            layout: {
+              "line-join": "round",
+              "line-cap": "round",
+            },
+            paint: {
+              "line-color": "#3b82f6",
+              "line-width": 8,
+              "line-opacity": 0.8,
+            },
+          })
+
+          // Fit the map to the route
+          const bounds = new mapboxgl.LngLatBounds()
+          route.geometry.coordinates.forEach((coord: [number, number]) => {
+            bounds.extend(coord)
+          })
+          map.current.fitBounds(bounds, { padding: 50 })
+
+          // Add origin marker
+          new mapboxgl.Marker({ color: "#3b82f6" })
+            .setLngLat(origin)
+            .setPopup(new mapboxgl.Popup().setHTML("<p>Starting Point</p>"))
+            .addTo(map.current)
+
+          // Add destination marker
+          new mapboxgl.Marker({ color: "#ef4444" })
+            .setLngLat(destination)
+            .setPopup(new mapboxgl.Popup().setHTML("<p>Destination</p>"))
+            .addTo(map.current)
+
+          // Set route information
+          if (route.duration) {
+            setEstimatedTime(formatDuration(route.duration))
+          }
+          if (route.distance) {
+            setDistance(formatDistance(route.distance))
+          }
+
+          // Set navigation steps if available
+          if (route.steps && route.steps.length > 0) {
+            setCurrentStep(route.steps[0])
+            setNextStep(route.steps.length > 1 ? route.steps[1] : null)
+          }
+        }
+      } catch (error) {
+        console.error("Error adding route to map:", error)
+        toast({
+          title: "Navigation Error",
+          description: "Could not display the route on the map.",
+          variant: "destructive",
+        })
+      }
+    }
+
+    addRouteToMap()
+  }, [map, mapInitialized, route, origin, destination])
+
+  // Simulate progress along the route
+  useEffect(() => {
+    if (!route || !mapInitialized) return
+
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        const newProgress = prev + 0.5
+        if (newProgress >= 100) {
+          clearInterval(interval)
+          if (onArrival) onArrival()
+          return 100
+        }
+        return newProgress
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [route, mapInitialized, onArrival])
+
+  // Format duration in seconds to a readable string
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+
+    if (hours > 0) {
+      return `${hours} hr ${minutes} min`
+    } else {
+      return `${minutes} min`
+    }
+  }
+
+  // Format distance in meters to a readable string
+  const formatDistance = (meters: number): string => {
+    if (meters < 1000) {
+      return `${Math.round(meters)} m`
+    } else {
+      return `${(meters / 1000).toFixed(1)} km`
+    }
+  }
 
   // Fallback street visualization when Mapbox fails
   const StreetVisualization = () => {
-    if (!currentRoute || !currentRoute.steps[currentStep]) return null
+    if (!route || !route.steps[0]) return null
 
-    const currentStepData = currentRoute.steps[currentStep]
-    const nextStep = currentRoute.steps[currentStep + 1]
+    const currentStepData = route.steps[0]
+    const nextStep = route.steps.length > 1 ? route.steps[1] : null
 
     return (
-      <div className={cn("h-full relative overflow-hidden", isDayMode ? "bg-gray-100" : "bg-gray-800")}>
+      <div className={cn("h-full relative overflow-hidden", settings.isDayMode ? "bg-gray-100" : "bg-gray-800")}>
         {/* Street Background */}
         <div className="absolute inset-0">
           {/* Main road */}
           <div
             className={cn(
               "absolute left-1/2 transform -translate-x-1/2 w-32 h-full",
-              isDayMode ? "bg-gray-300" : "bg-gray-600",
+              settings.isDayMode ? "bg-gray-300" : "bg-gray-600",
             )}
           >
             {/* Road markings */}
@@ -47,8 +272,12 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           </div>
 
           {/* Side streets */}
-          <div className={cn("absolute top-1/3 left-0 right-0 h-20", isDayMode ? "bg-gray-300" : "bg-gray-600")} />
-          <div className={cn("absolute top-2/3 left-0 right-0 h-20", isDayMode ? "bg-gray-300" : "bg-gray-600")} />
+          <div
+            className={cn("absolute top-1/3 left-0 right-0 h-20", settings.isDayMode ? "bg-gray-300" : "bg-gray-600")}
+          />
+          <div
+            className={cn("absolute top-2/3 left-0 right-0 h-20", settings.isDayMode ? "bg-gray-300" : "bg-gray-600")}
+          />
 
           {/* Buildings */}
           {Array.from({ length: 8 }).map((_, i) => (
@@ -56,7 +285,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
               key={i}
               className={cn(
                 "absolute w-16 h-24 rounded-sm",
-                isDayMode ? "bg-gray-400" : "bg-gray-700",
+                settings.isDayMode ? "bg-gray-400" : "bg-gray-700",
                 i % 2 === 0 ? "left-4" : "right-4",
               )}
               style={{
@@ -93,7 +322,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
         )}
 
         {/* Destination */}
-        {currentStep === currentRoute.steps.length - 1 && (
+        {route.steps.length === 1 && (
           <div className="absolute left-1/2 top-20 transform -translate-x-1/2">
             <div className="bg-red-600 rounded-full p-3 shadow-lg">
               <MapPin className="w-6 h-6 text-white" />
@@ -129,114 +358,86 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     )
   }
 
-  // Try to load Mapbox map
-  useEffect(() => {
-    let mounted = true
+  if (mapboxError) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-100">
+        <div className="text-center p-6 max-w-md">
+          <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Navigation Unavailable</h3>
+          <p className="text-gray-600 mb-4">{mapboxError}</p>
+          <Button onClick={() => window.location.reload()}>Try Again</Button>
+        </div>
+      </div>
+    )
+  }
 
-    const loadMapbox = async () => {
-      try {
-        if (!mapboxToken) {
-          console.log("No Mapbox token, using fallback visualization")
-          setMapError(true)
-          return
-        }
-
-        // Dynamic import of mapbox-gl
-        const mapboxgl = await import("mapbox-gl")
-        await import("mapbox-gl/dist/mapbox-gl.css")
-
-        if (!mounted || !mapContainer.current) return
-
-        mapboxgl.accessToken = mapboxToken
-
-        const map = new mapboxgl.Map({
-          container: mapContainer.current,
-          style: isDayMode ? "mapbox://styles/mapbox/navigation-day-v1" : "mapbox://styles/mapbox/navigation-night-v1",
-          center: userLocation ? [userLocation.longitude, userLocation.latitude] : [-122.4194, 37.7749],
-          zoom: 16,
-          pitch: settings.viewMode === "3d" ? 60 : 0, // Use settings from store
-          bearing: userLocation?.heading || 0,
-          attributionControl: false,
-        })
-
-        map.on("load", () => {
-          if (mounted) {
-            setMapLoaded(true)
-            console.log("✅ Mapbox map loaded successfully")
-          }
-        })
-
-        map.on("error", (e) => {
-          console.error("❌ Mapbox error:", e)
-          if (mounted) {
-            setMapError(true)
-          }
-        })
-
-        return () => {
-          if (map) map.remove()
-        }
-      } catch (error) {
-        console.error("❌ Failed to load Mapbox:", error)
-        if (mounted) {
-          setMapError(true)
-        }
-      }
-    }
-
-    loadMapbox()
-
-    return () => {
-      mounted = false
-    }
-  }, [mapboxToken, isDayMode, userLocation, settings.viewMode])
+  if (!mapboxToken || !mapboxLoaded) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-100">
+        <div className="text-center p-6">
+          <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4 animate-pulse" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Navigation...</h3>
+          <p className="text-gray-600">Initializing navigation service</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="relative w-full h-full">
-      {/* Mapbox container */}
-      <div ref={mapContainer} className={cn("w-full h-full", mapError ? "hidden" : "block")} />
+    <div className="relative h-full">
+      <div ref={mapContainer} className="h-full w-full" />
 
-      {/* Fallback street visualization */}
-      {(mapError || !mapLoaded) && <StreetVisualization />}
-
-      {/* Loading state */}
-      {!mapLoaded && !mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
-          <div className="text-center">
-            <Navigation className="w-12 h-12 mx-auto mb-2 opacity-50 animate-pulse" />
-            <p className="text-sm opacity-75">Loading Navigation Map...</p>
+      {/* Navigation Info Overlay */}
+      <div className="absolute top-4 left-0 right-0 mx-auto w-full max-w-md px-4">
+        <Card className="p-4 bg-white/90 backdrop-blur-sm shadow-lg">
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center gap-2">
+              <NavigationIcon className="w-5 h-5 text-blue-500" />
+              <span className="font-semibold">Navigation Active</span>
+            </div>
+            <div className="text-sm text-gray-600">{progress.toFixed(0)}% complete</div>
           </div>
-        </div>
-      )}
 
-      {/* Navigation overlay elements */}
-      <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm">
-        {mapLoaded ? "Live Navigation" : "Street View"}
+          <div className="grid grid-cols-2 gap-4 mb-3">
+            <div className="bg-gray-100 p-2 rounded">
+              <div className="text-xs text-gray-500">Estimated Time</div>
+              <div className="font-medium">{estimatedTime || "Calculating..."}</div>
+            </div>
+            <div className="bg-gray-100 p-2 rounded">
+              <div className="text-xs text-gray-500">Distance</div>
+              <div className="font-medium">{distance || "Calculating..."}</div>
+            </div>
+          </div>
+
+          {currentStep && (
+            <div className="bg-blue-50 p-3 rounded border border-blue-100 mb-2">
+              <div className="text-xs text-blue-700 mb-1">Current Instruction</div>
+              <div className="font-medium text-blue-900">{currentStep.maneuver.instruction}</div>
+              {currentStep.distance && (
+                <div className="text-xs text-blue-700 mt-1">{formatDistance(currentStep.distance)}</div>
+              )}
+            </div>
+          )}
+
+          {nextStep && (
+            <div className="bg-gray-50 p-2 rounded border border-gray-100">
+              <div className="text-xs text-gray-500 mb-1">Next</div>
+              <div className="text-sm">{nextStep.maneuver.instruction}</div>
+            </div>
+          )}
+        </Card>
       </div>
 
-      {/* Speed indicator */}
-      {userLocation?.speed && userLocation.speed > 0 && (
-        <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-2 rounded-lg">
-          <div className="text-2xl font-bold">{Math.round(userLocation.speed * 2.237)}</div>
-          <div className="text-xs opacity-75">mph</div>
-        </div>
-      )}
+      {/* Progress Bar */}
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200">
+        <div
+          className="h-full bg-blue-500 transition-all duration-500 ease-in-out"
+          style={{ width: `${progress}%` }}
+        ></div>
+      </div>
 
-      {/* Next turn preview */}
-      {currentRoute && currentStep < currentRoute.steps.length - 1 && (
-        <div className="absolute bottom-20 right-4 bg-black/80 text-white p-3 rounded-lg max-w-48">
-          <div className="text-xs opacity-75 mb-1">Next</div>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">
-              {navigationService.getManeuverIcon(currentRoute.steps[currentStep + 1].maneuver)}
-            </span>
-            <div className="text-sm">{currentRoute.steps[currentStep + 1].instruction}</div>
-          </div>
-          <div className="text-xs opacity-75 mt-1">
-            in {navigationService.formatDistance(currentRoute.steps[currentStep + 1].distance)}
-          </div>
-        </div>
-      )}
+      {/* Fallback street visualization */}
+      {!mapInitialized && <StreetVisualization />}
     </div>
   )
 }
