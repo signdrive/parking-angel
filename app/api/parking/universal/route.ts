@@ -44,7 +44,10 @@ export async function GET(request: Request) {
         case "is_available":
           response.is_available = spotData.is_available
           break
-        case "last_updated":
+        case "updated_at": // Changed from last_updated
+          response.updated_at = spotData.updated_at
+          break
+        case "last_updated": // Support legacy requests
           response.last_updated = spotData.updated_at
           break
       }

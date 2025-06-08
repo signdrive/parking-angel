@@ -5,7 +5,13 @@ class ParkingService {
   async getSpotDetails(spotId: string, fields: string[] = ["latitude", "longitude", "spot_type", "address"]) {
     try {
       const select = fields.join(",")
-      const response = await fetch(`${this.baseUrl}?id=${spotId}&select=${select}`)
+      const response = await fetch(`${this.baseUrl}?id=${encodeURIComponent(spotId)}&select=${select}`, {
+        headers: {
+          "Content-Type": "application/json",
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""}`,
+        },
+      })
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
@@ -21,13 +27,13 @@ class ParkingService {
         spot_type: "street",
         address: `Amsterdam - ${spotId}`,
         is_available: true,
-        last_updated: new Date().toISOString(),
+        updated_at: new Date().toISOString(), // Changed from last_updated to updated_at
       }
     }
   }
 
   async getSpotAvailability(spotId: string) {
-    return this.getSpotDetails(spotId, ["is_available", "last_updated"])
+    return this.getSpotDetails(spotId, ["is_available", "updated_at"]) // Changed from last_updated
   }
 
   async getAllSpotData(spotId: string) {
@@ -37,7 +43,7 @@ class ParkingService {
       "spot_type",
       "address",
       "is_available",
-      "last_updated",
+      "updated_at", // Changed from last_updated
     ])
   }
 }
