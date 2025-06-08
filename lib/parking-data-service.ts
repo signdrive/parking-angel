@@ -48,7 +48,6 @@ export class ParkingDataService {
   private static instance: ParkingDataService
   private cache = new Map<string, { data: RealParkingSpot[]; timestamp: number }>()
   private readonly CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
-  private readonly MAX_RETRIES = 3
 
   static getInstance(): ParkingDataService {
     if (!ParkingDataService.instance) {
@@ -74,7 +73,6 @@ export class ParkingDataService {
     const cached = this.cache.get(cacheKey)
 
     if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
-      console.log("Using cached parking data")
       return this.filterSpots(cached.data, options)
     }
 
@@ -84,12 +82,13 @@ export class ParkingDataService {
       // Determine location and fetch appropriate data
       const isLondon = this.isInLondon(latitude, longitude)
 
-      // Fetch from multiple providers in parallel with retry logic
+      // Fetch from multiple providers in parallel
       const providers = await Promise.allSettled([
-        this.withRetry(() => this.fetchGooglePlacesParking(latitude, longitude, radius)),
-        this.withRetry(() => this.fetchOpenStreetMapParking(latitude, longitude, radius)),
-        ...(isLondon ? [this.withRetry(() => this.fetchTfLParking(latitude, longitude, radius))] : []),
-        this.withRetry(() => this.fetchCityAPIData(latitude, longitude, radius)),
+        this.fetchGooglePlacesParking(latitude, longitude, radius),
+        this.fetchOpenStreetMapParking(latitude, longitude, radius),
+        ...(isLondon ? [this.fetchTfLParking(latitude, longitude, radius)] : []),
+        this.fetchCityAPIData(latitude, longitude, radius),
+        // Add other providers as needed
       ])
 
       providers.forEach((result) => {
@@ -98,12 +97,6 @@ export class ParkingDataService {
         }
       })
 
-      // If all providers failed but we have cached data, use it
-      if (allSpots.length === 0 && cached) {
-        console.log("All providers failed, using cached data")
-        return this.filterSpots(cached.data, options)
-      }
-
       // Remove duplicates based on location proximity
       const uniqueSpots = this.removeDuplicateSpots(allSpots)
 
@@ -111,34 +104,12 @@ export class ParkingDataService {
       this.cache.set(cacheKey, { data: uniqueSpots, timestamp: Date.now() })
 
       // Store in our database for future reference
-      this.storeRealParkingData(uniqueSpots).catch((err) => {
-        console.error("Failed to store parking data:", err)
-      })
+      await this.storeRealParkingData(uniqueSpots)
 
       return this.filterSpots(uniqueSpots, options)
     } catch (error) {
       console.error("Error fetching real parking data:", error)
-
-      // Return cached data if available as fallback
-      if (cached) {
-        console.log("Error fetching fresh data, using cached data")
-        return this.filterSpots(cached.data, options)
-      }
-
       return []
-    }
-  }
-
-  private async withRetry<T>(operation: () => Promise<T>, retries = this.MAX_RETRIES): Promise<T> {
-    try {
-      return await operation()
-    } catch (error) {
-      if (retries > 0) {
-        console.log(`Retrying operation, ${retries} attempts left`)
-        await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, this.MAX_RETRIES - retries)))
-        return this.withRetry(operation, retries - 1)
-      }
-      throw error
     }
   }
 
@@ -192,7 +163,7 @@ export class ParkingDataService {
 
   private async fetchOpenStreetMapParking(lat: number, lng: number, radius: number): Promise<RealParkingSpot[]> {
     try {
-      // Use a more reliable OSM API endpoint or a proxy
+      // Overpass API query for parking amenities
       const query = `
         [out:json][timeout:25];
         (
@@ -203,43 +174,13 @@ export class ParkingDataService {
         out center meta;
       `
 
-      // Use a proxy or alternative endpoint if the main one is failing
-      const endpoints = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
+      const response = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: query,
+      })
 
-      let response = null
-      let error = null
-
-      // Try each endpoint until one works
-      for (const endpoint of endpoints) {
-        try {
-          response = await fetch(endpoint, {
-            method: "POST",
-            body: query,
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            // Add timeout to prevent hanging requests
-            signal: AbortSignal.timeout(10000),
-          })
-
-          if (response.ok) break
-        } catch (err) {
-          error = err
-          console.log(`OSM endpoint ${endpoint} failed, trying next...`)
-        }
-      }
-
-      if (!response || !response.ok) {
-        throw error || new Error("All OpenStreetMap API endpoints failed")
-      }
-
+      if (!response.ok) throw new Error("OpenStreetMap API failed")
       const data = await response.json()
-
-      // Generate mock data if the API returns empty results
-      if (!data.elements || data.elements.length === 0) {
-        console.log("OSM returned no results, using mock data")
-        return this.generateMockParkingSpots(lat, lng, 3)
-      }
 
       return data.elements.map((element: any) => ({
         id: `osm_${element.id}`,
@@ -263,36 +204,8 @@ export class ParkingDataService {
       }))
     } catch (error) {
       console.error("OpenStreetMap parking fetch failed:", error)
-      // Return mock data as fallback
-      return this.generateMockParkingSpots(lat, lng, 3)
+      return []
     }
-  }
-
-  private generateMockParkingSpots(lat: number, lng: number, count: number): RealParkingSpot[] {
-    const spots: RealParkingSpot[] = []
-
-    for (let i = 0; i < count; i++) {
-      // Generate spots in a small radius around the given coordinates
-      const spotLat = lat + (Math.random() - 0.5) * 0.01
-      const spotLng = lng + (Math.random() - 0.5) * 0.01
-
-      spots.push({
-        id: `mock_${Date.now()}_${i}`,
-        name: `Parking Area ${i + 1}`,
-        latitude: spotLat,
-        longitude: spotLng,
-        address: "Generated Address",
-        spot_type: ["street", "garage", "lot", "meter"][Math.floor(Math.random() * 4)] as any,
-        is_available: Math.random() > 0.3, // 70% chance of being available
-        price_per_hour: Math.random() > 0.5 ? Math.floor(Math.random() * 10) + 1 : 0,
-        provider: PARKING_PROVIDERS.OPENSTREETMAP,
-        provider_id: `mock_${i}`,
-        real_time_data: false,
-        last_updated: new Date().toISOString(),
-      })
-    }
-
-    return spots
   }
 
   private async fetchCityAPIData(lat: number, lng: number, radius: number): Promise<RealParkingSpot[]> {
@@ -360,52 +273,43 @@ export class ParkingDataService {
 
   private async storeRealParkingData(spots: RealParkingSpot[]): Promise<void> {
     try {
-      // Use a batch approach to reduce the number of requests
-      const batchSize = 10
-      for (let i = 0; i < spots.length; i += batchSize) {
-        const batch = spots.slice(i, i + batchSize)
+      for (const spot of spots) {
+        // Fix for last_updated - ensure it's a string
+        const lastUpdated =
+          typeof spot.last_updated === "object" && spot.last_updated instanceof Date
+            ? spot.last_updated.toISOString()
+            : typeof spot.last_updated === "string"
+              ? spot.last_updated
+              : new Date().toISOString()
 
-        const promises = batch.map((spot) => {
-          // Fix for last_updated - ensure it's a string
-          const lastUpdated =
-            typeof spot.last_updated === "object" && spot.last_updated instanceof Date
-              ? spot.last_updated.toISOString()
-              : typeof spot.last_updated === "string"
-                ? spot.last_updated
-                : new Date().toISOString()
-
-          return supabase.from("real_parking_spots").upsert(
-            {
-              provider_id: spot.provider_id,
-              provider: spot.provider,
-              name: spot.name,
-              latitude: spot.latitude,
-              longitude: spot.longitude,
-              address: spot.address,
-              spot_type: spot.spot_type,
-              price_per_hour: spot.price_per_hour,
-              is_available: spot.is_available,
-              total_spaces: spot.total_spaces,
-              available_spaces: spot.available_spaces,
-              real_time_data: spot.real_time_data,
-              last_updated: lastUpdated, // Fixed: Use the processed value
-              metadata: {
-                restrictions: spot.restrictions,
-                payment_methods: spot.payment_methods,
-                accessibility: spot.accessibility,
-                covered: spot.covered,
-                security: spot.security,
-                ev_charging: spot.ev_charging,
-                opening_hours: spot.opening_hours,
-                contact_info: spot.contact_info,
-              },
+        await supabase.from("real_parking_spots").upsert(
+          {
+            provider_id: spot.provider_id,
+            provider: spot.provider,
+            name: spot.name,
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            address: spot.address,
+            spot_type: spot.spot_type,
+            price_per_hour: spot.price_per_hour,
+            is_available: spot.is_available,
+            total_spaces: spot.total_spaces,
+            available_spaces: spot.available_spaces,
+            real_time_data: spot.real_time_data,
+            last_updated: lastUpdated, // Fixed: Use the processed value
+            metadata: {
+              restrictions: spot.restrictions,
+              payment_methods: spot.payment_methods,
+              accessibility: spot.accessibility,
+              covered: spot.covered,
+              security: spot.security,
+              ev_charging: spot.ev_charging,
+              opening_hours: spot.opening_hours,
+              contact_info: spot.contact_info,
             },
-            { onConflict: "provider,provider_id" },
-          )
-        })
-
-        // Wait for each batch to complete before moving to the next
-        await Promise.allSettled(promises)
+          },
+          { onConflict: "provider,provider_id" },
+        )
       }
     } catch (error) {
       console.error("Error storing real parking data:", error)
