@@ -1,8 +1,8 @@
 // Production-grade Service Worker with Comprehensive Error Handling
-const CACHE_NAME = "parking-angel-v8" // Incremented cache version
-const STATIC_CACHE = "parking-angel-static-v8"
-const ICON_CACHE = "parking-angel-icons-v8"
-const API_CACHE = "parking-angel-api-v8"
+const CACHE_NAME = "parking-angel-v7"
+const STATIC_CACHE = "parking-angel-static-v7"
+const ICON_CACHE = "parking-angel-icons-v7"
+const API_CACHE = "parking-angel-api-v7"
 
 // Essential files for offline functionality
 const ESSENTIAL_FILES = ["/", "/dashboard", "/offline.html"]
@@ -17,10 +17,8 @@ const ICON_FILES = [
   "/icon-512x512.png",
 ]
 
-// External domains to ignore (don't cache AND let pass through directly)
-const EXTERNAL_DOMAINS_TO_BYPASS = [
-  "api.mapbox.com", // CRITICAL: Let Mapbox API calls pass through directly
-  "events.mapbox.com",
+// External domains to ignore (don't cache)
+const EXTERNAL_DOMAINS = [
   "googletagmanager.com",
   "google-analytics.com",
   "googleapis.com",
@@ -30,7 +28,7 @@ const EXTERNAL_DOMAINS_TO_BYPASS = [
 
 // Install event with minimal caching
 self.addEventListener("install", (event) => {
-  console.log(`Service Worker: Installing ${CACHE_NAME}...`)
+  console.log("Service Worker: Installing v7...")
 
   event.waitUntil(
     caches
@@ -53,7 +51,7 @@ self.addEventListener("install", (event) => {
 
 // Activate event
 self.addEventListener("activate", (event) => {
-  console.log(`Service Worker: Activating ${CACHE_NAME}...`)
+  console.log("Service Worker: Activating v7...")
 
   event.waitUntil(
     caches
@@ -61,12 +59,7 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (
-              cacheName !== CACHE_NAME &&
-              cacheName !== STATIC_CACHE && // Keep new static cache
-              cacheName !== API_CACHE && // Keep new API cache
-              cacheName.startsWith("parking-angel")
-            ) {
+            if (cacheName !== CACHE_NAME && cacheName.startsWith("parking-angel")) {
               console.log("Service Worker: Deleting old cache", cacheName)
               return caches.delete(cacheName)
             }
@@ -74,7 +67,7 @@ self.addEventListener("activate", (event) => {
         )
       })
       .then(() => {
-        console.log(`Service Worker: Activated ${CACHE_NAME}`)
+        console.log("Service Worker: Activated v7")
         return self.clients.claim()
       }),
   )
@@ -87,14 +80,13 @@ self.addEventListener("fetch", (event) => {
 
   // Skip non-GET requests
   if (request.method !== "GET") {
-    // console.log("Service Worker: Skipping non-GET request:", request.method, request.url);
     return
   }
 
-  // CRITICAL: Bypass Service Worker for Mapbox API calls and other specified external domains
-  if (EXTERNAL_DOMAINS_TO_BYPASS.some((domain) => url.hostname.includes(domain))) {
-    // console.log("Service Worker: Bypassing for external domain:", request.url);
-    return // Let the browser handle it directly
+  // Skip external domains that we don't want to cache
+  if (EXTERNAL_DOMAINS.some((domain) => url.hostname.includes(domain))) {
+    // Let external requests fail naturally without intervention
+    return
   }
 
   // DO NOT INTERCEPT ICON REQUESTS - let them go directly to the server
@@ -102,20 +94,17 @@ self.addEventListener("fetch", (event) => {
     url.pathname.includes("icon") ||
     url.pathname.includes("favicon") ||
     url.pathname.includes("apple-touch") ||
-    url.pathname.endsWith(".png") || // More general rule for images
+    url.pathname.endsWith(".png") ||
     url.pathname.endsWith(".ico") ||
     url.pathname.includes("manifest")
   ) {
-    // console.log("Service Worker: Bypassing for icon/manifest:", request.url);
     return // Let these requests go through normally
   }
 
   // Handle different types of requests
   if (isApiRequest(url.pathname)) {
-    // console.log("Service Worker: Handling API request:", request.url);
     event.respondWith(handleApiRequest(request))
   } else {
-    // console.log("Service Worker: Handling regular request:", request.url);
     event.respondWith(handleRegularRequest(request))
   }
 })
@@ -127,18 +116,12 @@ async function handleApiRequest(request) {
 
     // Try network first for fresh data
     try {
-      const response = await fetch(request, { timeout: 10000 }) // Added timeout
+      const response = await fetch(request, { timeout: 10000 })
       if (response.ok) {
         const responseClone = response.clone()
-        apiCache.put(request, responseClone).catch((cacheError) => {
-          console.warn("Service Worker: API Cache put failed", cacheError)
-        })
+        apiCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
         return response
       }
-      // If response is not ok, but it's a valid HTTP response, still return it
-      // This allows the client to handle specific API errors (like 4xx)
-      // console.warn(`Service Worker: API request to ${request.url} returned status ${response.status}`);
-      return response
     } catch (fetchError) {
       console.warn("Service Worker: API fetch failed, trying cache:", fetchError.message)
     }
@@ -146,16 +129,15 @@ async function handleApiRequest(request) {
     // Fallback to cache
     const cachedResponse = await apiCache.match(request)
     if (cachedResponse) {
-      // console.log("Service Worker: Serving cached API response for", request.url);
+      console.log("Service Worker: Serving cached API response")
       return cachedResponse
     }
 
-    // console.warn("Service Worker: API request failed and not in cache for", request.url);
-    // Return offline response for API failures if not found in cache
+    // Return offline response for API failures
     return new Response(
       JSON.stringify({
-        error: "Offline or API unreachable",
-        message: "This feature is not available offline and the server could not be reached.",
+        error: "Offline",
+        message: "This feature is not available offline",
         timestamp: new Date().toISOString(),
       }),
       {
@@ -171,7 +153,7 @@ async function handleApiRequest(request) {
     return new Response(
       JSON.stringify({
         error: "Service Worker Error",
-        message: "An error occurred processing your API request",
+        message: "An error occurred processing your request",
       }),
       {
         status: 500,
@@ -189,34 +171,27 @@ async function handleRegularRequest(request) {
     // Try cache first for better performance
     const cachedResponse = await staticCache.match(request)
     if (cachedResponse) {
-      // Serve from cache and update in background (stale-while-revalidate)
+      // Serve from cache and update in background
       updateCacheInBackground(request, staticCache)
       return cachedResponse
     }
 
     // Try network
     try {
-      const response = await fetch(request, { timeout: 10000 }) // Added timeout
+      const response = await fetch(request, { timeout: 10000 })
       if (response.ok) {
         // Cache successful responses
         const responseClone = response.clone()
-        staticCache.put(request, responseClone).catch((cacheError) => {
-          console.warn("Service Worker: Static Cache put failed", cacheError)
-        })
+        staticCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
         return response
       } else {
-        // console.warn(`Service Worker: HTTP ${response.status} for ${request.url}`);
-        // Don't throw an error here, let the offline fallback handle it if it's a navigation request
-        // For other assets, this non-ok response will be returned.
-        if (request.mode === "navigate") {
-          throw new Error(`HTTP ${response.status}`) // Force fallback for navigation
-        }
-        return response // Return non-ok response for non-navigation assets
+        console.warn(`Service Worker: HTTP ${response.status} for ${request.url}`)
+        throw new Error(`HTTP ${response.status}`)
       }
     } catch (fetchError) {
-      // console.warn("Service Worker: Network request failed for", request.url, ":", fetchError.message);
+      console.warn("Service Worker: Network request failed:", fetchError.message)
 
-      // Try cache again as final fallback (might have been populated by another tab)
+      // Try cache again as final fallback
       const fallbackResponse = await staticCache.match(request)
       if (fallbackResponse) {
         return fallbackResponse
@@ -230,20 +205,16 @@ async function handleRegularRequest(request) {
         }
       }
 
-      // Return a proper error response instead of throwing for non-navigation assets
-      return new Response("Network error and resource not in cache.", {
-        status: 404, // Or 503
-        statusText: "Not Found or Network Error",
+      // Return a proper error response instead of throwing
+      return new Response("Service Unavailable", {
+        status: 503,
+        statusText: "Service Unavailable",
         headers: { "Content-Type": "text/plain" },
       })
     }
   } catch (error) {
     console.error("Service Worker: Request handling error:", error)
-    // Fallback for truly unexpected errors
-    const offlinePage = await caches.match("/offline.html", { cacheName: CACHE_NAME }) // Check main cache
-    if (offlinePage) return offlinePage
-
-    return new Response("Internal Error in Service Worker", {
+    return new Response("Internal Error", {
       status: 500,
       statusText: "Internal Server Error",
       headers: { "Content-Type": "text/plain" },
@@ -254,13 +225,13 @@ async function handleRegularRequest(request) {
 // Background cache update
 async function updateCacheInBackground(request, cache) {
   try {
-    const response = await fetch(request, { timeout: 5000 }) // Shorter timeout for background
+    const response = await fetch(request, { timeout: 5000 })
     if (response.ok) {
       await cache.put(request, response)
     }
   } catch (error) {
     // Silently fail background updates
-    // console.warn("Service Worker: Background update failed:", error.message);
+    console.warn("Service Worker: Background update failed:", error.message)
   }
 }
 
@@ -272,13 +243,12 @@ function isApiRequest(pathname) {
 // Enhanced error handling for unhandled promise rejections
 self.addEventListener("unhandledrejection", (event) => {
   console.error("Service Worker: Unhandled promise rejection:", event.reason)
-  // Optional: Prevent default browser handling if you have specific recovery
-  // event.preventDefault();
+  event.preventDefault() // Prevent the error from being logged to console repeatedly
 })
 
 // Enhanced error handling for general errors
 self.addEventListener("error", (event) => {
-  console.error("Service Worker: General error:", event.error, event.message)
+  console.error("Service Worker: General error:", event.error)
 })
 
 // Push notification event with error handling
@@ -288,12 +258,11 @@ self.addEventListener("push", (event) => {
   try {
     const title = "Parking Angel"
     const options = {
-      // Ensure data type is compatible
       body: "New parking update available!",
       icon: "/icon-192x192.png",
       badge: "/favicon.ico",
       tag: "parking-update",
-      data: { url: "/dashboard" }, // Ensure data is structured as expected
+      data: { url: "/dashboard" },
       requireInteraction: false,
       silent: false,
     }
@@ -302,12 +271,9 @@ self.addEventListener("push", (event) => {
       try {
         const payload = event.data.json()
         options.body = payload.body || options.body
-        // Merge data carefully, ensuring url is preserved or updated correctly
         options.data = { ...options.data, ...payload.data }
       } catch (parseError) {
         console.warn("Service Worker: Error parsing push data:", parseError)
-        // Fallback to text if JSON parsing fails
-        options.body = event.data.text() || options.body
       }
     }
 
@@ -350,4 +316,4 @@ self.addEventListener("notificationclick", (event) => {
   }
 })
 
-console.log(`Service Worker ${CACHE_NAME}: Loaded and ready. Mapbox requests will be bypassed.`)
+console.log("Service Worker v7: Loaded with minimal icon interference")

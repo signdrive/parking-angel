@@ -1,4 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
@@ -64,18 +64,8 @@ const createMockClient = () => ({
 
 // Only create the real client if properly configured
 export const supabase = isSupabaseConfigured()
-  ? createSupabaseClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
   : (createMockClient() as any)
-
-// Named export for createClient function
-export function createClient() {
-  if (!isSupabaseConfigured()) {
-    console.warn("Supabase not configured, returning mock client")
-    return createMockClient() as any
-  }
-
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey)
-}
 
 export type Database = {
   public: {

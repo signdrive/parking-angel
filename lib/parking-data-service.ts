@@ -67,21 +67,10 @@ export class ParkingDataService {
       maxPrice?: number
       requireRealTime?: boolean
       requireAvailability?: boolean
-      includeFreeSpots?: boolean // Add this new option
     } = {},
   ): Promise<RealParkingSpot[]> {
     const cacheKey = `${latitude},${longitude},${radius}`
     const cached = this.cache.get(cacheKey)
-
-    const {
-      includeStreetParking = true,
-      includeGarages = true,
-      includeLots = true,
-      includeFreeSpots = true,
-      requireRealTime = false,
-      requireAvailability = false,
-      maxPrice,
-    } = options
 
     if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
       return this.filterSpots(cached.data, options)
@@ -116,13 +105,6 @@ export class ParkingDataService {
 
       // Store in our database for future reference
       await this.storeRealParkingData(uniqueSpots)
-
-      // If no spots found from real providers, generate sample spots for testing
-      if (uniqueSpots.length === 0) {
-        console.log("No real parking data found, generating sample spots for testing")
-        const sampleSpots = await this.generateSampleSpots(latitude, longitude, radius)
-        uniqueSpots.push(...sampleSpots)
-      }
 
       return this.filterSpots(uniqueSpots, options)
     } catch (error) {
@@ -276,11 +258,6 @@ export class ParkingDataService {
 
   private filterSpots(spots: RealParkingSpot[], options: any): RealParkingSpot[] {
     return spots.filter((spot) => {
-      // Include free spots unless explicitly excluded
-      if (spot.price_per_hour === 0 && options.includeFreeSpots !== false) {
-        return true
-      }
-
       if (options.maxPrice && spot.price_per_hour && spot.price_per_hour > options.maxPrice) {
         return false
       }
@@ -368,35 +345,5 @@ export class ParkingDataService {
     if (!hours) return undefined
     // Simple parsing - in production, use a proper opening hours parser
     return { note: hours }
-  }
-
-  private async generateSampleSpots(lat: number, lng: number, radius: number): Promise<RealParkingSpot[]> {
-    // Generate some sample spots around the clicked location for testing
-    const sampleSpots: RealParkingSpot[] = []
-
-    for (let i = 0; i < 5; i++) {
-      // Generate random coordinates within the radius
-      const offsetLat = (Math.random() - 0.5) * 0.01 // ~1km range
-      const offsetLng = (Math.random() - 0.5) * 0.01
-
-      sampleSpots.push({
-        id: `sample_${i}_${Date.now()}`,
-        name: `Parking Area ${i + 1}`,
-        latitude: lat + offsetLat,
-        longitude: lng + offsetLng,
-        address: `Sample Address ${i + 1}`,
-        spot_type: i % 2 === 0 ? "street" : "lot",
-        price_per_hour: i === 0 ? 0 : Math.floor(Math.random() * 10), // First spot is always free
-        is_available: true,
-        total_spaces: Math.floor(Math.random() * 50) + 10,
-        available_spaces: Math.floor(Math.random() * 20) + 5,
-        provider: "Sample Provider",
-        provider_id: `sample_${i}`,
-        real_time_data: i % 3 === 0,
-        last_updated: new Date().toISOString(),
-      })
-    }
-
-    return sampleSpots
   }
 }
