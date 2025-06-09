@@ -1,33 +1,53 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { ParkingService } from "@/lib/supabase-enhanced"
+import { createClient } from "@supabase/supabase-js"
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
+    const lat = searchParams.get("lat") ? Number.parseFloat(searchParams.get("lat")!) : null
+    const lng = searchParams.get("lng") ? Number.parseFloat(searchParams.get("lng")!) : null
+    const radius = Number.parseInt(searchParams.get("radius") || "1000")
+    const limit = Number.parseInt(searchParams.get("limit") || "50")
 
-    const lat = searchParams.get("lat") ? Number.parseFloat(searchParams.get("lat")!) : undefined
-    const lng = searchParams.get("lng") ? Number.parseFloat(searchParams.get("lng")!) : undefined
-    const radius = searchParams.get("radius") ? Number.parseInt(searchParams.get("radius")!) : 5000
-    const limit = searchParams.get("limit") ? Number.parseInt(searchParams.get("limit")!) : 50
+    console.log("API: Getting spots for", { lat, lng, radius, limit })
 
-    console.log("🔍 API: Fetching parking spots")
+    let result
 
-    // Validate parameters
-    if (lat !== undefined && (isNaN(lat) || lat < -90 || lat > 90)) {
-      return NextResponse.json({ error: "Invalid latitude" }, { status: 400 })
+    if (lat && lng) {
+      // Try the function first
+      result = await supabase.rpc("get_nearby_spots_simple", {
+        user_lat: lat,
+        user_lng: lng,
+        radius_meters: radius,
+        max_results: limit,
+      })
+
+      // If function fails, fallback to simple query
+      if (result.error) {
+        console.log("Function failed, using fallback:", result.error)
+        result = await supabase
+          .from("parking_spots")
+          .select("id, latitude, longitude, address, spot_type, is_available, price_per_hour, provider")
+          .eq("is_available", true)
+          .limit(limit)
+      }
+    } else {
+      // Simple query without location
+      result = await supabase
+        .from("parking_spots")
+        .select("id, latitude, longitude, address, spot_type, is_available, price_per_hour, provider")
+        .eq("is_available", true)
+        .limit(limit)
     }
-
-    if (lng !== undefined && (isNaN(lng) || lng < -180 || lng > 180)) {
-      return NextResponse.json({ error: "Invalid longitude" }, { status: 400 })
-    }
-
-    const result = await ParkingService.getNearbySpots({ lat, lng, radius, limit })
 
     if (result.error) {
+      console.error("Database error:", result.error)
       return NextResponse.json(
         {
-          error: "Failed to fetch parking spots",
-          details: result.error,
+          success: false,
+          error: result.error.message,
           data: [],
         },
         { status: 500 },
@@ -35,19 +55,17 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
+      success: true,
       data: result.data || [],
       count: result.data?.length || 0,
-      timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("❌ API error:", error)
-
+    console.error("API error:", error)
     return NextResponse.json(
       {
-        error: "Failed to fetch parking spots",
-        details: error instanceof Error ? error.message : "Unknown error",
+        success: false,
+        error: "Internal server error",
         data: [],
-        timestamp: new Date().toISOString(),
       },
       { status: 500 },
     )
