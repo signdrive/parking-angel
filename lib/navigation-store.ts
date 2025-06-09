@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { subscribeWithSelector } from "zustand/middleware"
+import { persist } from "zustand/middleware"
 
 export interface NavigationStep {
   id: string
@@ -7,8 +7,16 @@ export interface NavigationStep {
   distance: number
   duration: number
   maneuver: {
-    type: "turn-left" | "turn-right" | "straight" | "merge" | "roundabout" | "arrive"
-    modifier?: string
+    type:
+      | "straight"
+      | "turn-left"
+      | "turn-right"
+      | "merge"
+      | "roundabout"
+      | "arrive"
+      | "u-turn"
+      | "fork-left"
+      | "fork-right"
   }
   streetName: string
   coordinates: [number, number]
@@ -28,11 +36,26 @@ export interface NavigationRoute {
   steps: NavigationStep[]
   geometry: [number, number][]
   trafficDelays: number
-  alternativeRoutes?: NavigationRoute[]
 }
 
-export interface NavigationState {
+export interface NavigationSettings {
+  mapStyle: "navigation" | "satellite" | "terrain" | "street" | "hybrid"
+  viewMode: "2d" | "3d" | "bird-eye" | "follow"
+  showTraffic: boolean
+  showIncidents: boolean
+  showSpeedLimits: boolean
+  showLaneGuidance: boolean
+  voiceGuidance: boolean
+  routePreference: "fastest" | "shortest" | "eco" | "avoid-highways"
+  units: "metric" | "imperial"
+  theme: "auto" | "day" | "night"
+}
+
+interface NavigationState {
+  // Navigation state
   isNavigating: boolean
+
+  // Route data
   currentRoute: NavigationRoute | null
   currentStep: number
   userLocation: {
@@ -47,179 +70,182 @@ export interface NavigationState {
     name: string
     spotId?: string
   } | null
+
+  // Navigation state
   eta: Date | null
   remainingDistance: number
   remainingTime: number
   isOffRoute: boolean
-  isDayMode: boolean
-  voiceEnabled: boolean
   isRecalculating: boolean
   gpsSignalStrength: "strong" | "weak" | "lost"
-  parkingReservation: {
-    spotId: string
-    expiresAt: Date
-    price: number
-  } | null
   lastMileWalking: boolean
-}
+  nextStep: NavigationStep | null
 
-interface NavigationActions {
-  startNavigation: (destination: NavigationState["destination"], route: NavigationRoute) => void
+  // Settings
+  settings: NavigationSettings
+
+  // Actions
+  startNavigation: (
+    destination: { latitude: number; longitude: number; name: string; spotId?: string },
+    route: NavigationRoute,
+  ) => void
   stopNavigation: () => void
-  updateUserLocation: (location: NavigationState["userLocation"]) => void
-  nextStep: () => void
-  recalculateRoute: () => Promise<void>
-  toggleVoice: () => void
-  setDayMode: (isDayMode: boolean) => void
-  confirmArrival: () => Promise<void>
-  updateGpsSignal: (strength: NavigationState["gpsSignalStrength"]) => void
-  startLastMileWalking: () => void
+  setRoute: (route: NavigationRoute) => void
+  setDestination: (destination: { latitude: number; longitude: number; name: string; spotId?: string }) => void
+  updateUserLocation: (location: { latitude: number; longitude: number; heading: number; speed: number }) => void
+  nextStepAction: () => void
+  recalculateRoute: () => void
+  confirmArrival: () => void
+  updateGpsSignal: (strength: "strong" | "weak" | "lost") => void
+  updateSettings: (settings: Partial<NavigationSettings>) => void
+  resetNavigation: () => void
 }
 
-export const useNavigationStore = create<NavigationState & NavigationActions>()(
-  subscribeWithSelector((set, get) => ({
-    // Initial state
-    isNavigating: false,
-    currentRoute: null,
-    currentStep: 0,
-    userLocation: null,
-    destination: null,
-    eta: null,
-    remainingDistance: 0,
-    remainingTime: 0,
-    isOffRoute: false,
-    isDayMode: true,
-    voiceEnabled: true,
-    isRecalculating: false,
-    gpsSignalStrength: "strong",
-    parkingReservation: null,
-    lastMileWalking: false,
+export const useNavigationStore = create<NavigationState>()(
+  persist(
+    (set, get) => ({
+      // Initial state
+      isNavigating: false,
+      currentRoute: null,
+      currentStep: 0,
+      userLocation: null,
+      destination: null,
+      eta: null,
+      remainingDistance: 0,
+      remainingTime: 0,
+      isOffRoute: false,
+      isRecalculating: false,
+      gpsSignalStrength: "strong",
+      lastMileWalking: false,
+      nextStep: null,
 
-    // Actions
-    startNavigation: (destination, route) => {
-      set({
-        isNavigating: true,
-        destination,
-        currentRoute: route,
-        currentStep: 0,
-        remainingDistance: route.distance,
-        remainingTime: route.duration,
-        eta: new Date(Date.now() + route.duration * 1000),
-        isOffRoute: false,
-        isRecalculating: false,
-        lastMileWalking: false,
-      })
-    },
+      // Default settings - 3D is default
+      settings: {
+        mapStyle: "navigation",
+        viewMode: "3d", // Default to 3D
+        showTraffic: true,
+        showIncidents: true,
+        showSpeedLimits: true,
+        showLaneGuidance: true,
+        voiceGuidance: true,
+        routePreference: "fastest",
+        units: "imperial",
+        theme: "auto",
+      },
 
-    stopNavigation: () => {
-      set({
-        isNavigating: false,
-        currentRoute: null,
-        currentStep: 0,
-        destination: null,
-        eta: null,
-        remainingDistance: 0,
-        remainingTime: 0,
-        isOffRoute: false,
-        isRecalculating: false,
-        lastMileWalking: false,
-      })
-    },
-
-    updateUserLocation: (location) => {
-      const state = get()
-      if (!state.isNavigating || !state.currentRoute) return
-
-      // Calculate remaining distance and time
-      const currentStepIndex = state.currentStep
-      const remainingSteps = state.currentRoute.steps.slice(currentStepIndex)
-      const remainingDistance = remainingSteps.reduce((sum, step) => sum + step.distance, 0)
-      const remainingTime = remainingSteps.reduce((sum, step) => sum + step.duration, 0)
-
-      // Check if close to destination for last mile walking
-      const isCloseToDestination = remainingDistance < 100 // 100 meters
-
-      set({
-        userLocation: location,
-        remainingDistance,
-        remainingTime,
-        eta: new Date(Date.now() + remainingTime * 1000),
-        lastMileWalking: isCloseToDestination && !state.lastMileWalking,
-      })
-    },
-
-    nextStep: () => {
-      const state = get()
-      if (!state.currentRoute || state.currentStep >= state.currentRoute.steps.length - 1) return
-
-      set({ currentStep: state.currentStep + 1 })
-    },
-
-    recalculateRoute: async () => {
-      set({ isRecalculating: true })
-
-      try {
-        const state = get()
-        if (!state.userLocation || !state.destination) return
-
-        const response = await fetch("/api/navigation/recalculate-route", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: [state.userLocation.longitude, state.userLocation.latitude],
-            to: [state.destination.longitude, state.destination.latitude],
-          }),
-        })
-
-        const newRoute = await response.json()
-
+      // Actions
+      startNavigation: (destination, route) => {
+        console.log("🚀 Starting navigation to:", destination.name)
         set({
-          currentRoute: newRoute,
+          isNavigating: true,
+          destination,
+          currentRoute: route,
           currentStep: 0,
+          remainingDistance: route.distance,
+          remainingTime: route.duration,
+          eta: new Date(Date.now() + route.duration * 1000),
+          nextStep: route.steps[1] || null,
+        })
+      },
+
+      stopNavigation: () => {
+        console.log("🛑 Stopping navigation")
+        set({
+          isNavigating: false,
+          currentRoute: null,
+          currentStep: 0,
+          destination: null,
+          eta: null,
+          remainingDistance: 0,
+          remainingTime: 0,
+          nextStep: null,
           isOffRoute: false,
           isRecalculating: false,
         })
-      } catch (error) {
-        console.error("Failed to recalculate route:", error)
-        set({ isRecalculating: false })
-      }
-    },
+      },
 
-    toggleVoice: () => {
-      set((state) => ({ voiceEnabled: !state.voiceEnabled }))
-    },
-
-    setDayMode: (isDayMode) => {
-      set({ isDayMode })
-    },
-
-    confirmArrival: async () => {
-      const state = get()
-      if (!state.destination?.spotId) return
-
-      try {
-        await fetch("/api/parking/confirm-arrival", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            spotId: state.destination.spotId,
-            arrivalTime: new Date().toISOString(),
-          }),
+      setRoute: (route) => {
+        const state = get()
+        set({
+          currentRoute: route,
+          currentStep: 0,
+          remainingDistance: route.distance,
+          remainingTime: route.duration,
+          eta: new Date(Date.now() + route.duration * 1000),
+          nextStep: route.steps[1] || null,
         })
+      },
 
-        // Stop navigation after successful arrival confirmation
-        get().stopNavigation()
-      } catch (error) {
-        console.error("Failed to confirm arrival:", error)
-      }
-    },
+      setDestination: (destination) => set({ destination }),
 
-    updateGpsSignal: (strength) => {
-      set({ gpsSignalStrength: strength })
-    },
+      updateUserLocation: (location) => set({ userLocation: location }),
 
-    startLastMileWalking: () => {
-      set({ lastMileWalking: true })
+      nextStepAction: () => {
+        const state = get()
+        if (state.currentRoute && state.currentStep < state.currentRoute.steps.length - 1) {
+          const newStep = state.currentStep + 1
+          const remainingSteps = state.currentRoute.steps.slice(newStep)
+          const remainingDistance = remainingSteps.reduce((sum, step) => sum + step.distance, 0)
+          const remainingTime = remainingSteps.reduce((sum, step) => sum + step.duration, 0)
+
+          set({
+            currentStep: newStep,
+            remainingDistance,
+            remainingTime,
+            eta: new Date(Date.now() + remainingTime * 1000),
+            nextStep: state.currentRoute.steps[newStep + 1] || null,
+          })
+        }
+      },
+
+      recalculateRoute: () => {
+        set({ isRecalculating: true })
+        // Simulate recalculation
+        setTimeout(() => {
+          set({ isRecalculating: false, isOffRoute: false })
+        }, 2000)
+      },
+
+      confirmArrival: () => {
+        set({
+          isNavigating: false,
+          currentRoute: null,
+          currentStep: 0,
+          destination: null,
+          eta: null,
+          remainingDistance: 0,
+          remainingTime: 0,
+          nextStep: null,
+        })
+      },
+
+      updateGpsSignal: (strength) => set({ gpsSignalStrength: strength }),
+
+      updateSettings: (newSettings) =>
+        set((state) => ({
+          settings: { ...state.settings, ...newSettings },
+        })),
+
+      resetNavigation: () =>
+        set({
+          isNavigating: false,
+          currentRoute: null,
+          currentStep: 0,
+          userLocation: null,
+          destination: null,
+          eta: null,
+          remainingDistance: 0,
+          remainingTime: 0,
+          isOffRoute: false,
+          isRecalculating: false,
+          gpsSignalStrength: "strong",
+          lastMileWalking: false,
+          nextStep: null,
+        }),
+    }),
+    {
+      name: "navigation-store",
+      partialize: (state) => ({ settings: state.settings }),
     },
-  })),
+  ),
 )

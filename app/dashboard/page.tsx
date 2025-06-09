@@ -12,15 +12,19 @@ import { ParkingHistory } from "@/components/dashboard/parking-history"
 import { SmartAssistant } from "@/components/ai/smart-assistant"
 import { MapPin } from "lucide-react"
 import { PWADebug } from "@/components/pwa/pwa-debug"
+import { usePersistentState } from "@/hooks/use-persistent-state"
 
 export default function DashboardPage() {
-  const { user, loading, signOut } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState("map")
-  const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
-  const [showDebug, setShowDebug] = useState(false)
 
-  // Map state
+  // Persistent states
+  const [activeTab, setActiveTab] = usePersistentState("dashboardActiveTab", "map")
+  const [showDebug, setShowDebug] = usePersistentState("showDebug", false)
+  const [rightPanelCollapsed, setRightPanelCollapsed] = usePersistentState("rightPanelCollapsed", false)
+
+  // Non-persistent states (live data)
+  const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
   const [spotsCount, setSpotsCount] = useState(0)
   const [providersCount, setProvidersCount] = useState(0)
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
@@ -52,31 +56,30 @@ export default function DashboardPage() {
     switch (activeTab) {
       case "map":
         return (
-          <div className="flex h-full">
-            {/* Main Map Area (75%) */}
-            <div className="flex-1 bg-white">
-              <div className="h-full">
-                <EnhancedParkingMap
-                  onSpotSelect={setSelectedSpot}
-                  onStatsUpdate={(spots, providers) => {
-                    setSpotsCount(spots)
-                    setProvidersCount(providers)
-                  }}
-                  onLocationClick={setClickedLocation}
-                  onAreaAnalysis={setAreaAnalysis}
-                  onLoadingChange={setMapLoading}
-                />
-              </div>
+          <div className="flex h-full w-full">
+            {/* Main Map Area - Takes all available space */}
+            <div className="flex-1 bg-white relative">
+              <EnhancedParkingMap
+                onSpotSelect={setSelectedSpot}
+                onStatsUpdate={(spots, providers) => {
+                  setSpotsCount(spots)
+                  setProvidersCount(providers)
+                }}
+                onLocationClick={setClickedLocation}
+                onAreaAnalysis={setAreaAnalysis}
+                onLoadingChange={setMapLoading}
+              />
             </div>
 
-            {/* Right Panel (25%) */}
-            <div className="w-80">
+            {/* Right Panel - Absolutely positioned to overlay */}
+            <div className="absolute top-0 right-0 h-full z-10">
               <RightPanel
                 spotsCount={spotsCount}
                 providersCount={providersCount}
                 clickedLocation={clickedLocation}
                 areaAnalysis={areaAnalysis}
                 loading={mapLoading}
+                onCollapseChange={setRightPanelCollapsed}
               />
             </div>
           </div>
@@ -110,6 +113,51 @@ export default function DashboardPage() {
           <div className="p-6 bg-gray-50 h-full overflow-y-auto">
             <div className="max-w-4xl mx-auto space-y-6">
               <UserProfileEnhanced user={user} />
+
+              {/* Settings Panel */}
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">App Preferences</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900">Debug Mode</h3>
+                      <p className="text-sm text-gray-500">Show technical information and diagnostics</p>
+                    </div>
+                    <button
+                      onClick={() => setShowDebug(!showDebug)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        showDebug ? "bg-blue-600" : "bg-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          showDebug ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900">Right Panel</h3>
+                      <p className="text-sm text-gray-500">Show or hide the statistics panel</p>
+                    </div>
+                    <button
+                      onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        !rightPanelCollapsed ? "bg-blue-600" : "bg-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          !rightPanelCollapsed ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {showDebug && <PWADebug />}
             </div>
           </div>
@@ -142,8 +190,8 @@ export default function DashboardPage() {
       {/* Collapsible Sidebar */}
       <CollapsibleSidebar activeTab={activeTab} onTabChange={setActiveTab} className="flex-shrink-0" />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">{renderMainContent()}</div>
+      {/* Main Content - Takes remaining space */}
+      <div className="flex-1 relative overflow-hidden">{renderMainContent()}</div>
 
       {/* Floating AI Chat */}
       <FloatingAIChat />
