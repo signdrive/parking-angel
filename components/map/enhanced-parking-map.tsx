@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { useGeolocation } from "@/hooks/use-geolocation"
+import { useGoogleMaps } from "@/hooks/use-google-maps"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -61,6 +62,7 @@ export function EnhancedParkingMap({
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   const { latitude, longitude, error: locationError } = useGeolocation()
+  const { googleMapsApiKey } = useGoogleMaps()
   const parkingService = ParkingDataService.getInstance()
   const aiPredictor = AISpotPredictor.getInstance()
   const navigationService = NavigationService.getInstance()

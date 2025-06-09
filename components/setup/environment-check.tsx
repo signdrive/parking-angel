@@ -12,6 +12,8 @@ export function EnvironmentCheck() {
   const [mounted, setMounted] = useState(false)
   const [mapboxConfigured, setMapboxConfigured] = useState(false)
   const [checkingMapbox, setCheckingMapbox] = useState(true)
+  const [googleMapsConfigured, setGoogleMapsConfigured] = useState(false)
+  const [checkingGoogleMaps, setCheckingGoogleMaps] = useState(true)
 
   useEffect(() => {
     setMounted(true)
@@ -34,6 +36,26 @@ export function EnvironmentCheck() {
     }
 
     checkMapbox()
+  }, [])
+
+  useEffect(() => {
+    const checkGoogleMaps = async () => {
+      try {
+        const response = await fetch("/api/maps/config")
+        if (response.ok) {
+          const data = await response.json()
+          setGoogleMapsConfigured(data.configured)
+        } else {
+          setGoogleMapsConfigured(false)
+        }
+      } catch {
+        setGoogleMapsConfigured(false)
+      } finally {
+        setCheckingGoogleMaps(false)
+      }
+    }
+
+    checkGoogleMaps()
   }, [])
 
   if (!mounted) {
@@ -74,8 +96,16 @@ export function EnvironmentCheck() {
       key: "MAPBOX_ACCESS_TOKEN",
       configured: mapboxConfigured,
       required: true,
-      example: "pk.eyJ1IjoieW91ci11c2VybmFtZSIsImEiOiJjbGV...",
+      example: "pk.eyJ1IjoieW91ci11c2VybmFtZSIsImEiOiJjbGU...",
       checking: checkingMapbox,
+    },
+    {
+      name: "Google Maps API Key",
+      key: "GOOGLE_MAPS_API_KEY",
+      configured: googleMapsConfigured,
+      required: true,
+      example: "AIzaSyC...",
+      checking: checkingGoogleMaps,
     },
   ]
 

@@ -20,6 +20,7 @@ export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
   const [reportLocation, setReportLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [mapboxError, setMapboxError] = useState<string | null>(null)
   const [mapboxToken, setMapboxToken] = useState<string | null>(null)
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string | null>(null)
 
   const { latitude, longitude, error: locationError } = useGeolocation()
   const { spots, loading: spotsLoading } = useParkingSpots({
@@ -45,6 +46,25 @@ export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
     }
 
     fetchMapboxToken()
+  }, [])
+
+  // Add this useEffect after the existing useEffects:
+  useEffect(() => {
+    const fetchGoogleMapsConfig = async () => {
+      try {
+        const response = await fetch("/api/maps/config")
+        if (response.ok) {
+          const data = await response.json()
+          setGoogleMapsApiKey(data.apiKey)
+        } else {
+          console.error("Failed to load Google Maps configuration")
+        }
+      } catch (error) {
+        console.error("Error fetching Google Maps config:", error)
+      }
+    }
+
+    fetchGoogleMapsConfig()
   }, [])
 
   // Initialize map
