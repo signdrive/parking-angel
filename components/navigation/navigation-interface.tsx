@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
+import { NavigationMap } from "./navigation-map"
+import { NavigationSettings } from "./navigation-settings"
 import { cn } from "@/lib/utils"
 import {
   ArrowLeft,
@@ -20,8 +22,15 @@ import {
   AlertTriangle,
   CheckCircle,
   RotateCcw,
-  Compass,
   Map,
+  Settings,
+  Eye,
+  Mountain,
+  Satellite,
+  Zap,
+  Route,
+  Leaf,
+  RouteIcon as Highway,
   FootprintsIcon as Walking,
 } from "lucide-react"
 
@@ -39,43 +48,54 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     remainingDistance,
     remainingTime,
     isOffRoute,
-    isDayMode,
-    voiceEnabled,
     isRecalculating,
     gpsSignalStrength,
     lastMileWalking,
     nextStep,
+    settings,
     recalculateRoute,
-    toggleVoice,
-    setDayMode,
+    updateSettings,
     confirmArrival,
     updateUserLocation,
     updateGpsSignal,
   } = useNavigationStore()
 
-  const [showMiniMap, setShowMiniMap] = useState(false)
-  const [currentInstruction, setCurrentInstruction] = useState("")
+  const [showSettings, setShowSettings] = useState(false)
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null)
   const navigationService = NavigationService.getInstance()
 
-  // Auto day/night mode switching
+  // Fetch Mapbox token
   useEffect(() => {
-    const hour = new Date().getHours()
-    const shouldBeDayMode = hour >= 6 && hour < 20
-    setDayMode(shouldBeDayMode)
-  }, [setDayMode])
+    const fetchMapboxToken = async () => {
+      try {
+        const response = await fetch("/api/mapbox/token")
+        if (response.ok) {
+          const data = await response.json()
+          setMapboxToken(data.token)
+        }
+      } catch (error) {
+        console.error("Failed to fetch Mapbox token:", error)
+      }
+    }
+
+    fetchMapboxToken()
+  }, [])
+
+  // Auto theme switching
+  useEffect(() => {
+    if (settings.theme === "auto") {
+      const hour = new Date().getHours()
+      const isDayTime = hour >= 6 && hour < 20
+      // Auto theme logic would go here
+    }
+  }, [settings.theme])
 
   // Location tracking
   useEffect(() => {
     navigationService.startLocationTracking(
       (location) => {
         updateUserLocation(location)
-
-        // Check GPS signal strength based on accuracy
-        if (location.latitude && location.longitude) {
-          updateGpsSignal("strong")
-        } else {
-          updateGpsSignal("weak")
-        }
+        updateGpsSignal("strong")
       },
       (error) => {
         console.error("Location error:", error)
@@ -90,39 +110,74 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
 
   // Voice instructions
   useEffect(() => {
-    if (currentRoute && currentStep < currentRoute.steps.length) {
+    if (currentRoute && currentStep < currentRoute.steps.length && settings.voiceGuidance) {
       const step = currentRoute.steps[currentStep]
       const instruction = `In ${navigationService.formatDistance(step.distance)}, ${step.instruction}`
-      setCurrentInstruction(instruction)
-
-      if (voiceEnabled) {
-        navigationService.speakInstruction(instruction, voiceEnabled)
-      }
+      navigationService.speakInstruction(instruction, settings.voiceGuidance)
     }
-  }, [currentStep, currentRoute, voiceEnabled])
-
-  // Off-route detection
-  useEffect(() => {
-    if (userLocation && currentRoute) {
-      const offRouteDistance = navigationService.calculateOffRouteDistance(
-        [userLocation.longitude, userLocation.latitude],
-        currentRoute.geometry,
-      )
-
-      if (offRouteDistance > 50) {
-        // 50 meters threshold
-        recalculateRoute()
-      }
-    }
-  }, [userLocation, currentRoute, recalculateRoute])
+  }, [currentStep, currentRoute, settings.voiceGuidance])
 
   if (!currentRoute || !destination) {
-    return null
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-center">
+          <h2 className="text-xl font-bold mb-4">Navigation Error</h2>
+          <p className="mb-4">Unable to load navigation data</p>
+          <Button onClick={onExit}>Go Back</Button>
+        </div>
+      </div>
+    )
   }
 
   const currentStepData = currentRoute.steps[currentStep]
   const isLastStep = currentStep === currentRoute.steps.length - 1
   const progressPercentage = (currentStep / currentRoute.steps.length) * 100
+
+  const isDayMode =
+    settings.theme === "day" || (settings.theme === "auto" && new Date().getHours() >= 6 && new Date().getHours() < 20)
+
+  const getViewModeIcon = () => {
+    switch (settings.viewMode) {
+      case "3d":
+        return Mountain
+      case "bird-eye":
+        return Eye
+      case "follow":
+        return Navigation
+      default:
+        return Map
+    }
+  }
+
+  const getMapStyleIcon = () => {
+    switch (settings.mapStyle) {
+      case "satellite":
+        return Satellite
+      case "terrain":
+        return Mountain
+      case "hybrid":
+        return Eye
+      default:
+        return Navigation
+    }
+  }
+
+  const getRoutePreferenceIcon = () => {
+    switch (settings.routePreference) {
+      case "shortest":
+        return Route
+      case "eco":
+        return Leaf
+      case "avoid-highways":
+        return Highway
+      default:
+        return Zap
+    }
+  }
+
+  const ViewModeIcon = getViewModeIcon()
+  const MapStyleIcon = getMapStyleIcon()
+  const RoutePreferenceIcon = getRoutePreferenceIcon()
 
   return (
     <div
@@ -152,6 +207,22 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
             <MapPin className="w-5 h-5 text-blue-500" />
             <span className="font-medium truncate max-w-48">{destination.name}</span>
           </div>
+
+          {/* Active Settings Indicators */}
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-xs">
+              <ViewModeIcon className="w-3 h-3 mr-1" />
+              {settings.viewMode.toUpperCase()}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              <MapStyleIcon className="w-3 h-3 mr-1" />
+              {settings.mapStyle}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              <RoutePreferenceIcon className="w-3 h-3 mr-1" />
+              {settings.routePreference}
+            </Badge>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -174,147 +245,132 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={toggleVoice}
+            onClick={() => updateSettings({ voiceGuidance: !settings.voiceGuidance })}
             className={cn("rounded-full", isDayMode ? "hover:bg-gray-100" : "hover:bg-gray-700")}
           >
-            {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            {settings.voiceGuidance ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </Button>
 
-          {/* Day/Night Toggle */}
+          {/* Theme Toggle */}
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setDayMode(!isDayMode)}
+            onClick={() => updateSettings({ theme: isDayMode ? "night" : "day" })}
             className={cn("rounded-full", isDayMode ? "hover:bg-gray-100" : "hover:bg-gray-700")}
           >
             {isDayMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
           </Button>
+
+          {/* Settings */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowSettings(true)}
+            className={cn("rounded-full", isDayMode ? "hover:bg-gray-100" : "hover:bg-gray-700")}
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
-      {/* Main Navigation Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Current Instruction */}
-        <div
-          className={cn("p-6 border-b", isDayMode ? "bg-blue-50 border-gray-200" : "bg-blue-900/20 border-gray-700")}
-        >
-          <div className="flex items-center gap-4">
-            <div className="text-4xl">{navigationService.getManeuverIcon(currentStepData.maneuver)}</div>
-            <div className="flex-1">
-              <div className="text-lg font-medium mb-1">{currentStepData.instruction}</div>
-              <div className="text-sm opacity-75">{currentStepData.streetName}</div>
-              {currentStepData.speedLimit && (
-                <Badge variant="outline" className="mt-2">
-                  <Gauge className="w-3 h-3 mr-1" />
-                  {currentStepData.speedLimit} mph
-                </Badge>
-              )}
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">{navigationService.formatDistance(currentStepData.distance)}</div>
-              <div className="text-sm opacity-75">{navigationService.formatDuration(currentStepData.duration)}</div>
-            </div>
+      {/* Current Instruction */}
+      <div className={cn("p-6 border-b", isDayMode ? "bg-blue-50 border-gray-200" : "bg-blue-900/20 border-gray-700")}>
+        <div className="flex items-center gap-4">
+          <div className="text-4xl">{navigationService.getManeuverIcon(currentStepData.maneuver)}</div>
+          <div className="flex-1">
+            <div className="text-lg font-medium mb-1">{currentStepData.instruction}</div>
+            <div className="text-sm opacity-75">{currentStepData.streetName}</div>
+            {settings.showSpeedLimits && currentStepData.speedLimit && (
+              <Badge variant="outline" className="mt-2">
+                <Gauge className="w-3 h-3 mr-1" />
+                {currentStepData.speedLimit} {settings.units === "metric" ? "km/h" : "mph"}
+              </Badge>
+            )}
           </div>
-
-          {/* Progress Bar */}
-          <Progress value={progressPercentage} className="mt-4" />
+          <div className="text-right">
+            <div className="text-2xl font-bold">{navigationService.formatDistance(currentStepData.distance)}</div>
+            <div className="text-sm opacity-75">{navigationService.formatDuration(currentStepData.duration)}</div>
+          </div>
         </div>
 
-        {/* Lane Guidance */}
-        {currentStepData.laneGuidance && (
-          <div className={cn("p-4 border-b", isDayMode ? "bg-gray-50 border-gray-200" : "bg-gray-800 border-gray-700")}>
-            <div className="flex justify-center gap-2">
-              {currentStepData.laneGuidance.lanes.map((lane, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    "w-8 h-12 border-2 rounded flex items-end justify-center pb-1",
-                    lane.valid
-                      ? "border-green-500 bg-green-100 text-green-700"
-                      : "border-gray-300 bg-gray-100 text-gray-400",
-                  )}
-                >
-                  ↑
-                </div>
-              ))}
-            </div>
+        {/* Progress Bar */}
+        <Progress value={progressPercentage} className="mt-4" />
+      </div>
+
+      {/* Lane Guidance */}
+      {settings.showLaneGuidance && currentStepData.laneGuidance && (
+        <div className={cn("p-4 border-b", isDayMode ? "bg-gray-50 border-gray-200" : "bg-gray-800 border-gray-700")}>
+          <div className="flex justify-center gap-2">
+            {currentStepData.laneGuidance.lanes.map((lane, index) => (
+              <div
+                key={index}
+                className={cn(
+                  "w-8 h-12 border-2 rounded flex items-end justify-center pb-1",
+                  lane.valid
+                    ? "border-green-500 bg-green-100 text-green-700"
+                    : "border-gray-300 bg-gray-100 text-gray-400",
+                )}
+              >
+                ↑
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Status Alerts */}
-        {(isOffRoute || isRecalculating || gpsSignalStrength === "lost" || lastMileWalking) && (
-          <div className="p-4">
-            {isRecalculating && (
-              <Card className="mb-2">
-                <CardContent className="p-3 flex items-center gap-3">
-                  <RotateCcw className="w-5 h-5 animate-spin text-blue-500" />
-                  <span>Recalculating route...</span>
-                </CardContent>
-              </Card>
-            )}
+      {/* Status Alerts */}
+      {(isOffRoute || isRecalculating || gpsSignalStrength === "lost" || lastMileWalking) && (
+        <div className="p-4">
+          {isRecalculating && (
+            <Card className="mb-2">
+              <CardContent className="p-3 flex items-center gap-3">
+                <RotateCcw className="w-5 h-5 animate-spin text-blue-500" />
+                <span>Recalculating route...</span>
+              </CardContent>
+            </Card>
+          )}
 
-            {isOffRoute && !isRecalculating && (
-              <Card className="mb-2">
-                <CardContent className="p-3 flex items-center gap-3">
-                  <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                  <span>Off route - calculating new path</span>
-                </CardContent>
-              </Card>
-            )}
+          {isOffRoute && !isRecalculating && (
+            <Card className="mb-2">
+              <CardContent className="p-3 flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                <span>Off route - calculating new path</span>
+              </CardContent>
+            </Card>
+          )}
 
-            {gpsSignalStrength === "lost" && (
-              <Card className="mb-2">
-                <CardContent className="p-3 flex items-center gap-3">
-                  <AlertTriangle className="w-5 h-5 text-red-500" />
-                  <span>GPS signal lost - trying to reconnect</span>
-                </CardContent>
-              </Card>
-            )}
+          {gpsSignalStrength === "lost" && (
+            <Card className="mb-2">
+              <CardContent className="p-3 flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <span>GPS signal lost - trying to reconnect</span>
+              </CardContent>
+            </Card>
+          )}
 
-            {lastMileWalking && (
-              <Card className="mb-2">
-                <CardContent className="p-3 flex items-center gap-3">
-                  <Walking className="w-5 h-5 text-green-500" />
-                  <span>Switch to walking directions - you're almost there!</span>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* Map Area Placeholder */}
-        <div className="flex-1 relative bg-gray-200">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <Navigation className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p className="text-sm opacity-75">Navigation Map</p>
-              <p className="text-xs opacity-50">Integrate with Mapbox GL Navigation</p>
-            </div>
-          </div>
-
-          {/* Mini Map Toggle */}
-          <Button
-            variant="secondary"
-            size="sm"
-            className="absolute bottom-4 right-4"
-            onClick={() => setShowMiniMap(!showMiniMap)}
-          >
-            <Map className="w-4 h-4 mr-2" />
-            {showMiniMap ? "Hide" : "Show"} Overview
-          </Button>
-
-          {/* Mini Map */}
-          {showMiniMap && (
-            <Card className="absolute bottom-16 right-4 w-48 h-32">
-              <CardContent className="p-2 h-full flex items-center justify-center">
-                <div className="text-center">
-                  <Compass className="w-8 h-8 mx-auto mb-1 opacity-50" />
-                  <p className="text-xs opacity-75">Route Overview</p>
-                </div>
+          {lastMileWalking && (
+            <Card className="mb-2">
+              <CardContent className="p-3 flex items-center gap-3">
+                <Walking className="w-5 h-5 text-green-500" />
+                <span>Switch to walking directions - you're almost there!</span>
               </CardContent>
             </Card>
           )}
         </div>
+      )}
+
+      {/* Navigation Map */}
+      <div className="flex-1 relative">
+        {mapboxToken ? (
+          <NavigationMap mapboxToken={mapboxToken} />
+        ) : (
+          <div className="h-full flex items-center justify-center bg-gray-200">
+            <div className="text-center">
+              <Navigation className="w-12 h-12 mx-auto mb-2 opacity-50 animate-pulse" />
+              <p className="text-sm opacity-75">Loading Navigation Map...</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Info Bar */}
@@ -346,6 +402,9 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           )}
         </div>
       </div>
+
+      {/* Settings Modal */}
+      <NavigationSettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   )
 }

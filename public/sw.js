@@ -1,193 +1,95 @@
-// Enhanced Service Worker v9 - Fixes Cache API errors and improves reliability
-const CACHE_NAME = "parking-angel-v9"
-const STATIC_CACHE = "parking-angel-static-v9"
-const API_CACHE = "parking-angel-api-v9"
+// Production-grade Service Worker with Comprehensive Error Handling
+const CACHE_NAME = "parking-angel-v7"
+const STATIC_CACHE = "parking-angel-static-v7"
+const ICON_CACHE = "parking-angel-icons-v7"
+const API_CACHE = "parking-angel-api-v7"
 
 // Essential files for offline functionality
 const ESSENTIAL_FILES = ["/", "/dashboard", "/offline.html"]
 
-// Supabase domains to NEVER intercept
-const SUPABASE_DOMAINS = ["supabase.co", "supabase.com", "vzhvpecwnjssurxbyzph.supabase.co"]
+// All icon files for comprehensive caching
+const ICON_FILES = [
+  "/favicon.ico",
+  "/apple-touch-icon.png",
+  "/favicon-32x32.png",
+  "/favicon-16x16.png",
+  "/icon-192x192.png",
+  "/icon-512x512.png",
+]
 
-// External domains to ignore completely
+// External domains to ignore (don't cache)
 const EXTERNAL_DOMAINS = [
   "googletagmanager.com",
   "google-analytics.com",
   "googleapis.com",
   "googleusercontent.com",
   "gstatic.com",
-  "mapbox.com",
-  "mapbox.gl",
 ]
 
-// Cache management utilities
-class CacheManager {
-  static async safeKeys(cache) {
-    try {
-      return await cache.keys()
-    } catch (error) {
-      console.warn("Cache keys() failed, attempting recovery:", error.message)
-      // Try to recover by clearing the problematic cache
-      try {
-        const cacheName = cache.constructor.name
-        await caches.delete(cacheName)
-        console.log("Cleared problematic cache, creating new one")
-        return []
-      } catch (recoveryError) {
-        console.error("Cache recovery failed:", recoveryError)
-        return []
-      }
-    }
-  }
-
-  static async safeMatch(cache, request) {
-    try {
-      return await cache.match(request)
-    } catch (error) {
-      console.warn("Cache match() failed:", error.message)
-      return null
-    }
-  }
-
-  static async safePut(cache, request, response) {
-    try {
-      // Clone the response before caching
-      const responseClone = response.clone()
-      await cache.put(request, responseClone)
-      return true
-    } catch (error) {
-      console.warn("Cache put() failed:", error.message)
-      return false
-    }
-  }
-
-  static async safeDelete(cache, request) {
-    try {
-      return await cache.delete(request)
-    } catch (error) {
-      console.warn("Cache delete() failed:", error.message)
-      return false
-    }
-  }
-
-  static async cleanupCache(cacheName, maxEntries = 50) {
-    try {
-      const cache = await caches.open(cacheName)
-      const keys = await this.safeKeys(cache)
-
-      if (keys.length > maxEntries) {
-        const keysToDelete = keys.slice(0, keys.length - maxEntries)
-        await Promise.all(keysToDelete.map((key) => this.safeDelete(cache, key)))
-        console.log(`Cleaned up ${keysToDelete.length} entries from ${cacheName}`)
-      }
-    } catch (error) {
-      console.error("Cache cleanup failed:", error)
-    }
-  }
-}
-
-// Install event with better error handling
+// Install event with minimal caching
 self.addEventListener("install", (event) => {
-  console.log("Service Worker v9: Installing...")
+  console.log("Service Worker: Installing v7...")
 
   event.waitUntil(
-    (async () => {
-      try {
-        // Clear any existing problematic caches
-        const cacheNames = await caches.keys()
-        await Promise.all(
-          cacheNames
-            .filter((name) => name.startsWith("parking-angel") && name !== CACHE_NAME)
-            .map((name) => caches.delete(name)),
-        )
-
-        const cache = await caches.open(CACHE_NAME)
-
-        // Cache essential files with individual error handling
-        const cachePromises = ESSENTIAL_FILES.map(async (file) => {
-          try {
-            const response = await fetch(file)
-            if (response.ok) {
-              await CacheManager.safePut(cache, file, response)
-            }
-          } catch (error) {
-            console.warn(`Failed to cache ${file}:`, error.message)
-          }
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => {
+        console.log("Service Worker: Caching essential files only")
+        return cache.addAll(ESSENTIAL_FILES).catch((error) => {
+          console.warn("Service Worker: Some files failed to cache", error)
         })
-
-        await Promise.allSettled(cachePromises)
-        console.log("Service Worker v9: Installation complete")
+      })
+      .then(() => {
+        console.log("Service Worker: Installation complete")
         return self.skipWaiting()
-      } catch (error) {
-        console.error("Service Worker v9: Installation failed", error)
-        throw error
-      }
-    })(),
+      })
+      .catch((error) => {
+        console.error("Service Worker: Installation failed", error)
+      }),
   )
 })
 
-// Activate event with comprehensive cleanup
+// Activate event
 self.addEventListener("activate", (event) => {
-  console.log("Service Worker v9: Activating...")
+  console.log("Service Worker: Activating v7...")
 
   event.waitUntil(
-    (async () => {
-      try {
-        const cacheNames = await caches.keys()
-
-        // Delete old caches
-        await Promise.all(
-          cacheNames.map(async (cacheName) => {
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
             if (cacheName !== CACHE_NAME && cacheName.startsWith("parking-angel")) {
-              console.log("Service Worker v9: Deleting old cache", cacheName)
-              try {
-                await caches.delete(cacheName)
-              } catch (error) {
-                console.warn("Failed to delete cache:", cacheName, error.message)
-              }
+              console.log("Service Worker: Deleting old cache", cacheName)
+              return caches.delete(cacheName)
             }
           }),
         )
-
-        // Clean up current cache
-        await CacheManager.cleanupCache(CACHE_NAME)
-
-        console.log("Service Worker v9: Activated")
+      })
+      .then(() => {
+        console.log("Service Worker: Activated v7")
         return self.clients.claim()
-      } catch (error) {
-        console.error("Service Worker v9: Activation failed", error)
-        throw error
-      }
-    })(),
+      }),
   )
 })
 
-// Enhanced fetch event with better error handling
+// Fetch event with comprehensive error handling
 self.addEventListener("fetch", (event) => {
   const { request } = event
   const url = new URL(request.url)
-
-  // CRITICAL: Never intercept Supabase requests
-  if (SUPABASE_DOMAINS.some((domain) => url.hostname.includes(domain))) {
-    return // Let Supabase requests go directly to the server
-  }
 
   // Skip non-GET requests
   if (request.method !== "GET") {
     return
   }
 
-  // Skip external domains
+  // Skip external domains that we don't want to cache
   if (EXTERNAL_DOMAINS.some((domain) => url.hostname.includes(domain))) {
+    // Let external requests fail naturally without intervention
     return
   }
 
-  // Skip API routes
-  if (url.pathname.startsWith("/api/")) {
-    return
-  }
-
-  // Skip icon requests that might cause cache issues
+  // DO NOT INTERCEPT ICON REQUESTS - let them go directly to the server
   if (
     url.pathname.includes("icon") ||
     url.pathname.includes("favicon") ||
@@ -196,61 +98,122 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".ico") ||
     url.pathname.includes("manifest")
   ) {
-    return
+    return // Let these requests go through normally
   }
 
-  // Handle static requests with enhanced error handling
-  event.respondWith(handleStaticRequestSafely(request))
+  // Handle different types of requests
+  if (isApiRequest(url.pathname)) {
+    event.respondWith(handleApiRequest(request))
+  } else {
+    event.respondWith(handleRegularRequest(request))
+  }
 })
 
-// Enhanced static request handler
-async function handleStaticRequestSafely(request) {
+// API request handler with better error handling
+async function handleApiRequest(request) {
   try {
-    const staticCache = await caches.open(STATIC_CACHE)
+    const apiCache = await caches.open(API_CACHE)
 
-    // Try cache first with safe operations
-    const cachedResponse = await CacheManager.safeMatch(staticCache, request)
-    if (cachedResponse) {
-      return cachedResponse
-    }
-
-    // Try network with timeout
+    // Try network first for fresh data
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-      const response = await fetch(request, {
-        signal: controller.signal,
-        cache: "no-cache",
-      })
-
-      clearTimeout(timeoutId)
-
+      const response = await fetch(request, { timeout: 10000 })
       if (response.ok) {
-        // Cache successful responses safely
-        await CacheManager.safePut(staticCache, request, response)
+        const responseClone = response.clone()
+        apiCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
         return response
       }
     } catch (fetchError) {
-      console.warn("Service Worker v9: Network request failed:", fetchError.message)
+      console.warn("Service Worker: API fetch failed, trying cache:", fetchError.message)
     }
 
-    // Return offline page for navigation requests
-    if (request.mode === "navigate") {
-      const offlinePage = await CacheManager.safeMatch(staticCache, "/offline.html")
-      if (offlinePage) {
-        return offlinePage
-      }
+    // Fallback to cache
+    const cachedResponse = await apiCache.match(request)
+    if (cachedResponse) {
+      console.log("Service Worker: Serving cached API response")
+      return cachedResponse
     }
 
-    // Return a basic error response
-    return new Response("Service Unavailable", {
-      status: 503,
-      statusText: "Service Unavailable",
-      headers: { "Content-Type": "text/plain" },
-    })
+    // Return offline response for API failures
+    return new Response(
+      JSON.stringify({
+        error: "Offline",
+        message: "This feature is not available offline",
+        timestamp: new Date().toISOString(),
+      }),
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
+      },
+    )
   } catch (error) {
-    console.error("Service Worker v9: Request handling error:", error)
+    console.error("Service Worker: API request error:", error)
+    return new Response(
+      JSON.stringify({
+        error: "Service Worker Error",
+        message: "An error occurred processing your request",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
+  }
+}
+
+// Regular request handler with better error handling
+async function handleRegularRequest(request) {
+  try {
+    const staticCache = await caches.open(STATIC_CACHE)
+
+    // Try cache first for better performance
+    const cachedResponse = await staticCache.match(request)
+    if (cachedResponse) {
+      // Serve from cache and update in background
+      updateCacheInBackground(request, staticCache)
+      return cachedResponse
+    }
+
+    // Try network
+    try {
+      const response = await fetch(request, { timeout: 10000 })
+      if (response.ok) {
+        // Cache successful responses
+        const responseClone = response.clone()
+        staticCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
+        return response
+      } else {
+        console.warn(`Service Worker: HTTP ${response.status} for ${request.url}`)
+        throw new Error(`HTTP ${response.status}`)
+      }
+    } catch (fetchError) {
+      console.warn("Service Worker: Network request failed:", fetchError.message)
+
+      // Try cache again as final fallback
+      const fallbackResponse = await staticCache.match(request)
+      if (fallbackResponse) {
+        return fallbackResponse
+      }
+
+      // Return offline page for navigation requests
+      if (request.mode === "navigate") {
+        const offlinePage = await staticCache.match("/offline.html")
+        if (offlinePage) {
+          return offlinePage
+        }
+      }
+
+      // Return a proper error response instead of throwing
+      return new Response("Service Unavailable", {
+        status: 503,
+        statusText: "Service Unavailable",
+        headers: { "Content-Type": "text/plain" },
+      })
+    }
+  } catch (error) {
+    console.error("Service Worker: Request handling error:", error)
     return new Response("Internal Error", {
       status: 500,
       statusText: "Internal Server Error",
@@ -259,9 +222,38 @@ async function handleStaticRequestSafely(request) {
   }
 }
 
-// Enhanced push notification handling
+// Background cache update
+async function updateCacheInBackground(request, cache) {
+  try {
+    const response = await fetch(request, { timeout: 5000 })
+    if (response.ok) {
+      await cache.put(request, response)
+    }
+  } catch (error) {
+    // Silently fail background updates
+    console.warn("Service Worker: Background update failed:", error.message)
+  }
+}
+
+// Utility functions
+function isApiRequest(pathname) {
+  return pathname.startsWith("/api/")
+}
+
+// Enhanced error handling for unhandled promise rejections
+self.addEventListener("unhandledrejection", (event) => {
+  console.error("Service Worker: Unhandled promise rejection:", event.reason)
+  event.preventDefault() // Prevent the error from being logged to console repeatedly
+})
+
+// Enhanced error handling for general errors
+self.addEventListener("error", (event) => {
+  console.error("Service Worker: General error:", event.error)
+})
+
+// Push notification event with error handling
 self.addEventListener("push", (event) => {
-  console.log("Service Worker v9: Push notification received")
+  console.log("Service Worker: Push notification received")
 
   try {
     const title = "Parking Angel"
@@ -281,23 +273,23 @@ self.addEventListener("push", (event) => {
         options.body = payload.body || options.body
         options.data = { ...options.data, ...payload.data }
       } catch (parseError) {
-        console.warn("Service Worker v9: Error parsing push data:", parseError)
+        console.warn("Service Worker: Error parsing push data:", parseError)
       }
     }
 
     event.waitUntil(
       self.registration
         .showNotification(title, options)
-        .catch((error) => console.error("Service Worker v9: Notification error:", error)),
+        .catch((error) => console.error("Service Worker: Notification error:", error)),
     )
   } catch (error) {
-    console.error("Service Worker v9: Push event error:", error)
+    console.error("Service Worker: Push event error:", error)
   }
 })
 
-// Enhanced notification click handling
+// Notification click event with error handling
 self.addEventListener("notificationclick", (event) => {
-  console.log("Service Worker v9: Notification clicked")
+  console.log("Service Worker: Notification clicked")
 
   try {
     event.notification.close()
@@ -317,28 +309,11 @@ self.addEventListener("notificationclick", (event) => {
             return clients.openWindow(urlToOpen)
           }
         })
-        .catch((error) => console.error("Service Worker v9: Client handling error:", error)),
+        .catch((error) => console.error("Service Worker: Client handling error:", error)),
     )
   } catch (error) {
-    console.error("Service Worker v9: Notification click error:", error)
+    console.error("Service Worker: Notification click error:", error)
   }
 })
 
-// Cache cleanup on message
-self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "CLEANUP_CACHE") {
-    event.waitUntil(
-      (async () => {
-        try {
-          await CacheManager.cleanupCache(CACHE_NAME)
-          await CacheManager.cleanupCache(STATIC_CACHE)
-          console.log("Service Worker v9: Cache cleanup completed")
-        } catch (error) {
-          console.error("Service Worker v9: Cache cleanup failed:", error)
-        }
-      })(),
-    )
-  }
-})
-
-console.log("Service Worker v9: Loaded with enhanced cache management and error handling")
+console.log("Service Worker v7: Loaded with minimal icon interference")

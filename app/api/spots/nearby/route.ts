@@ -1,89 +1,70 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-// Create a Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { supabase } from "@/lib/supabase"
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const lat = searchParams.get("lat") ? Number.parseFloat(searchParams.get("lat")!) : null
-    const lng = searchParams.get("lng") ? Number.parseFloat(searchParams.get("lng")!) : null
-    const radius = searchParams.get("radius") ? Number.parseInt(searchParams.get("radius")!) : 5000
-    const limit = searchParams.get("limit") ? Number.parseInt(searchParams.get("limit")!) : 50
+    const lat = searchParams.get("lat")
+    const lng = searchParams.get("lng")
+    const radius = searchParams.get("radius") || "500"
 
-    console.log("Fetching spots near", { lat, lng, radius, limit })
+    console.log("Nearby spots API called with:", { lat, lng, radius })
 
     if (!lat || !lng) {
+      console.error("Missing lat/lng parameters")
+      return NextResponse.json({ error: "Latitude and longitude are required" }, { status: 400 })
+    }
+
+    // Validate coordinates
+    const latitude = Number.parseFloat(lat)
+    const longitude = Number.parseFloat(lng)
+    const radiusMeters = Number.parseInt(radius)
+
+    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusMeters)) {
+      console.error("Invalid coordinate parameters:", { lat, lng, radius })
+      return NextResponse.json({ error: "Invalid coordinate parameters" }, { status: 400 })
+    }
+
+    if (latitude < -90 || latitude > 90) {
+      console.error("Invalid latitude:", latitude)
+      return NextResponse.json({ error: "Invalid latitude: must be between -90 and 90" }, { status: 400 })
+    }
+
+    if (longitude < -180 || longitude > 180) {
+      console.error("Invalid longitude:", longitude)
+      return NextResponse.json({ error: "Invalid longitude: must be between -180 and 180" }, { status: 400 })
+    }
+
+    console.log("Calling find_nearby_spots with validated params:", { latitude, longitude, radiusMeters })
+
+    const { data: spots, error } = await supabase.rpc("find_nearby_spots", {
+      user_lat: latitude,
+      user_lng: longitude,
+      radius_meters: radiusMeters,
+    })
+
+    if (error) {
+      console.error("Supabase RPC error:", error)
       return NextResponse.json(
         {
-          success: false,
-          error: "Missing lat/lng parameters",
-          data: [],
+          error: "Failed to fetch nearby spots",
+          details: error.message,
+          spots: [], // Return empty array as fallback
         },
-        { status: 400 },
-      )
+        { status: 200 },
+      ) // Return 200 with empty spots instead of 500
     }
 
-    // Use the new function name
-    let result = await supabase.rpc("get_spots_nearby", {
-      user_lat: lat,
-      user_lng: lng,
-      radius_meters: radius,
-      max_results: limit,
-    })
-
-    // If function fails, fall back to direct query
-    if (result.error) {
-      console.error("Function error, falling back to direct query:", result.error)
-
-      result = await supabase.from("parking_spots").select("*").eq("is_available", true).limit(limit)
-    }
-
-    if (result.error) {
-      console.error("Database error:", result.error)
-      // Return mock data as last resort
-      return NextResponse.json({
-        success: true,
-        data: generateMockSpots(lat, lng, 10),
-        source: "mock",
-      })
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: result.data,
-      source: "database",
-    })
+    console.log("Successfully fetched spots:", spots?.length || 0)
+    return NextResponse.json({ spots: spots || [] })
   } catch (error) {
-    console.error("API error:", error)
-
-    // Return mock data as fallback
-    return NextResponse.json({
-      success: true,
-      data: generateMockSpots(40.7128, -74.006, 5),
-      source: "mock-error",
-    })
+    console.error("Unexpected error in nearby spots API:", error)
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        spots: [], // Return empty array as fallback
+      },
+      { status: 200 },
+    ) // Return 200 with empty spots instead of 500
   }
-}
-
-// Generate mock spots as a last resort
-function generateMockSpots(lat: number, lng: number, count: number) {
-  return Array.from({ length: count }).map((_, i) => ({
-    id: `mock-${i}`,
-    name: `Mock Parking Spot ${i + 1}`,
-    latitude: lat + (Math.random() * 0.01 - 0.005),
-    longitude: lng + (Math.random() * 0.01 - 0.005),
-    address: `${i + 1} Mock Street`,
-    spot_type: i % 3 === 0 ? "garage" : i % 3 === 1 ? "street" : "lot",
-    is_available: true,
-    price_per_hour: i % 4 === 0 ? 0 : i % 10,
-    provider: i % 2 === 0 ? "MockParking" : "FallbackSpots",
-    real_time_data: false,
-    total_spaces: 10 + i,
-    available_spaces: 5 + i,
-    distance_meters: 100 + i * 50,
-  }))
 }
