@@ -13,36 +13,49 @@ interface NavigationInterfaceProps {
 }
 
 export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
-  const { destination, route, currentStep, nextStep, previousStep } = useNavigationStore()
+  const {
+    destination,
+    currentRoute,
+    currentStep,
+    isNavigating,
+    stopNavigation,
+    nextStepAction,
+    previousStep: prevStep,
+  } = useNavigationStore()
+
   const [elapsedTime, setElapsedTime] = useState(0)
   const navigationService = NavigationService.getInstance()
 
+  // If not actually navigating, exit immediately
   useEffect(() => {
+    if (!isNavigating) {
+      console.log("Navigation interface mounted but not navigating, exiting...")
+      onExit()
+    }
+  }, [isNavigating, onExit])
+
+  useEffect(() => {
+    if (!isNavigating) return
+
     const timer = setInterval(() => {
       setElapsedTime((prev) => prev + 1)
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [])
+  }, [isNavigating])
 
-  if (!destination || !route) {
-    return (
-      <div className="h-full flex items-center justify-center bg-gray-100">
-        <Card className="p-6">
-          <CardContent>
-            <p>No active navigation</p>
-            <Button onClick={onExit} className="mt-4">
-              Return to Map
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  // Don't render anything if not navigating
+  if (!isNavigating || !destination || !currentRoute) {
+    console.log("NavigationInterface: No active navigation, calling onExit")
+    onExit()
+    return null
   }
 
-  const currentInstruction = route.instructions[currentStep] || "Continue to destination"
-  const remainingDistance = Math.round(route.distance * (1 - currentStep / route.instructions.length))
-  const remainingTime = Math.round(route.duration * (1 - currentStep / route.instructions.length))
+  const currentInstruction = currentRoute.instructions?.[currentStep] || "Continue to destination"
+  const remainingDistance = Math.round(
+    currentRoute.distance * (1 - currentStep / (currentRoute.instructions?.length || 1)),
+  )
+  const remainingTime = Math.round(currentRoute.duration * (1 - currentStep / (currentRoute.instructions?.length || 1)))
 
   return (
     <div className="h-full bg-gray-900 text-white relative">
@@ -56,7 +69,14 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
               <p className="text-sm text-gray-300">{destination.spotId}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onExit}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              stopNavigation()
+              onExit()
+            }}
+          >
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -86,7 +106,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-gray-300">
               <span>
-                Step {currentStep + 1} of {route.instructions.length}
+                Step {currentStep + 1} of {currentRoute.instructions?.length || 1}
               </span>
               <span>
                 Elapsed: {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, "0")}
@@ -95,7 +115,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
             <div className="w-full bg-gray-700 rounded-full h-2">
               <div
                 className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentStep + 1) / route.instructions.length) * 100}%` }}
+                style={{ width: `${((currentStep + 1) / (currentRoute.instructions?.length || 1)) * 100}%` }}
               />
             </div>
           </div>
@@ -104,13 +124,13 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           <div className="grid grid-cols-2 gap-4">
             <Card className="bg-gray-800 border-gray-700">
               <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold">{navigationService.formatDistance(route.distance)}</div>
+                <div className="text-lg font-bold">{navigationService.formatDistance(currentRoute.distance)}</div>
                 <div className="text-sm text-gray-300">Total Distance</div>
               </CardContent>
             </Card>
             <Card className="bg-gray-800 border-gray-700">
               <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold">{navigationService.formatDuration(route.duration)}</div>
+                <div className="text-lg font-bold">{navigationService.formatDuration(currentRoute.duration)}</div>
                 <div className="text-sm text-gray-300">Estimated Time</div>
               </CardContent>
             </Card>
@@ -121,15 +141,19 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
       {/* Bottom Controls */}
       <div className="absolute bottom-0 left-0 right-0 bg-gray-800 p-4">
         <div className="flex gap-2">
-          <Button variant="outline" onClick={previousStep} disabled={currentStep === 0} className="flex-1">
+          <Button variant="outline" onClick={prevStep} disabled={currentStep === 0} className="flex-1">
             Previous
           </Button>
-          <Button onClick={nextStep} disabled={currentStep >= route.instructions.length - 1} className="flex-1">
+          <Button
+            onClick={nextStepAction}
+            disabled={currentStep >= (currentRoute.instructions?.length || 1) - 1}
+            className="flex-1"
+          >
             Next Step
           </Button>
         </div>
 
-        {currentStep >= route.instructions.length - 1 && (
+        {currentStep >= (currentRoute.instructions?.length || 1) - 1 && (
           <div className="mt-4 text-center">
             <Badge className="bg-green-600">
               <MapPin className="w-4 h-4 mr-1" />

@@ -100,7 +100,7 @@ interface NavigationState {
 export const useNavigationStore = create<NavigationState>()(
   persist(
     (set, get) => ({
-      // Initial state
+      // Initial state - ensure isNavigating is false by default
       isNavigating: false,
       currentRoute: null,
       currentStep: 0,
@@ -248,7 +248,11 @@ export const useNavigationStore = create<NavigationState>()(
     }),
     {
       name: "navigation-store",
-      partialize: (state) => ({ settings: state.settings }),
+      // Only persist settings, not navigation state
+      partialize: (state) => ({
+        settings: state.settings,
+        // Don't persist navigation state to avoid showing stale navigation on reload
+      }),
     },
   ),
 )
