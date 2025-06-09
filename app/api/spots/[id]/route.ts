@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { SupabaseQueryBuilder } from "@/lib/supabase-query-fix"
+import { ParkingService } from "@/lib/supabase-enhanced"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -11,17 +11,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     console.log("🔍 API: Getting parking spot by ID:", id)
 
-    // Try the query builder first
-    let result = await SupabaseQueryBuilder.getParkingSpotById(id)
-
-    // If that fails, try direct REST call
-    if (result.error) {
-      console.log("🔄 Falling back to direct REST call")
-      result = await SupabaseQueryBuilder.directRestCall("parking_spots", {
-        select: "id,latitude,longitude,spot_type,address,is_available,last_updated",
-        id: `eq.${id}`,
-      })
-    }
+    const result = await ParkingService.getSpotById(id)
 
     if (result.error) {
       return NextResponse.json(
@@ -39,7 +29,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     return NextResponse.json({
       data: result.data,
-      source: "database",
+      source: result.partial ? "partial_data" : "database",
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
