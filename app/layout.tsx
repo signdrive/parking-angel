@@ -9,6 +9,7 @@ import { AnalyticsProvider } from "@/components/firebase/analytics-provider"
 import { PWAProvider } from "@/components/pwa/pwa-provider"
 import { SupabaseBoundary } from "@/components/error-boundaries/supabase-boundary"
 import { Suspense } from "react"
+import { FetchPatchProvider } from "@/components/fetch-patch-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -81,18 +82,20 @@ export default function RootLayout({
         <meta name="msapplication-tap-highlight" content="no" />
       </head>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SupabaseBoundary>
-            <AuthProvider>
-              <AnalyticsProvider>
-                <PWAProvider>
-                  <Suspense fallback={null}>{children}</Suspense>
-                  <Toaster />
-                </PWAProvider>
-              </AnalyticsProvider>
-            </AuthProvider>
-          </SupabaseBoundary>
-        </ThemeProvider>
+        <FetchPatchProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            <SupabaseBoundary>
+              <AuthProvider>
+                <AnalyticsProvider>
+                  <PWAProvider>
+                    <Suspense fallback={null}>{children}</Suspense>
+                    <Toaster />
+                  </PWAProvider>
+                </AnalyticsProvider>
+              </AuthProvider>
+            </SupabaseBoundary>
+          </ThemeProvider>
+        </FetchPatchProvider>
       </body>
     </html>
   )
