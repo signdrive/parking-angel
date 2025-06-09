@@ -28,25 +28,36 @@ export class NavigationService {
     options: RouteOptions = {},
   ): Promise<NavigationRoute> {
     try {
-      // In a real app, this would call a routing service like Mapbox Directions API
-      // For now, we'll simulate a route calculation
+      console.log("Calculating route from", start, "to", end)
+
+      // Validate coordinates
+      if (!start || !end || start.length !== 2 || end.length !== 2) {
+        throw new Error("Invalid coordinates provided")
+      }
+
+      if (isNaN(start[0]) || isNaN(start[1]) || isNaN(end[0]) || isNaN(end[1])) {
+        throw new Error("Coordinates contain invalid numbers")
+      }
 
       const distance = this.calculateDistance(start[1], start[0], end[1], end[0])
       const duration = this.estimateDuration(distance, options.routeType)
 
-      // Generate a simple route with waypoints
+      // Generate a route with proper waypoints
       const coordinates = this.generateRouteCoordinates(start, end)
-      const instructions = this.generateInstructions(coordinates)
+      const instructions = this.generateInstructions(coordinates, distance)
 
-      return {
+      const route = {
         distance: Math.round(distance),
         duration: Math.round(duration),
         coordinates,
         instructions,
       }
+
+      console.log("Route calculated successfully:", route)
+      return route
     } catch (error) {
       console.error("Failed to calculate route:", error)
-      throw new Error("Route calculation failed")
+      throw new Error(`Route calculation failed: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
@@ -86,7 +97,7 @@ export class NavigationService {
     const coordinates: [number, number][] = [start]
 
     // Generate intermediate waypoints (simplified)
-    const steps = 5
+    const steps = 6 // More steps for better navigation
     for (let i = 1; i < steps; i++) {
       const ratio = i / steps
       const lat = start[1] + (end[1] - start[1]) * ratio
@@ -98,11 +109,17 @@ export class NavigationService {
     return coordinates
   }
 
-  private generateInstructions(coordinates: [number, number][]): string[] {
+  private generateInstructions(coordinates: [number, number][], totalDistance: number): string[] {
     const instructions = ["Start your journey"]
 
+    // Generate more realistic instructions
+    const stepDistance = totalDistance / (coordinates.length - 1)
+
     for (let i = 1; i < coordinates.length - 1; i++) {
-      instructions.push(`Continue for ${Math.round(Math.random() * 500 + 100)}m`)
+      const distance = Math.round(stepDistance)
+      const turns = ["Continue straight", "Turn left", "Turn right", "Keep straight"]
+      const instruction = `${turns[i % turns.length]} for ${this.formatDistance(distance)}`
+      instructions.push(instruction)
     }
 
     instructions.push("You have arrived at your destination")

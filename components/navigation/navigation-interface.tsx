@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Navigation, X, MapPin, ArrowUp, ArrowRight, ArrowLeft, RotateCcw, AlertTriangle } from "lucide-react"
+import { Navigation, X, MapPin, ArrowUp, ArrowRight, ArrowLeft, RotateCcw, AlertTriangle, Loader2 } from "lucide-react"
 import { useNavigationStore } from "@/lib/navigation-store"
 import { NavigationService } from "@/lib/navigation-service"
 import { cn } from "@/lib/utils"
@@ -28,18 +28,49 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
   const [elapsedTime, setElapsedTime] = useState(0)
   const [currentSpeed, setCurrentSpeed] = useState(35)
   const [speedLimit, setSpeedLimit] = useState(40)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const navigationService = NavigationService.getInstance()
 
-  // If not actually navigating, exit immediately
+  // Debug logging
   useEffect(() => {
+    console.log("NavigationInterface mounted with state:", {
+      isNavigating,
+      destination,
+      currentRoute,
+      currentStep,
+    })
+  }, [isNavigating, destination, currentRoute, currentStep])
+
+  // Check navigation state and handle errors
+  useEffect(() => {
+    setIsLoading(true)
+
     if (!isNavigating) {
-      console.log("Navigation interface mounted but not navigating, exiting...")
+      console.log("Navigation interface: Not navigating, exiting...")
       onExit()
+      return
     }
-  }, [isNavigating, onExit])
+
+    if (!destination) {
+      console.error("Navigation interface: No destination found")
+      setError("No destination specified")
+      return
+    }
+
+    if (!currentRoute) {
+      console.error("Navigation interface: No route found")
+      setError("No route calculated")
+      return
+    }
+
+    // All good, stop loading
+    setIsLoading(false)
+    setError(null)
+  }, [isNavigating, destination, currentRoute, onExit])
 
   useEffect(() => {
-    if (!isNavigating) return
+    if (!isNavigating || isLoading || error) return
 
     const timer = setInterval(() => {
       setElapsedTime((prev) => prev + 1)
@@ -48,11 +79,44 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [isNavigating])
+  }, [isNavigating, isLoading, error])
 
-  // Don't render anything if not navigating
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="h-full bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-400 mx-auto mb-4 animate-spin" />
+          <h3 className="text-xl font-semibold mb-2">Starting Navigation</h3>
+          <p className="text-gray-300">Preparing your route...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="h-full bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center p-6">
+          <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold mb-2">Navigation Error</h3>
+          <p className="text-gray-300 mb-4">{error}</p>
+          <Button
+            onClick={onExit}
+            variant="outline"
+            className="text-white border-white hover:bg-white hover:text-gray-900"
+          >
+            Return to Map
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if missing required data
   if (!isNavigating || !destination || !currentRoute) {
-    console.log("NavigationInterface: No active navigation, calling onExit")
+    console.log("NavigationInterface: Missing required data, calling onExit")
     onExit()
     return null
   }
@@ -72,11 +136,11 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
   const nextManeuver = getNextManeuver()
   const distanceToNextTurn = Math.max(50, 500 - currentStep * 80)
 
-  // TomTom-style 3D Road Visualization
+  // Simplified TomTom-style Road View for better compatibility
   const TomTomRoadView = () => {
     const isDayMode =
-      settings.theme === "day" ||
-      (settings.theme === "auto" && new Date().getHours() >= 6 && new Date().getHours() < 20)
+      settings?.theme === "day" ||
+      (settings?.theme === "auto" && new Date().getHours() >= 6 && new Date().getHours() < 20)
 
     return (
       <div
@@ -85,7 +149,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           isDayMode ? "bg-gradient-to-b from-blue-200 to-gray-100" : "bg-gradient-to-b from-gray-900 to-gray-800",
         )}
       >
-        {/* Sky and Horizon */}
+        {/* Sky */}
         <div
           className={cn(
             "absolute top-0 left-0 right-0 h-1/3",
@@ -93,163 +157,28 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           )}
         />
 
-        {/* 3D Road with Perspective */}
-        <div className="absolute top-1/3 left-0 right-0 bottom-0 flex justify-center perspective-1000">
+        {/* Road */}
+        <div className="absolute top-1/3 left-0 right-0 bottom-0 flex justify-center">
           <div
             className={cn("relative w-full max-w-lg h-full", isDayMode ? "bg-gray-400" : "bg-gray-600")}
-            style={{
-              clipPath: "polygon(25% 0%, 75% 0%, 100% 100%, 0% 100%)",
-              transform: "rotateX(75deg) translateZ(-50px)",
-            }}
+            style={{ clipPath: "polygon(30% 0%, 70% 0%, 100% 100%, 0% 100%)" }}
           >
             {/* Road Surface */}
-            <div
-              className={cn("absolute inset-[3px]", isDayMode ? "bg-gray-300" : "bg-gray-500")}
-              style={{
-                clipPath: "polygon(25% 0%, 75% 0%, 100% 100%, 0% 100%)",
-              }}
-            >
-              {/* Center Line - Animated */}
-              <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-yellow-400 transform -translate-x-1/2 overflow-hidden">
-                <div className="h-full animate-pulse">
-                  {Array.from({ length: 20 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-8 mb-4 bg-yellow-400 opacity-80"
-                      style={{
-                        animationDelay: `${i * 0.1}s`,
-                        animation: "slideDown 2s infinite linear",
-                      }}
-                    />
-                  ))}
-                </div>
+            <div className={cn("absolute inset-1", isDayMode ? "bg-gray-300" : "bg-gray-500")}>
+              {/* Center Line */}
+              <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-yellow-400 transform -translate-x-1/2">
+                <div className="h-full animate-pulse opacity-80" />
               </div>
-
-              {/* Side Lines */}
-              <div className="absolute left-[20%] top-0 bottom-0 w-[2px] bg-white opacity-80" />
-              <div className="absolute right-[20%] top-0 bottom-0 w-[2px] bg-white opacity-80" />
             </div>
           </div>
         </div>
 
-        {/* 3D Buildings */}
-        <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none">
-          {/* Left Buildings */}
-          {Array.from({ length: 8 }).map((_, i) => {
-            const height = 60 + Math.random() * 100
-            const width = 40 + Math.random() * 30
-            const distance = 5 + i * 12
-            const opacity = Math.max(0.3, 1 - i * 0.12)
-
-            return (
-              <div
-                key={`left-${i}`}
-                className={cn("absolute", isDayMode ? "bg-blue-200 border-blue-300" : "bg-gray-700 border-gray-600")}
-                style={{
-                  height: `${height}px`,
-                  width: `${width}px`,
-                  bottom: `${33 + i * 1.5}%`,
-                  left: `${distance}%`,
-                  opacity,
-                  transform: `perspective(500px) rotateY(15deg) translateZ(${i * 5}px)`,
-                  borderWidth: "1px",
-                }}
-              >
-                {/* Windows */}
-                <div className="absolute inset-1 grid grid-cols-2 grid-rows-4 gap-[2px]">
-                  {Array.from({ length: 8 }).map((_, j) => (
-                    <div
-                      key={j}
-                      className={cn(
-                        "rounded-[1px]",
-                        isDayMode
-                          ? j % 3 === 0
-                            ? "bg-blue-300"
-                            : "bg-blue-100"
-                          : j % 3 === 0
-                            ? "bg-yellow-500/30"
-                            : "bg-gray-800",
-                      )}
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Right Buildings */}
-          {Array.from({ length: 8 }).map((_, i) => {
-            const height = 60 + Math.random() * 100
-            const width = 40 + Math.random() * 30
-            const distance = 5 + i * 12
-            const opacity = Math.max(0.3, 1 - i * 0.12)
-
-            return (
-              <div
-                key={`right-${i}`}
-                className={cn("absolute", isDayMode ? "bg-blue-200 border-blue-300" : "bg-gray-700 border-gray-600")}
-                style={{
-                  height: `${height}px`,
-                  width: `${width}px`,
-                  bottom: `${33 + i * 1.5}%`,
-                  right: `${distance}%`,
-                  opacity,
-                  transform: `perspective(500px) rotateY(-15deg) translateZ(${i * 5}px)`,
-                  borderWidth: "1px",
-                }}
-              >
-                {/* Windows */}
-                <div className="absolute inset-1 grid grid-cols-2 grid-rows-4 gap-[2px]">
-                  {Array.from({ length: 8 }).map((_, j) => (
-                    <div
-                      key={j}
-                      className={cn(
-                        "rounded-[1px]",
-                        isDayMode
-                          ? j % 3 === 0
-                            ? "bg-blue-300"
-                            : "bg-blue-100"
-                          : j % 3 === 0
-                            ? "bg-yellow-500/30"
-                            : "bg-gray-800",
-                      )}
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Turn Visualization */}
-        {nextManeuver !== "straight" && (
-          <div
-            className={cn("absolute top-[25%] left-0 right-0 h-16", isDayMode ? "bg-gray-300/80" : "bg-gray-600/80")}
-          >
-            {nextManeuver === "turn-left" && (
-              <div className="absolute left-0 top-0 bottom-0 w-1/2 bg-blue-500/60 rounded-r-lg" />
-            )}
-            {nextManeuver === "turn-right" && (
-              <div className="absolute right-0 top-0 bottom-0 w-1/2 bg-blue-500/60 rounded-l-lg" />
-            )}
-            {nextManeuver === "roundabout" && (
-              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-12 border-4 border-blue-500 rounded-full" />
-            )}
-          </div>
-        )}
-
-        {/* Current Position Indicator */}
+        {/* Current Position */}
         <div className="absolute left-1/2 bottom-[20%] transform -translate-x-1/2 z-20">
-          <div className="relative">
-            <div className="w-8 h-8 bg-blue-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
-              <ArrowUp className="w-4 h-4 text-white" />
-            </div>
-            <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-4 border-transparent border-t-blue-600" />
+          <div className="w-8 h-8 bg-blue-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
+            <ArrowUp className="w-4 h-4 text-white" />
           </div>
         </div>
-
-        {/* Route Line */}
-        <div className="absolute left-1/2 top-[25%] bottom-[20%] w-2 bg-blue-500/80 z-10 transform -translate-x-1/2 rounded-full" />
       </div>
     )
   }
@@ -286,12 +215,12 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
 
   return (
     <div className="h-full bg-gray-900 text-white relative overflow-hidden">
-      {/* TomTom-style 3D Road View */}
+      {/* Road View Background */}
       <div className="absolute inset-0">
         <TomTomRoadView />
       </div>
 
-      {/* Header with Destination */}
+      {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/80 to-transparent p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -315,10 +244,10 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
         </div>
       </div>
 
-      {/* Large Direction Arrow - TomTom Style */}
+      {/* Large Direction Arrow */}
       <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 z-30">{getLargeDirectionArrow()}</div>
 
-      {/* Distance to Next Turn - Large Display */}
+      {/* Distance Display */}
       <div className="absolute top-[45%] left-1/2 transform -translate-x-1/2 z-30 text-center">
         <div className="bg-black/70 text-white px-8 py-4 rounded-xl shadow-lg">
           <div className="text-4xl font-bold">{distanceToNextTurn}m</div>
@@ -337,22 +266,18 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
         </Card>
       </div>
 
-      {/* Speed and Speed Limit - TomTom Style */}
+      {/* Speed Display */}
       <div className="absolute top-20 right-4 z-30 flex flex-col gap-2">
-        {/* Current Speed */}
         <div className="bg-black/70 text-white rounded-lg p-3 text-center min-w-[80px]">
           <div className="text-3xl font-bold">{Math.round(currentSpeed)}</div>
-          <div className="text-xs opacity-75">{settings.units === "metric" ? "km/h" : "mph"}</div>
+          <div className="text-xs opacity-75">{settings?.units === "metric" ? "km/h" : "mph"}</div>
         </div>
-
-        {/* Speed Limit */}
         <div className="bg-white border-4 border-red-600 rounded-full p-3 text-center w-16 h-16 flex flex-col items-center justify-center">
           <div className="text-lg font-bold text-black">{speedLimit}</div>
-          <div className="text-[8px] text-gray-600">{settings.units === "metric" ? "km/h" : "mph"}</div>
         </div>
       </div>
 
-      {/* ETA and Distance - Top Right */}
+      {/* ETA and Distance */}
       <div className="absolute top-20 left-4 z-30 flex flex-col gap-2">
         <div className="bg-black/70 text-white rounded-lg p-3 text-center">
           <div className="text-lg font-bold">{navigationService.formatDistance(remainingDistance)}</div>
@@ -362,14 +287,6 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           <div className="text-lg font-bold">{navigationService.formatDuration(remainingTime)}</div>
           <div className="text-xs opacity-75">ETA</div>
         </div>
-      </div>
-
-      {/* Traffic Alert */}
-      <div className="absolute bottom-32 right-4 z-30">
-        <Badge variant="destructive" className="flex items-center gap-2 px-3 py-2 text-sm">
-          <AlertTriangle className="w-4 h-4" />
-          <span>Traffic ahead</span>
-        </Badge>
       </div>
 
       {/* Progress Bar */}
@@ -421,19 +338,6 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           </div>
         )}
       </div>
-
-      {/* CSS for animations */}
-      <style jsx>{`
-        @keyframes slideDown {
-          0% { transform: translateY(-100%); opacity: 0; }
-          50% { opacity: 1; }
-          100% { transform: translateY(100vh); opacity: 0; }
-        }
-        
-        .perspective-1000 {
-          perspective: 1000px;
-        }
-      `}</style>
     </div>
   )
 }

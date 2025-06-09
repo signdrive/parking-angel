@@ -249,7 +249,10 @@ export function EnhancedParkingMap({
     }
 
     try {
-      console.log("🚗 Starting navigation to spot:", spot.name)
+      console.log("🚗 Starting navigation to spot:", spot)
+      console.log("📍 User location:", { latitude, longitude })
+      console.log("📍 Destination:", { latitude: spot.latitude, longitude: spot.longitude })
+
       setLoading(true)
 
       toast({
@@ -257,13 +260,23 @@ export function EnhancedParkingMap({
         description: `Finding the best route to ${spot.name}`,
       })
 
+      // Validate coordinates before calculating route
+      if (!spot.latitude || !spot.longitude || isNaN(spot.latitude) || isNaN(spot.longitude)) {
+        throw new Error("Invalid destination coordinates")
+      }
+
       // Calculate route to the parking spot
       const route = await navigationService.calculateRoute([longitude, latitude], [spot.longitude, spot.latitude], {
         avoidTraffic: true,
         routeType: "fastest",
       })
 
-      console.log("📍 Route calculated, starting navigation...")
+      console.log("📍 Route calculated successfully:", route)
+
+      // Validate route before starting navigation
+      if (!route || !route.instructions || route.instructions.length === 0) {
+        throw new Error("Invalid route calculated")
+      }
 
       // Start navigation
       startNavigation(
