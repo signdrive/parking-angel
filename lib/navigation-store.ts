@@ -29,13 +29,18 @@ export interface NavigationStep {
   }
 }
 
-export interface NavigationRoute {
-  id: string
+interface NavigationDestination {
+  latitude: number
+  longitude: number
+  name: string
+  spotId: string
+}
+
+interface NavigationRoute {
   distance: number
   duration: number
-  steps: NavigationStep[]
-  geometry: [number, number][]
-  trafficDelays: number
+  coordinates: [number, number][]
+  instructions: string[]
 }
 
 export interface NavigationSettings {
@@ -64,14 +69,7 @@ interface NavigationState {
     heading: number
     speed: number
   } | null
-  destination: {
-    latitude: number
-    longitude: number
-    name: string
-    spotId?: string
-  } | null
-
-  // Navigation state
+  destination: NavigationDestination | null
   eta: Date | null
   remainingDistance: number
   remainingTime: number
@@ -85,15 +83,13 @@ interface NavigationState {
   settings: NavigationSettings
 
   // Actions
-  startNavigation: (
-    destination: { latitude: number; longitude: number; name: string; spotId?: string },
-    route: NavigationRoute,
-  ) => void
+  startNavigation: (destination: NavigationDestination, route: NavigationRoute) => void
   stopNavigation: () => void
   setRoute: (route: NavigationRoute) => void
-  setDestination: (destination: { latitude: number; longitude: number; name: string; spotId?: string }) => void
+  setDestination: (destination: NavigationDestination) => void
   updateUserLocation: (location: { latitude: number; longitude: number; heading: number; speed: number }) => void
   nextStepAction: () => void
+  previousStep: () => void
   recalculateRoute: () => void
   confirmArrival: () => void
   updateGpsSignal: (strength: "strong" | "weak" | "lost") => void
@@ -135,7 +131,7 @@ export const useNavigationStore = create<NavigationState>()(
 
       // Actions
       startNavigation: (destination, route) => {
-        console.log("🚀 Starting navigation to:", destination.name)
+        console.log("🚗 Starting navigation to:", destination.name)
         set({
           isNavigating: true,
           destination,
@@ -144,7 +140,7 @@ export const useNavigationStore = create<NavigationState>()(
           remainingDistance: route.distance,
           remainingTime: route.duration,
           eta: new Date(Date.now() + route.duration * 1000),
-          nextStep: route.steps[1] || null,
+          nextStep: route.instructions.length > 1 ? route.instructions[1] : null,
         })
       },
 
@@ -172,7 +168,7 @@ export const useNavigationStore = create<NavigationState>()(
           remainingDistance: route.distance,
           remainingTime: route.duration,
           eta: new Date(Date.now() + route.duration * 1000),
-          nextStep: route.steps[1] || null,
+          nextStep: route.instructions.length > 1 ? route.instructions[1] : null,
         })
       },
 
@@ -182,9 +178,9 @@ export const useNavigationStore = create<NavigationState>()(
 
       nextStepAction: () => {
         const state = get()
-        if (state.currentRoute && state.currentStep < state.currentRoute.steps.length - 1) {
+        if (state.currentRoute && state.currentStep < state.currentRoute.instructions.length - 1) {
           const newStep = state.currentStep + 1
-          const remainingSteps = state.currentRoute.steps.slice(newStep)
+          const remainingSteps = state.currentRoute.instructions.slice(newStep)
           const remainingDistance = remainingSteps.reduce((sum, step) => sum + step.distance, 0)
           const remainingTime = remainingSteps.reduce((sum, step) => sum + step.duration, 0)
 
@@ -193,8 +189,15 @@ export const useNavigationStore = create<NavigationState>()(
             remainingDistance,
             remainingTime,
             eta: new Date(Date.now() + remainingTime * 1000),
-            nextStep: state.currentRoute.steps[newStep + 1] || null,
+            nextStep: state.currentRoute.instructions[newStep + 1] || null,
           })
+        }
+      },
+
+      previousStep: () => {
+        const { currentStep } = get()
+        if (currentStep > 0) {
+          set({ currentStep: currentStep - 1 })
         }
       },
 
