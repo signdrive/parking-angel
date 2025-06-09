@@ -133,7 +133,17 @@ export function EnhancedParkingMap({
     if (!mapContainer.current || map.current || !mapboxToken) return
 
     try {
-      mapboxgl.accessToken = mapboxToken
+      if (typeof mapboxgl !== "undefined" && mapboxgl.accessToken !== mapboxToken) {
+        try {
+          Object.defineProperty(mapboxgl, "accessToken", {
+            value: mapboxToken,
+            writable: true,
+            configurable: true,
+          })
+        } catch (error) {
+          console.warn("Could not set Mapbox token:", error)
+        }
+      }
 
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
@@ -493,25 +503,67 @@ export function EnhancedParkingMap({
   const fetchRealParkingData = async (lat: number, lng: number) => {
     setLoading(true)
     try {
-      const spots = await parkingService.getRealParkingSpots(lat, lng, 2000, {
-        requireAvailability: true,
-      })
-      setRealSpots(spots)
+      // Use our API endpoint instead of direct Supabase calls
+      const response = await fetch(`/api/spots/nearby?lat=${lat}&lng=${lng}&radius=2000&limit=50`)
+
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success && Array.isArray(data.data)) {
+        setRealSpots(data.data)
+        toast({
+          title: "Parking data loaded",
+          description: `Found ${data.data.length} parking spots nearby.`,
+        })
+      } else {
+        // Fallback to mock data if API fails
+        const mockSpots = generateMockSpots(lat, lng)
+        setRealSpots(mockSpots)
+        toast({
+          title: "Using sample data",
+          description: "Live data unavailable, showing sample parking spots.",
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching parking data:", error)
+
+      // Always provide fallback data
+      const mockSpots = generateMockSpots(lat, lng)
+      setRealSpots(mockSpots)
 
       toast({
-        title: "Parking data loaded",
-        description: `Found ${spots.length} parking spots nearby.`,
-      })
-    } catch (error) {
-      console.error("Error fetching real parking data:", error)
-      toast({
         title: "Data loading error",
-        description: "Could not load parking data. Please try again.",
+        description: "Using sample data while service is unavailable.",
         variant: "destructive",
       })
     } finally {
       setLoading(false)
     }
+  }
+
+  const generateMockSpots = (centerLat: number, centerLng: number): RealParkingSpot[] => {
+    return Array.from({ length: 10 }, (_, i) => {
+      const latOffset = (Math.random() - 0.5) * 0.01
+      const lngOffset = (Math.random() - 0.5) * 0.01
+
+      return {
+        id: `mock-${i}`,
+        name: `Sample Parking ${i + 1}`,
+        latitude: centerLat + latOffset,
+        longitude: centerLng + lngOffset,
+        address: `${100 + i} Sample Street`,
+        spot_type: i % 3 === 0 ? "garage" : i % 3 === 1 ? "street" : "lot",
+        provider: i % 2 === 0 ? "City Parking" : "Private Lot",
+        is_available: Math.random() > 0.3,
+        price_per_hour: i % 3 === 0 ? 0 : Math.floor(Math.random() * 15) + 5,
+        real_time_data: i % 4 === 0,
+        total_spaces: i % 3 === 0 ? Math.floor(Math.random() * 100) + 20 : undefined,
+        available_spaces: i % 3 === 0 ? Math.floor(Math.random() * 30) : undefined,
+      }
+    })
   }
 
   // Update parking spot markers
