@@ -1,15 +1,9 @@
-import type { NavigationStep, NavigationRoute } from "./navigation-store"
+import type { NavigationRoute, NavigationStep } from "./navigation-store"
 
 export class NavigationService {
   private static instance: NavigationService
   private watchId: number | null = null
   private speechSynthesis: SpeechSynthesis | null = null
-
-  private constructor() {
-    if (typeof window !== "undefined") {
-      this.speechSynthesis = window.speechSynthesis
-    }
-  }
 
   static getInstance(): NavigationService {
     if (!NavigationService.instance) {
@@ -18,104 +12,39 @@ export class NavigationService {
     return NavigationService.instance
   }
 
+  constructor() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      this.speechSynthesis = window.speechSynthesis
+    }
+  }
+
   async calculateRoute(
     from: [number, number],
     to: [number, number],
-    destinationName: string,
+    options: {
+      avoidTraffic?: boolean
+      routeType?: "fastest" | "shortest" | "eco"
+    } = {},
   ): Promise<NavigationRoute> {
-    console.log("🗺️ Calculating route from", from, "to", to)
+    try {
+      const response = await fetch("/api/navigation/calculate-route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from,
+          to,
+          options,
+        }),
+      })
 
-    // Generate realistic route with multiple steps
-    const steps: NavigationStep[] = [
-      {
-        id: "1",
-        instruction: "Head north on Main Street",
-        distance: 500,
-        duration: 60,
-        maneuver: { type: "straight" },
-        streetName: "Main Street",
-        coordinates: [from[0], from[1] + 0.001],
-        speedLimit: 35,
-      },
-      {
-        id: "2",
-        instruction: "Turn right onto Oak Avenue",
-        distance: 300,
-        duration: 45,
-        maneuver: { type: "turn-right" },
-        streetName: "Oak Avenue",
-        coordinates: [from[0] + 0.002, from[1] + 0.001],
-        speedLimit: 25,
-        laneGuidance: {
-          lanes: [
-            { valid: false, indications: ["straight"] },
-            { valid: true, indications: ["right"] },
-            { valid: true, indications: ["right"] },
-          ],
-        },
-      },
-      {
-        id: "3",
-        instruction: "Continue straight for 800 meters",
-        distance: 800,
-        duration: 120,
-        maneuver: { type: "straight" },
-        streetName: "Oak Avenue",
-        coordinates: [from[0] + 0.004, from[1] + 0.001],
-        speedLimit: 25,
-      },
-      {
-        id: "4",
-        instruction: "Turn left onto Pine Street",
-        distance: 200,
-        duration: 30,
-        maneuver: { type: "turn-left" },
-        streetName: "Pine Street",
-        coordinates: [from[0] + 0.004, from[1] + 0.003],
-        speedLimit: 30,
-      },
-      {
-        id: "5",
-        instruction: "Enter roundabout and take 2nd exit",
-        distance: 150,
-        duration: 45,
-        maneuver: { type: "roundabout" },
-        streetName: "Pine Street",
-        coordinates: [from[0] + 0.003, from[1] + 0.004],
-        speedLimit: 20,
-      },
-      {
-        id: "6",
-        instruction: `Arrive at ${destinationName}`,
-        distance: 100,
-        duration: 20,
-        maneuver: { type: "arrive" },
-        streetName: "Pine Street",
-        coordinates: to,
-      },
-    ]
+      if (!response.ok) {
+        throw new Error("Failed to calculate route")
+      }
 
-    // Generate route geometry (simplified)
-    const geometry: [number, number][] = [
-      from,
-      [from[0], from[1] + 0.001],
-      [from[0] + 0.002, from[1] + 0.001],
-      [from[0] + 0.004, from[1] + 0.001],
-      [from[0] + 0.004, from[1] + 0.003],
-      [from[0] + 0.003, from[1] + 0.004],
-      to,
-    ]
-
-    const totalDistance = steps.reduce((sum, step) => sum + step.distance, 0)
-    const totalDuration = steps.reduce((sum, step) => sum + step.duration, 0)
-
-    return {
-      id: `route_${Date.now()}`,
-      distance: totalDistance,
-      duration: totalDuration,
-      steps,
-      geometry,
-      trafficDelays: 0,
+      return await response.json()
+    } catch (error) {
+      console.error("Route calculation failed:", error)
+      throw error
     }
   }
 
@@ -129,19 +58,14 @@ export class NavigationService {
     onError: (error: GeolocationPositionError) => void,
   ): void {
     if (!navigator.geolocation) {
-      console.error("Geolocation not supported")
-      return
+      throw new Error("Geolocation is not supported")
     }
 
-    // Start with a simulated location for demo purposes
-    const simulatedLocation = {
-      latitude: 37.7749,
-      longitude: -122.4194,
-      heading: 0,
-      speed: 0,
+    const options: PositionOptions = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 1000,
     }
-
-    onLocationUpdate(simulatedLocation)
 
     this.watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -153,11 +77,7 @@ export class NavigationService {
         })
       },
       onError,
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 1000,
-      },
+      options,
     )
   }
 
@@ -168,8 +88,8 @@ export class NavigationService {
     }
   }
 
-  speakInstruction(instruction: string, enabled: boolean): void {
-    if (!enabled || !this.speechSynthesis) return
+  speakInstruction(instruction: string, voiceEnabled: boolean): void {
+    if (!this.speechSynthesis || !voiceEnabled) return
 
     // Cancel any ongoing speech
     this.speechSynthesis.cancel()
@@ -182,25 +102,6 @@ export class NavigationService {
     this.speechSynthesis.speak(utterance)
   }
 
-  getManeuverIcon(maneuver: NavigationStep["maneuver"]): string {
-    switch (maneuver.type) {
-      case "turn-left":
-        return "↰"
-      case "turn-right":
-        return "↱"
-      case "straight":
-        return "↑"
-      case "merge":
-        return "⤴"
-      case "roundabout":
-        return "↻"
-      case "arrive":
-        return "🏁"
-      default:
-        return "↑"
-    }
-  }
-
   formatDistance(meters: number): string {
     if (meters < 1000) {
       return `${Math.round(meters)}m`
@@ -210,46 +111,53 @@ export class NavigationService {
   }
 
   formatDuration(seconds: number): string {
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) {
-      return `${minutes}m`
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`
     } else {
-      const hours = Math.floor(minutes / 60)
-      const remainingMinutes = minutes % 60
-      return `${hours}h ${remainingMinutes}m`
+      return `${minutes}m`
     }
   }
 
+  getManeuverIcon(maneuver: NavigationStep["maneuver"]): string {
+    const iconMap = {
+      "turn-left": "↰",
+      "turn-right": "↱",
+      straight: "↑",
+      merge: "⤴",
+      roundabout: "↻",
+      arrive: "📍",
+    }
+
+    return iconMap[maneuver.type] || "↑"
+  }
+
   calculateOffRouteDistance(userLocation: [number, number], routeGeometry: [number, number][]): number {
-    // Simplified distance calculation
+    // Simplified distance calculation to nearest route point
     let minDistance = Number.POSITIVE_INFINITY
 
     for (const point of routeGeometry) {
-      const distance = this.calculateDistance(userLocation, point)
+      const distance = this.calculateHaversineDistance(userLocation, point)
       if (distance < minDistance) {
         minDistance = distance
       }
     }
 
-    return minDistance * 1000 // Convert to meters
+    return minDistance
   }
 
-  private calculateDistance(point1: [number, number], point2: [number, number]): number {
-    const R = 6371 // Earth's radius in km
-    const dLat = this.toRadians(point2[1] - point1[1])
-    const dLon = this.toRadians(point2[0] - point1[0])
-    const lat1 = this.toRadians(point1[1])
-    const lat2 = this.toRadians(point2[1])
+  private calculateHaversineDistance(point1: [number, number], point2: [number, number]): number {
+    const R = 6371e3 // Earth's radius in meters
+    const φ1 = (point1[1] * Math.PI) / 180
+    const φ2 = (point2[1] * Math.PI) / 180
+    const Δφ = ((point2[1] - point1[1]) * Math.PI) / 180
+    const Δλ = ((point2[0] - point1[0]) * Math.PI) / 180
 
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2)
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
     return R * c
-  }
-
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180)
   }
 }
