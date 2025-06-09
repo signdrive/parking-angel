@@ -1,18 +1,38 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { useAuth } from "@/hooks/use-auth"
+import { useRouter } from "next/navigation"
 import { EnhancedParkingMap } from "@/components/map/enhanced-parking-map"
+import { CollapsibleSidebar } from "@/components/layout/collapsible-sidebar"
+import { RightPanel } from "@/components/dashboard/right-panel"
+import { FloatingAIChat } from "@/components/ai/floating-ai-chat"
+import { UserProfileEnhanced } from "@/components/dashboard/user-profile-enhanced"
+import { ParkingHistory } from "@/components/dashboard/parking-history"
+import { SmartAssistant } from "@/components/ai/smart-assistant"
 import { NavigationInterface } from "@/components/navigation/navigation-interface"
+import { MapPin } from "lucide-react"
+import { PWADebug } from "@/components/pwa/pwa-debug"
+import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useNavigationStore } from "@/lib/navigation-store"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Car, Clock, Zap } from "lucide-react"
 
 export default function DashboardPage() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
+  const { isNavigating, resetNavigation } = useNavigationStore()
+
+  // Persistent states
+  const [activeTab, setActiveTab] = usePersistentState("dashboardActiveTab", "map")
+  const [showDebug, setShowDebug] = usePersistentState("showDebug", false)
+  const [rightPanelCollapsed, setRightPanelCollapsed] = usePersistentState("rightPanelCollapsed", false)
+
+  // Non-persistent states (live data)
+  const [selectedSpot, setSelectedSpot] = useState<string | null>(null)
   const [spotsCount, setSpotsCount] = useState(0)
   const [providersCount, setProvidersCount] = useState(0)
-  const [loading, setLoading] = useState(false)
-
-  const { isNavigating, resetNavigation } = useNavigationStore()
+  const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [areaAnalysis, setAreaAnalysis] = useState<any>(null)
+  const [mapLoading, setMapLoading] = useState(false)
 
   // Reset navigation state on page load to ensure clean state
   useEffect(() => {
@@ -20,117 +40,183 @@ export default function DashboardPage() {
     resetNavigation()
   }, [resetNavigation])
 
-  const handleStatsUpdate = (spots: number, providers: number) => {
-    setSpotsCount(spots)
-    setProvidersCount(providers)
-  }
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/")
+    }
+  }, [user, loading, router])
 
   const handleExitNavigation = () => {
     console.log("Exiting navigation from dashboard")
     resetNavigation()
   }
 
-  // Show navigation interface only if actively navigating
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-center">
+          <MapPin className="w-12 h-12 text-blue-400 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-300">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
+
+  // Show navigation interface if actively navigating
   if (isNavigating) {
     console.log("Dashboard: Navigation is active, showing NavigationInterface")
     return <NavigationInterface onExit={handleExitNavigation} />
   }
 
-  console.log("Dashboard: No active navigation, showing main map")
+  console.log("Dashboard: No active navigation, showing main dashboard")
+
+  const renderMainContent = () => {
+    switch (activeTab) {
+      case "map":
+        return (
+          <div className="flex h-full w-full">
+            {/* Main Map Area - Takes all available space */}
+            <div className="flex-1 bg-white relative">
+              <EnhancedParkingMap
+                onSpotSelect={setSelectedSpot}
+                onStatsUpdate={(spots, providers) => {
+                  setSpotsCount(spots)
+                  setProvidersCount(providers)
+                }}
+                onLocationClick={setClickedLocation}
+                onAreaAnalysis={setAreaAnalysis}
+                onLoadingChange={setMapLoading}
+              />
+            </div>
+
+            {/* Right Panel - Absolutely positioned to overlay */}
+            <div className="absolute top-0 right-0 h-full z-10">
+              <RightPanel
+                spotsCount={spotsCount}
+                providersCount={providersCount}
+                clickedLocation={clickedLocation}
+                areaAnalysis={areaAnalysis}
+                loading={mapLoading}
+                onCollapseChange={setRightPanelCollapsed}
+              />
+            </div>
+          </div>
+        )
+
+      case "saved":
+        return (
+          <div className="p-6 bg-gray-50 h-full">
+            <div className="max-w-4xl mx-auto">
+              <h1 className="text-2xl font-bold text-gray-900 mb-6">Saved Locations</h1>
+              <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+                <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Saved Locations Yet</h3>
+                <p className="text-gray-600">Start saving your favorite parking spots to see them here.</p>
+              </div>
+            </div>
+          </div>
+        )
+
+      case "history":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-4xl mx-auto">
+              <ParkingHistory />
+            </div>
+          </div>
+        )
+
+      case "settings":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-4xl mx-auto space-y-6">
+              <UserProfileEnhanced user={user} />
+
+              {/* Settings Panel */}
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">App Preferences</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900">Debug Mode</h3>
+                      <p className="text-sm text-gray-500">Show technical information and diagnostics</p>
+                    </div>
+                    <button
+                      onClick={() => setShowDebug(!showDebug)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        showDebug ? "bg-blue-600" : "bg-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          showDebug ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900">Right Panel</h3>
+                      <p className="text-sm text-gray-500">Show or hide the statistics panel</p>
+                    </div>
+                    <button
+                      onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        !rightPanelCollapsed ? "bg-blue-600" : "bg-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          !rightPanelCollapsed ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {showDebug && <PWADebug />}
+            </div>
+          </div>
+        )
+
+      case "ai":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-4xl mx-auto">
+              <SmartAssistant />
+            </div>
+          </div>
+        )
+
+      default:
+        return (
+          <div className="flex items-center justify-center h-full bg-gray-50">
+            <div className="text-center">
+              <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Coming Soon</h3>
+              <p className="text-gray-600">This feature is under development.</p>
+            </div>
+          </div>
+        )
+    }
+  }
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Header Stats */}
-      <div className="bg-white border-b p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Live Map</h1>
-            <p className="text-gray-600">Real-time parking view</p>
-          </div>
+    <div className="h-screen bg-gray-900 flex overflow-hidden">
+      {/* Collapsible Sidebar */}
+      <CollapsibleSidebar activeTab={activeTab} onTabChange={setActiveTab} className="flex-shrink-0" />
 
-          <div className="flex gap-4">
-            <Card className="p-3">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium">AI</span>
-                <span className="text-sm font-medium">LIVE</span>
-              </div>
-            </Card>
-          </div>
-        </div>
-      </div>
+      {/* Main Content - Takes remaining space */}
+      <div className="flex-1 relative overflow-hidden">{renderMainContent()}</div>
 
-      {/* Stats Cards */}
-      <div className="bg-gray-50 p-4 border-b">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Live Stats</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{spotsCount}</div>
-                <div className="text-xs text-gray-500">Spots Found</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600"></CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{providersCount}</div>
-                <div className="text-xs text-gray-500">Providers</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">AI Recommendations</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-center">
-                <MapPin className="w-8 h-8 text-gray-400 mx-auto mb-1" />
-                <div className="text-xs text-gray-500">Click on the map to get AI recommendations</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs">
-                  <MapPin className="w-3 h-3" />
-                  <span>Find Nearest Spot</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <Car className="w-3 h-3" />
-                  <span>Find Cheapest Spot</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <Clock className="w-3 h-3" />
-                  <span>Reserve for Later</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <Zap className="w-3 h-3" />
-                  <span>Share Location</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Main Map */}
-      <div className="flex-1">
-        <EnhancedParkingMap onStatsUpdate={handleStatsUpdate} onLoadingChange={setLoading} />
-      </div>
+      {/* Floating AI Chat */}
+      <FloatingAIChat />
     </div>
   )
 }
