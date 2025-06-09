@@ -4,16 +4,31 @@ import type { Database } from "./database.types"
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-// Enhanced Supabase client with proper headers
+// Fixed Supabase client with correct Accept header
 export const supabaseEnhanced = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
-      // Explicitly set Accept header to application/json
+      // This is the key fix - use standard JSON accept header
       Accept: "application/json",
       "Content-Type": "application/json",
-      // Remove problematic headers
-      "Accept-Profile": undefined,
-      "Content-Profile": undefined,
+    },
+    fetch: (url, options = {}) => {
+      // Override the fetch to ensure we always use the correct headers
+      const correctedOptions = {
+        ...options,
+        headers: {
+          ...options.headers,
+          // Force the correct Accept header to prevent 406 errors
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          // Remove any PostgREST-specific headers that cause issues
+          "Accept-Profile": undefined,
+          "Content-Profile": undefined,
+        },
+      }
+
+      console.log("🔧 Fixed request headers:", correctedOptions.headers)
+      return fetch(url, correctedOptions)
     },
   },
   auth: {

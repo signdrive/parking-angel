@@ -1,7 +1,22 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    headers: {
+      // Fix the Accept header issue
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+  },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+})
 
 export const isSupabaseConfigured = () => {
   // Check if we have the required environment variables
@@ -12,60 +27,6 @@ export const isSupabaseConfigured = () => {
 
   return hasUrl && hasKey
 }
-
-// Create a mock client for when Supabase is not configured
-const createMockClient = () => ({
-  auth: {
-    getSession: () => {
-      console.log("Mock Supabase: getSession called")
-      return Promise.resolve({ data: { session: null }, error: null })
-    },
-    getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-    signInWithPassword: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-    signUp: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-    signOut: () => Promise.resolve({ error: null }),
-    onAuthStateChange: (callback: any) => {
-      console.log("Mock Supabase: onAuthStateChange called")
-      // Call the callback immediately with no user
-      setTimeout(() => callback("INITIAL_SESSION", null), 100)
-      return { data: { subscription: { unsubscribe: () => {} } } }
-    },
-  },
-  from: () => ({
-    select: () => ({
-      eq: () => ({
-        single: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-        limit: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-      }),
-      limit: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-    }),
-    insert: () => ({
-      select: () => ({
-        single: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-      }),
-    }),
-    update: () => ({
-      eq: () => ({
-        select: () => ({
-          single: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-        }),
-      }),
-    }),
-    delete: () => ({
-      eq: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-    }),
-  }),
-  rpc: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-  channel: () => ({
-    on: () => ({ subscribe: () => {} }),
-  }),
-  removeChannel: () => {},
-})
-
-// Only create the real client if properly configured
-export const supabase = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : (createMockClient() as any)
 
 export type Database = {
   public: {
