@@ -41,6 +41,7 @@ interface EnhancedParkingMapProps {
   onLoadingChange?: (loading: boolean) => void
 }
 
+// Export as a named export
 export function EnhancedParkingMap({
   onSpotSelect,
   onStatsUpdate,
@@ -92,12 +93,23 @@ export function EnhancedParkingMap({
 
   // Handle map click - defined outside the initialization to avoid recreation
   const handleMapClick = useCallback(
-    async (e: mapboxgl.MapMouseEvent) => {
+    async (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+      if (!e.lngLat) {
+        console.warn("Map click event missing coordinates")
+        return
+      }
+
       console.log("Map clicked at:", e.lngLat)
 
       const clickLocation = {
         lat: e.lngLat.lat,
         lng: e.lngLat.lng,
+      }
+
+      // Validate coordinates
+      if (!clickLocation.lat || !clickLocation.lng || isNaN(clickLocation.lat) || isNaN(clickLocation.lng)) {
+        console.warn("Invalid coordinates from map click")
+        return
       }
 
       // Show loading indicator
@@ -123,6 +135,7 @@ export function EnhancedParkingMap({
         })
       } finally {
         setAnalyzingArea(false)
+        onLoadingChange?.(false)
       }
     },
     [onLocationClick, onLoadingChange],
@@ -133,16 +146,15 @@ export function EnhancedParkingMap({
     if (!mapContainer.current || map.current || !mapboxToken) return
 
     try {
-      if (typeof mapboxgl !== "undefined" && mapboxgl.accessToken !== mapboxToken) {
-        try {
-          Object.defineProperty(mapboxgl, "accessToken", {
-            value: mapboxToken,
-            writable: true,
-            configurable: true,
-          })
-        } catch (error) {
-          console.warn("Could not set Mapbox token:", error)
-        }
+      // Ensure mapboxgl is available
+      if (typeof mapboxgl === "undefined") {
+        setMapboxError("Mapbox library not loaded")
+        return
+      }
+
+      // Set access token safely
+      if (mapboxgl.accessToken !== mapboxToken) {
+        mapboxgl.accessToken = mapboxToken
       }
 
       map.current = new mapboxgl.Map({
@@ -150,48 +162,62 @@ export function EnhancedParkingMap({
         style: "mapbox://styles/mapbox/streets-v12",
         center: [-122.4194, 37.7749],
         zoom: 15,
+        attributionControl: false,
       })
 
-      map.current.addControl(
-        new mapboxgl.GeolocateControl({
-          positionOptions: { enableHighAccuracy: true },
-          trackUserLocation: true,
-          showUserHeading: true,
-        }),
-      )
+      // Add controls with error handling
+      try {
+        map.current.addControl(
+          new mapboxgl.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: true,
+            showUserHeading: true,
+          }),
+        )
+        map.current.addControl(new mapboxgl.NavigationControl())
+      } catch (controlError) {
+        console.warn("Failed to add map controls:", controlError)
+      }
 
-      map.current.addControl(new mapboxgl.NavigationControl())
-
-      // Wait for map to load before adding click handler
+      // Wait for map to load before adding event handlers
       map.current.on("load", () => {
         console.log("Map loaded successfully")
         setMapInitialized(true)
 
         if (map.current) {
-          // Add click handler
-          map.current.on("click", handleMapClick)
-
-          // Add debug click handler
-          map.current.on("click", (e) => {
-            console.log("Debug: Map clicked at:", e.lngLat)
-          })
+          // Add click handler with error boundary
+          try {
+            map.current.on("click", handleMapClick)
+          } catch (handlerError) {
+            console.error("Failed to add click handler:", handlerError)
+          }
         }
       })
 
+      // Enhanced error handling
       map.current.on("error", (e) => {
         console.error("Mapbox error:", e)
-        setMapboxError("Failed to load map. Please check your internet connection.")
+        const errorMsg = e.error?.message || "Failed to load map"
+        setMapboxError(`Map error: ${errorMsg}`)
+      })
+
+      // Handle style load errors
+      map.current.on("style.load", () => {
+        console.log("Map style loaded")
       })
     } catch (error) {
       console.error("Failed to initialize Mapbox:", error)
-      setMapboxError("Failed to initialize map.")
+      setMapboxError(`Initialization failed: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
 
     return () => {
       if (map.current) {
-        // Clean up event listeners
-        map.current.off("click", handleMapClick)
-        map.current.remove()
+        try {
+          map.current.off("click", handleMapClick)
+          map.current.remove()
+        } catch (cleanupError) {
+          console.warn("Error during map cleanup:", cleanupError)
+        }
         map.current = null
       }
     }
@@ -435,18 +461,31 @@ export function EnhancedParkingMap({
     }
   }
 
-  const calculateDistance = (point1: { lat: number; lng: number }, point2: { lat: number; lng: number }): number => {
-    const R = 6371 // Earth's radius in km
-    const dLat = ((point2.latitude - point1.lat) * Math.PI) / 180
-    const dLng = ((point2.longitude - point1.lng) * Math.PI) / 180
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((point1.lat * Math.PI) / 180) *
-        Math.cos((point2.latitude * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c * 1000 // Return distance in meters
+  const calculateDistance = (
+    point1: { lat: number; lng: number },
+    point2: { latitude: number; longitude: number },
+  ): number => {
+    try {
+      if (!point1?.lat || !point1?.lng || !point2?.latitude || !point2?.longitude) {
+        console.warn("Invalid coordinates for distance calculation")
+        return 0
+      }
+
+      const R = 6371 // Earth's radius in km
+      const dLat = ((point2.latitude - point1.lat) * Math.PI) / 180
+      const dLng = ((point2.longitude - point1.lng) * Math.PI) / 180
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((point1.lat * Math.PI) / 180) *
+          Math.cos((point2.latitude * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      return R * c * 1000 // Return distance in meters
+    } catch (error) {
+      console.error("Error calculating distance:", error)
+      return 0
+    }
   }
 
   const generateRecommendationReason = (
@@ -964,4 +1003,5 @@ export function EnhancedParkingMap({
   )
 }
 
+// Also export as default for backward compatibility
 export default EnhancedParkingMap

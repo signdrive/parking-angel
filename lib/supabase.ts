@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
@@ -62,9 +62,17 @@ const createMockClient = () => ({
   removeChannel: () => {},
 })
 
+// Export the createClient function as a named export
+export const createClient = (url?: string, key?: string) => {
+  if (url && key) {
+    return createSupabaseClient(url, key)
+  }
+  return isSupabaseConfigured() ? createSupabaseClient(supabaseUrl, supabaseAnonKey) : (createMockClient() as any)
+}
+
 // Only create the real client if properly configured
 export const supabase = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createSupabaseClient(supabaseUrl, supabaseAnonKey)
   : (createMockClient() as any)
 
 export type Database = {
