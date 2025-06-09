@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { SupabaseQueryBuilder } from "@/lib/supabase-query-fix"
+import { supabaseWithFixedHeaders, directSupabaseFetch } from "@/lib/supabase-headers-fix"
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,36 +10,58 @@ export async function GET(request: NextRequest) {
     const radius = searchParams.get("radius") ? Number.parseInt(searchParams.get("radius")!) : 5000
     const limit = searchParams.get("limit") ? Number.parseInt(searchParams.get("limit")!) : 50
 
-    console.log("🔍 API: Getting parking spots with params:", { lat, lng, radius, limit })
+    console.log("🔍 API: Fetching parking spots with fixed headers:", { lat, lng, radius, limit })
 
     // Validate parameters
     if (lat !== undefined && (isNaN(lat) || lat < -90 || lat > 90)) {
-      return NextResponse.json({ error: "Invalid latitude. Must be between -90 and 90." }, { status: 400 })
+      return NextResponse.json({ error: "Invalid latitude" }, { status: 400 })
     }
 
     if (lng !== undefined && (isNaN(lng) || lng < -180 || lng > 180)) {
-      return NextResponse.json({ error: "Invalid longitude. Must be between -180 and 180." }, { status: 400 })
+      return NextResponse.json({ error: "Invalid longitude" }, { status: 400 })
     }
 
-    if (isNaN(radius) || radius <= 0 || radius > 50000) {
-      return NextResponse.json({ error: "Invalid radius. Must be between 1 and 50000 meters." }, { status: 400 })
-    }
+    // Try the fixed Supabase client first
+    try {
+      console.log("🔄 Attempting fixed Supabase client query...")
 
-    if (isNaN(limit) || limit <= 0 || limit > 100) {
-      return NextResponse.json({ error: "Invalid limit. Must be between 1 and 100." }, { status: 400 })
-    }
+      let query = supabaseWithFixedHeaders
+        .from("parking_spots")
+        .select("id, latitude, longitude, spot_type, address, is_available, provider, confidence_score, last_updated")
+        .eq("is_available", true)
+        .order("id")
+        .limit(limit)
 
-    // Try the query builder
-    let result = await SupabaseQueryBuilder.getParkingSpots({
-      lat,
-      lng,
-      radius,
-      limit,
-    })
+      // Add location filtering if coordinates provided
+      if (lat && lng) {
+        const latDelta = radius / 111000
+        const lngDelta = radius / (111000 * Math.cos((lat * Math.PI) / 180))
 
-    // If that fails, try direct REST call
-    if (result.error) {
-      console.log("🔄 Falling back to direct REST call")
+        query = query
+          .gte("latitude", lat - latDelta)
+          .lte("latitude", lat + latDelta)
+          .gte("longitude", lng - lngDelta)
+          .lte("longitude", lng + lngDelta)
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        throw new Error(`Supabase client error: ${error.message}`)
+      }
+
+      console.log(`✅ Fixed client successful, found ${data?.length || 0} spots`)
+
+      return NextResponse.json({
+        data: data || [],
+        count: data?.length || 0,
+        source: "supabase-fixed-client",
+        timestamp: new Date().toISOString(),
+      })
+    } catch (clientError) {
+      console.warn("⚠️ Fixed client failed, trying direct fetch:", clientError)
+
+      // Fallback to direct fetch
       const params: Record<string, string> = {
         select: "id,latitude,longitude,spot_type,address,is_available,provider,confidence_score,last_updated",
         is_available: "eq.true",
@@ -47,32 +69,30 @@ export async function GET(request: NextRequest) {
         limit: limit.toString(),
       }
 
-      result = await SupabaseQueryBuilder.directRestCall("parking_spots", params)
-    }
+      const result = await directSupabaseFetch("parking_spots", params)
 
-    if (result.error) {
-      return NextResponse.json(
-        {
-          error: "Failed to fetch parking spots",
-          details: result.error,
-        },
-        { status: 500 },
-      )
-    }
+      if (result.error) {
+        throw new Error(`Direct fetch error: ${result.error}`)
+      }
 
-    return NextResponse.json({
-      data: result.data || [],
-      count: result.data?.length || 0,
-      source: "database",
-      timestamp: new Date().toISOString(),
-      params: { lat, lng, radius, limit },
-    })
+      console.log(`✅ Direct fetch successful, found ${result.data?.length || 0} spots`)
+
+      return NextResponse.json({
+        data: result.data || [],
+        count: result.data?.length || 0,
+        source: "supabase-direct-fetch",
+        timestamp: new Date().toISOString(),
+      })
+    }
   } catch (error) {
     console.error("❌ API error:", error)
+
     return NextResponse.json(
       {
-        error: "Internal server error",
+        error: "Failed to fetch parking spots",
         details: error instanceof Error ? error.message : "Unknown error",
+        data: [],
+        timestamp: new Date().toISOString(),
       },
       { status: 500 },
     )
