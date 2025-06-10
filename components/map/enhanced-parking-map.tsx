@@ -15,6 +15,7 @@ import { NavigationService } from "@/lib/navigation-service"
 import { NavigationInterface } from "@/components/navigation/navigation-interface"
 import { SpotReportDialog } from "./spot-report-dialog"
 import { toast } from "@/components/ui/use-toast"
+import { NavigationErrorBoundary } from "@/components/navigation/navigation-error-boundary"
 
 interface AreaAnalysis {
   clickLocation: { lat: number; lng: number }
@@ -61,6 +62,10 @@ export function EnhancedParkingMap({
   const [analyzingArea, setAnalyzingArea] = useState(false)
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [mapInitialized, setMapInitialized] = useState(false)
+
+  // Add state for better error management
+  const [isMapReady, setIsMapReady] = useState(false)
+  const [initializationTimeout, setInitializationTimeout] = useState(false)
 
   const { latitude, longitude, error: locationError } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
@@ -152,25 +157,23 @@ export function EnhancedParkingMap({
 
       map.current.addControl(new mapboxgl.NavigationControl())
 
-      // Wait for map to load before adding click handler
+      // Update the map load handler
       map.current.on("load", () => {
         console.log("Map loaded successfully")
         setMapInitialized(true)
+        setIsMapReady(true)
+        setMapboxError(null)
 
         if (map.current) {
           // Add click handler
           map.current.on("click", handleMapClick)
-
-          // Add debug click handler
-          map.current.on("click", (e) => {
-            console.log("Debug: Map clicked at:", e.lngLat)
-          })
         }
       })
 
       map.current.on("error", (e) => {
         console.error("Mapbox error:", e)
-        setMapboxError("Failed to load map. Please check your internet connection.")
+        setMapboxError("Map failed to load. Using fallback view.")
+        setIsMapReady(true) // Still set ready to show fallback
       })
     } catch (error) {
       console.error("Failed to initialize Mapbox:", error)
@@ -186,6 +189,18 @@ export function EnhancedParkingMap({
       }
     }
   }, [mapboxToken, handleMapClick])
+
+  // Add timeout for map initialization
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isMapReady) {
+        console.warn("Map initialization timeout, showing fallback")
+        setInitializationTimeout(true)
+      }
+    }, 10000) // 10 second timeout
+
+    return () => clearTimeout(timer)
+  }, [isMapReady])
 
   // Update map center when user location is available
   useEffect(() => {
@@ -601,6 +616,60 @@ export function EnhancedParkingMap({
     analyzeAreaWithAI(clickLocation)
   }
 
+  // Add fallback map component
+  const FallbackMapView = () => (
+    <div className="h-full bg-gradient-to-b from-blue-100 to-green-100 relative overflow-hidden">
+      {/* Simple map-like background */}
+      <div className="absolute inset-0">
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-20">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div key={`h-${i}`} className="absolute w-full h-px bg-gray-400" style={{ top: `${i * 5}%` }} />
+          ))}
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div key={`v-${i}`} className="absolute h-full w-px bg-gray-400" style={{ left: `${i * 5}%` }} />
+          ))}
+        </div>
+
+        {/* Mock streets */}
+        <div className="absolute top-1/2 left-0 right-0 h-8 bg-gray-300 transform -translate-y-1/2" />
+        <div className="absolute top-0 bottom-0 left-1/2 w-8 bg-gray-300 transform -translate-x-1/2" />
+
+        {/* User location indicator */}
+        {latitude && longitude && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+            <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg animate-pulse" />
+          </div>
+        )}
+
+        {/* Mock parking spots */}
+        {realSpots.slice(0, 5).map((spot, index) => (
+          <div
+            key={spot.id}
+            className="absolute w-4 h-4 bg-green-500 rounded-full border border-white shadow cursor-pointer hover:scale-110 transition-transform"
+            style={{
+              top: `${30 + index * 10}%`,
+              left: `${20 + index * 15}%`,
+            }}
+            onClick={() => {
+              setSelectedSpot(spot)
+              onSpotSelect?.(spot)
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Fallback message */}
+      <div className="absolute top-4 left-4 bg-white/90 p-3 rounded-lg shadow">
+        <div className="flex items-center gap-2 text-sm">
+          <MapPin className="w-4 h-4 text-blue-500" />
+          <span>Simplified Map View</span>
+        </div>
+        <p className="text-xs text-gray-600 mt-1">Interactive map unavailable</p>
+      </div>
+    </div>
+  )
+
   // Show navigation interface if navigating
   if (isNavigating) {
     return <NavigationInterface onExit={stopNavigation} />
@@ -645,270 +714,303 @@ export function EnhancedParkingMap({
   }
 
   return (
-    <div className="relative h-full">
-      <div ref={mapContainer} className="h-full w-full" />
+    <NavigationErrorBoundary
+      onReset={() => {
+        setMapboxError(null)
+        setInitializationTimeout(false)
+        setIsMapReady(false)
+        // Reinitialize map
+        if (mapContainer.current && mapboxToken) {
+          // Trigger map reinitialization
+          window.location.reload()
+        }
+      }}
+      onExit={() => {
+        // Could add a callback prop for this
+        console.log("User requested to exit from error state")
+      }}
+    >
+      <div className="relative h-full">
+        {/* Main map container */}
+        {!mapboxError && !initializationTimeout ? (
+          <div ref={mapContainer} className="h-full w-full" />
+        ) : (
+          <FallbackMapView />
+        )}
 
-      {/* Map Controls */}
-      <div className="absolute top-4 left-4 space-y-2">
-        <Card className="p-3">
-          <div className="flex items-center gap-2 text-sm">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span>Live Data</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <span>Free</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-              <span>Paid</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <span>Unavailable</span>
+        {/* Loading overlay */}
+        {!isMapReady && !mapboxError && !initializationTimeout && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-50">
+            <div className="text-center">
+              <MapPin className="w-12 h-12 mx-auto mb-4 text-blue-500 animate-pulse" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Map...</h3>
+              <p className="text-gray-600">Initializing map service</p>
             </div>
           </div>
-        </Card>
+        )}
 
-        <Card className="p-3">
-          <div className="text-sm font-medium">{loading ? "Loading..." : `${realSpots.length} spots found`}</div>
-          <div className="text-xs text-gray-500 mt-1">
-            From {new Set(realSpots.map((s) => s.provider)).size} providers
-            {clickedLocation && (
-              <div className="text-purple-600 mt-1">
-                📍 Clicked area: {clickedLocation.lat.toFixed(4)}, {clickedLocation.lng.toFixed(4)}
+        {/* Map Controls */}
+        <div className="absolute top-4 left-4 space-y-2">
+          <Card className="p-3">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span>Live Data</span>
               </div>
-            )}
-          </div>
-        </Card>
-
-        {/* AI Instructions */}
-        <Card className="p-3 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
-          <div className="flex items-center gap-2 mb-2">
-            <Brain className="w-4 h-4 text-purple-600" />
-            <span className="text-sm font-medium text-purple-900">AI Assistant</span>
-          </div>
-          <p className="text-xs text-purple-700 mb-2">
-            Click anywhere on the map to get AI-powered parking analysis for that area
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full text-xs"
-            onClick={handleManualClick}
-            disabled={loading || analyzingArea}
-          >
-            {loading || analyzingArea ? "Analyzing..." : "Analyze Current Location"}
-          </Button>
-        </Card>
-
-        {/* Map Status */}
-        <Card className="p-3 bg-blue-50">
-          <div className="text-xs text-blue-800">
-            <div className="font-medium mb-1">Map Status</div>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${mapInitialized ? "bg-green-500" : "bg-yellow-500"}`}></div>
-              <span>{mapInitialized ? "Ready" : "Initializing..."}</span>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* AI Analysis Panel */}
-      {(analyzingArea || areaAnalysis) && (
-        <Card className="absolute top-4 right-4 w-80 max-h-96 overflow-y-auto">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Brain className="w-5 h-5 text-purple-600" />
-              {analyzingArea ? "Analyzing Area..." : "AI Area Analysis"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {analyzingArea ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span>Free</span>
               </div>
-            ) : areaAnalysis ? (
-              <>
-                {/* Area Insights */}
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Area Insights</h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-gray-50 p-2 rounded">
-                      <div className="text-gray-600">Avg Price</div>
-                      <div className="font-medium">${areaAnalysis.areaInsights.averagePrice.toFixed(2)}/hr</div>
-                    </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                      <div className="text-gray-600">Demand</div>
-                      <div className="font-medium capitalize">{areaAnalysis.areaInsights.demandLevel}</div>
-                    </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                      <div className="text-gray-600">Trend</div>
-                      <div className="font-medium flex items-center gap-1">
-                        {areaAnalysis.areaInsights.availabilityTrend === "increasing" && (
-                          <TrendingUp className="w-3 h-3 text-green-500" />
-                        )}
-                        {areaAnalysis.areaInsights.availabilityTrend === "decreasing" && (
-                          <TrendingUp className="w-3 h-3 text-red-500 rotate-180" />
-                        )}
-                        <span className="capitalize">{areaAnalysis.areaInsights.availabilityTrend}</span>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                      <div className="text-gray-600">Best Time</div>
-                      <div className="font-medium">{areaAnalysis.areaInsights.bestTimeToArrive}</div>
-                    </div>
-                  </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                <span>Paid</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <span>Unavailable</span>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-3">
+            <div className="text-sm font-medium">{loading ? "Loading..." : `${realSpots.length} spots found`}</div>
+            <div className="text-xs text-gray-500 mt-1">
+              From {new Set(realSpots.map((s) => s.provider)).size} providers
+              {clickedLocation && (
+                <div className="text-purple-600 mt-1">
+                  📍 Clicked area: {clickedLocation.lat.toFixed(4)}, {clickedLocation.lng.toFixed(4)}
                 </div>
+              )}
+            </div>
+          </Card>
 
-                {/* Best Recommendation */}
-                {areaAnalysis.bestRecommendation && (
+          {/* AI Instructions */}
+          <Card className="p-3 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Brain className="w-4 h-4 text-purple-600" />
+              <span className="text-sm font-medium text-purple-900">AI Assistant</span>
+            </div>
+            <p className="text-xs text-purple-700 mb-2">
+              Click anywhere on the map to get AI-powered parking analysis for that area
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs"
+              onClick={handleManualClick}
+              disabled={loading || analyzingArea}
+            >
+              {loading || analyzingArea ? "Analyzing..." : "Analyze Current Location"}
+            </Button>
+          </Card>
+
+          {/* Map Status */}
+          <Card className="p-3 bg-blue-50">
+            <div className="text-xs text-blue-800">
+              <div className="font-medium mb-1">Map Status</div>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${mapInitialized ? "bg-green-500" : "bg-yellow-500"}`}></div>
+                <span>{mapInitialized ? "Ready" : "Initializing..."}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* AI Analysis Panel */}
+        {(analyzingArea || areaAnalysis) && (
+          <Card className="absolute top-4 right-4 w-80 max-h-96 overflow-y-auto">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Brain className="w-5 h-5 text-purple-600" />
+                {analyzingArea ? "Analyzing Area..." : "AI Area Analysis"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {analyzingArea ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                </div>
+              ) : areaAnalysis ? (
+                <>
+                  {/* Area Insights */}
                   <div className="space-y-2">
-                    <h4 className="font-medium text-sm flex items-center gap-1">
-                      <Zap className="w-4 h-4 text-yellow-500" />
-                      AI Recommendation
-                    </h4>
-                    <div className="bg-gradient-to-r from-green-50 to-blue-50 p-3 rounded border border-green-200">
-                      <div className="font-medium text-sm">{areaAnalysis.bestRecommendation.spot.name}</div>
-                      <div className="text-xs text-gray-600 mb-2">{areaAnalysis.bestRecommendation.spot.address}</div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant="outline" className="text-xs">
-                          {areaAnalysis.bestRecommendation.prediction.predictedAvailability}% available
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {areaAnalysis.bestRecommendation.prediction.confidence}% confident
-                        </Badge>
+                    <h4 className="font-medium text-sm">Area Insights</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-gray-50 p-2 rounded">
+                        <div className="text-gray-600">Avg Price</div>
+                        <div className="font-medium">${areaAnalysis.areaInsights.averagePrice.toFixed(2)}/hr</div>
                       </div>
-                      <div className="text-xs text-gray-700 mb-2">{areaAnalysis.bestRecommendation.reason}</div>
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          console.log("🎯 AI Recommendation Navigate clicked")
-                          startNavigationToSpot(areaAnalysis.bestRecommendation!.spot)
-                        }}
-                        disabled={loading}
-                      >
-                        <Route className="w-3 h-3 mr-1" />
-                        {loading ? "Calculating..." : "Navigate Here"}
-                      </Button>
+                      <div className="bg-gray-50 p-2 rounded">
+                        <div className="text-gray-600">Demand</div>
+                        <div className="font-medium capitalize">{areaAnalysis.areaInsights.demandLevel}</div>
+                      </div>
+                      <div className="bg-gray-50 p-2 rounded">
+                        <div className="text-gray-600">Trend</div>
+                        <div className="font-medium flex items-center gap-1">
+                          {areaAnalysis.areaInsights.availabilityTrend === "increasing" && (
+                            <TrendingUp className="w-3 h-3 text-green-500" />
+                          )}
+                          {areaAnalysis.areaInsights.availabilityTrend === "decreasing" && (
+                            <TrendingUp className="w-3 h-3 text-red-500 rotate-180" />
+                          )}
+                          <span className="capitalize">{areaAnalysis.areaInsights.availabilityTrend}</span>
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 p-2 rounded">
+                        <div className="text-gray-600">Best Time</div>
+                        <div className="font-medium">{areaAnalysis.areaInsights.bestTimeToArrive}</div>
+                      </div>
                     </div>
                   </div>
-                )}
 
-                {/* Nearby Spots Summary */}
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Found {areaAnalysis.nearbySpots.length} spots nearby</h4>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {areaAnalysis.nearbySpots.slice(0, 3).map((spot, index) => {
-                      const prediction = areaAnalysis.aiPredictions[index]
-                      return (
-                        <div key={spot.id} className="text-xs bg-gray-50 p-2 rounded">
-                          <div className="font-medium">{spot.name}</div>
-                          <div className="flex items-center gap-2">
-                            <span>${spot.price_per_hour || 0}/hr</span>
-                            {prediction && (
-                              <Badge variant="outline" className="text-xs">
-                                {prediction.predictedAvailability}% available
-                              </Badge>
-                            )}
-                          </div>
+                  {/* Best Recommendation */}
+                  {areaAnalysis.bestRecommendation && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm flex items-center gap-1">
+                        <Zap className="w-4 h-4 text-yellow-500" />
+                        AI Recommendation
+                      </h4>
+                      <div className="bg-gradient-to-r from-green-50 to-blue-50 p-3 rounded border border-green-200">
+                        <div className="font-medium text-sm">{areaAnalysis.bestRecommendation.spot.name}</div>
+                        <div className="text-xs text-gray-600 mb-2">{areaAnalysis.bestRecommendation.spot.address}</div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="text-xs">
+                            {areaAnalysis.bestRecommendation.prediction.predictedAvailability}% available
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {areaAnalysis.bestRecommendation.prediction.confidence}% confident
+                          </Badge>
                         </div>
-                      )
-                    })}
+                        <div className="text-xs text-gray-700 mb-2">{areaAnalysis.bestRecommendation.reason}</div>
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            console.log("🎯 AI Recommendation Navigate clicked")
+                            startNavigationToSpot(areaAnalysis.bestRecommendation!.spot)
+                          }}
+                          disabled={loading}
+                        >
+                          <Route className="w-3 h-3 mr-1" />
+                          {loading ? "Calculating..." : "Navigate Here"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Nearby Spots Summary */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Found {areaAnalysis.nearbySpots.length} spots nearby</h4>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {areaAnalysis.nearbySpots.slice(0, 3).map((spot, index) => {
+                        const prediction = areaAnalysis.aiPredictions[index]
+                        return (
+                          <div key={spot.id} className="text-xs bg-gray-50 p-2 rounded">
+                            <div className="font-medium">{spot.name}</div>
+                            <div className="flex items-center gap-2">
+                              <span>${spot.price_per_hour || 0}/hr</span>
+                              {prediction && (
+                                <Badge variant="outline" className="text-xs">
+                                  {prediction.predictedAvailability}% available
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
+                </>
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Add Spot Button */}
+        <Button
+          className="absolute bottom-6 right-6 rounded-full w-14 h-14 shadow-lg"
+          onClick={() => {
+            if (latitude && longitude) {
+              setReportLocation({ lat: latitude, lng: longitude })
+              setShowReportDialog(true)
+            }
+          }}
+          disabled={!latitude || !longitude}
+        >
+          <Plus className="w-6 h-6" />
+        </Button>
+
+        {/* Refresh Button */}
+        <Button
+          variant="outline"
+          className="absolute bottom-6 right-24 rounded-full w-14 h-14 shadow-lg"
+          onClick={() => {
+            if (latitude && longitude) {
+              fetchRealParkingData(latitude, longitude)
+            }
+          }}
+          disabled={!latitude || !longitude || loading}
+        >
+          <Navigation className="w-6 h-6" />
+        </Button>
+
+        <SpotReportDialog open={showReportDialog} onOpenChange={setShowReportDialog} location={reportLocation} />
+
+        {/* Selected Spot Details */}
+        {selectedSpot && (
+          <Card className="absolute bottom-6 left-6 max-w-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">{selectedSpot.name}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-gray-600">{selectedSpot.address}</p>
+
+              <div className="flex gap-2 flex-wrap">
+                <Badge variant="outline">{selectedSpot.spot_type}</Badge>
+                <Badge variant="outline">{selectedSpot.provider}</Badge>
+                {selectedSpot.real_time_data && <Badge className="bg-green-100 text-green-800">Live</Badge>}
+              </div>
+
+              {selectedSpot.price_per_hour !== undefined && (
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  <span className="font-medium">
+                    {selectedSpot.price_per_hour === 0 ? "Free" : `$${selectedSpot.price_per_hour}/hour`}
+                  </span>
                 </div>
-              </>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
+              )}
 
-      {/* Add Spot Button */}
-      <Button
-        className="absolute bottom-6 right-6 rounded-full w-14 h-14 shadow-lg"
-        onClick={() => {
-          if (latitude && longitude) {
-            setReportLocation({ lat: latitude, lng: longitude })
-            setShowReportDialog(true)
-          }
-        }}
-        disabled={!latitude || !longitude}
-      >
-        <Plus className="w-6 h-6" />
-      </Button>
+              {selectedSpot.total_spaces && (
+                <div className="flex items-center gap-2">
+                  <Car className="w-4 h-4" />
+                  <span>
+                    {selectedSpot.available_spaces || "?"}/{selectedSpot.total_spaces} spaces
+                  </span>
+                </div>
+              )}
 
-      {/* Refresh Button */}
-      <Button
-        variant="outline"
-        className="absolute bottom-6 right-24 rounded-full w-14 h-14 shadow-lg"
-        onClick={() => {
-          if (latitude && longitude) {
-            fetchRealParkingData(latitude, longitude)
-          }
-        }}
-        disabled={!latitude || !longitude || loading}
-      >
-        <Navigation className="w-6 h-6" />
-      </Button>
-
-      <SpotReportDialog open={showReportDialog} onOpenChange={setShowReportDialog} location={reportLocation} />
-
-      {/* Selected Spot Details */}
-      {selectedSpot && (
-        <Card className="absolute bottom-6 left-6 max-w-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">{selectedSpot.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-gray-600">{selectedSpot.address}</p>
-
-            <div className="flex gap-2 flex-wrap">
-              <Badge variant="outline">{selectedSpot.spot_type}</Badge>
-              <Badge variant="outline">{selectedSpot.provider}</Badge>
-              {selectedSpot.real_time_data && <Badge className="bg-green-100 text-green-800">Live</Badge>}
-            </div>
-
-            {selectedSpot.price_per_hour !== undefined && (
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4" />
-                <span className="font-medium">
-                  {selectedSpot.price_per_hour === 0 ? "Free" : `$${selectedSpot.price_per_hour}/hour`}
-                </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    console.log("📍 Selected Spot Navigate clicked")
+                    startNavigationToSpot(selectedSpot)
+                  }}
+                  disabled={loading}
+                >
+                  <Route className="w-4 h-4 mr-2" />
+                  {loading ? "Starting..." : "Navigate"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setSelectedSpot(null)}>
+                  Close
+                </Button>
               </div>
-            )}
-
-            {selectedSpot.total_spaces && (
-              <div className="flex items-center gap-2">
-                <Car className="w-4 h-4" />
-                <span>
-                  {selectedSpot.available_spaces || "?"}/{selectedSpot.total_spaces} spaces
-                </span>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="flex-1"
-                onClick={() => {
-                  console.log("📍 Selected Spot Navigate clicked")
-                  startNavigationToSpot(selectedSpot)
-                }}
-                disabled={loading}
-              >
-                <Route className="w-4 h-4 mr-2" />
-                {loading ? "Starting..." : "Navigate"}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setSelectedSpot(null)}>
-                Close
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </NavigationErrorBoundary>
   )
 }
 

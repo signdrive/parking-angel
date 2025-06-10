@@ -63,6 +63,62 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
   const navigationService = NavigationService.getInstance()
   const { toast } = useToast()
 
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Add initialization effect
+  useEffect(() => {
+    const initializeNavigation = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        // Validate required data
+        if (!currentRoute) {
+          throw new Error("No route data available")
+        }
+        if (!destination) {
+          throw new Error("No destination set")
+        }
+
+        // Initialize location if not available
+        if (!userLocation) {
+          // Try to get current location
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                updateUserLocation({
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                  heading: position.coords.heading || 0,
+                  speed: position.coords.speed || 0,
+                })
+              },
+              (error) => {
+                console.warn("Could not get location:", error)
+                // Use default location (San Francisco)
+                updateUserLocation({
+                  latitude: 37.7749,
+                  longitude: -122.4194,
+                  heading: 0,
+                  speed: 0,
+                })
+              },
+            )
+          }
+        }
+
+        setIsLoading(false)
+      } catch (err) {
+        console.error("Navigation initialization error:", err)
+        setError(err instanceof Error ? err.message : "Failed to initialize navigation")
+        setIsLoading(false)
+      }
+    }
+
+    initializeNavigation()
+  }, [currentRoute, destination, userLocation, updateUserLocation])
+
   // Fetch Mapbox token
   useEffect(() => {
     const fetchMapboxToken = async () => {
@@ -116,13 +172,45 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     }
   }, [currentStep, currentRoute, settings.voiceGuidance])
 
-  if (!currentRoute || !destination) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white">
         <div className="text-center">
+          <Navigation className="w-12 h-12 mx-auto mb-4 animate-pulse" />
+          <h2 className="text-xl font-bold mb-2">Starting Navigation...</h2>
+          <p className="text-gray-400">Initializing route and location services</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state with recovery options
+  if (error || !currentRoute || !destination) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-center max-w-md p-6">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-red-500" />
           <h2 className="text-xl font-bold mb-4">Navigation Error</h2>
-          <p className="mb-4">Unable to load navigation data</p>
-          <Button onClick={onExit}>Go Back</Button>
+          <p className="mb-6 text-gray-400">{error || "Unable to load navigation data. Please try again."}</p>
+          <div className="space-y-3">
+            <Button
+              onClick={() => {
+                setError(null)
+                setIsLoading(true)
+                // Retry initialization
+                setTimeout(() => setIsLoading(false), 1000)
+              }}
+              className="w-full"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Retry Navigation
+            </Button>
+            <Button onClick={onExit} variant="outline" className="w-full">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Go Back
+            </Button>
+          </div>
         </div>
       </div>
     )

@@ -6,6 +6,7 @@ import { NavigationService } from "@/lib/navigation-service"
 import { cn } from "@/lib/utils"
 import { Navigation, ArrowUp, ArrowRight, ArrowLeft, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 
 interface NavigationMapProps {
   mapboxToken?: string
@@ -17,18 +18,60 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState(false)
 
+  // Add state for better error handling
+  const [initializationError, setInitializationError] = useState<string | null>(null)
+  const [isInitializing, setIsInitializing] = useState(true)
+
   const { currentRoute, userLocation, destination, currentStep, settings } = useNavigationStore()
   const navigationService = NavigationService.getInstance()
 
   const isDayMode =
     settings.theme === "day" || (settings.theme === "auto" && new Date().getHours() >= 6 && new Date().getHours() < 20)
 
-  // TomTom-like street visualization
-  const TomTomStyleNavigation = () => {
-    if (!currentRoute || !currentRoute.steps[currentStep]) return null
+  // Add initialization effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitializing(false)
+      if (!mapLoaded && !mapError) {
+        console.log("Map taking too long to load, showing fallback")
+        setMapError(true)
+      }
+    }, 5000) // 5 second timeout
 
-    const currentStepData = currentRoute.steps[currentStep]
-    const nextStep = currentRoute.steps[currentStep + 1]
+    return () => clearTimeout(timer)
+  }, [mapLoaded, mapError])
+
+  const TomTomStyleNavigation = () => {
+    // Ensure we have route data
+    if (!currentRoute || !currentRoute.steps || currentRoute.steps.length === 0) {
+      return (
+        <div className={cn("h-full flex items-center justify-center", isDayMode ? "bg-gray-100" : "bg-gray-900")}>
+          <div className="text-center p-6">
+            <Navigation className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <h3 className="text-lg font-semibold mb-2">No Route Data</h3>
+            <p className="text-gray-500">Unable to display navigation view</p>
+          </div>
+        </div>
+      )
+    }
+
+    // Ensure current step is valid
+    const safeCurrentStep = Math.min(currentStep, currentRoute.steps.length - 1)
+    const currentStepData = currentRoute.steps[safeCurrentStep]
+
+    if (!currentStepData) {
+      return (
+        <div className={cn("h-full flex items-center justify-center", isDayMode ? "bg-gray-100" : "bg-gray-900")}>
+          <div className="text-center p-6">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-yellow-500" />
+            <h3 className="text-lg font-semibold mb-2">Invalid Step Data</h3>
+            <p className="text-gray-500">Navigation step information is missing</p>
+          </div>
+        </div>
+      )
+    }
+
+    const nextStep = currentRoute.steps[safeCurrentStep + 1]
     const distanceToNextTurn = nextStep ? nextStep.distance : 0
     const distanceFormatted = navigationService.formatDistance(distanceToNextTurn)
 
@@ -471,18 +514,37 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
   return (
     <div className="relative w-full h-full">
-      {/* Mapbox container */}
-      <div ref={mapContainer} className={cn("w-full h-full", mapError ? "hidden" : "block")} />
+      {/* Always show some content */}
+      {mapboxToken && !mapError ? <div ref={mapContainer} className="w-full h-full" /> : <TomTomStyleNavigation />}
 
-      {/* TomTom-style visualization */}
-      {(mapError || !mapLoaded) && <TomTomStyleNavigation />}
+      {/* Loading overlay */}
+      {isInitializing && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-50">
+          <div className="text-center text-white">
+            <Navigation className="w-12 h-12 mx-auto mb-2 animate-pulse" />
+            <p className="text-sm">Loading Navigation...</p>
+          </div>
+        </div>
+      )}
 
-      {/* Loading state */}
-      {!mapLoaded && !mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
-          <div className="text-center">
-            <Navigation className="w-12 h-12 mx-auto mb-2 opacity-50 animate-pulse" />
-            <p className="text-sm opacity-75">Loading Navigation Map...</p>
+      {/* Error overlay with retry */}
+      {initializationError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-red-900/80 z-50">
+          <div className="text-center text-white p-6">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
+            <h3 className="text-lg font-bold mb-2">Navigation Error</h3>
+            <p className="text-sm mb-4">{initializationError}</p>
+            <Button
+              onClick={() => {
+                setInitializationError(null)
+                setMapError(false)
+                setIsInitializing(true)
+              }}
+              variant="outline"
+              className="text-white border-white hover:bg-white hover:text-red-900"
+            >
+              Retry
+            </Button>
           </div>
         </div>
       )}
