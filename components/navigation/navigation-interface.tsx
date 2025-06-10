@@ -241,8 +241,25 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
     }
   }
 
+  // Add this right before the return statement
+  console.log("NavigationInterface: About to render with state:", {
+    isLoading,
+    error,
+    isNavigating,
+    hasDestination: !!destination,
+    hasRoute: !!currentRoute,
+    instructionsLength: currentRoute?.instructions?.length,
+  })
+
+  // Replace the final return statement with this more robust version:
   return (
     <div className="h-full bg-gray-900 text-white relative overflow-hidden">
+      {/* Debug info - remove in production */}
+      <div className="absolute top-4 left-4 z-50 bg-red-600 text-white p-2 rounded text-xs">
+        Debug: {isNavigating ? "Navigating" : "Not navigating"} | Route: {currentRoute ? "Yes" : "No"} | Dest:{" "}
+        {destination ? "Yes" : "No"}
+      </div>
+
       {/* Road View Background */}
       <div className="absolute inset-0">
         <TomTomRoadView />
