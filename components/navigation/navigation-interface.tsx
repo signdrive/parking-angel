@@ -366,13 +366,13 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
             size="sm"
             className="text-xs h-7 px-2 text-white hover:bg-blue-600"
             onClick={() => {
-              const styles = ["navigation", "satellite", "terrain", "street", "hybrid"] as const
+              const styles = ["navigation", "satellite", "terrain", "street", "hybrid", "mapbox"] as const
               const currentIndex = styles.indexOf(settings.mapStyle)
               const nextStyle = styles[(currentIndex + 1) % styles.length]
               updateSettings({ mapStyle: nextStyle })
               toast({
                 title: "Map Style Changed",
-                description: `Switched to ${nextStyle} style`,
+                description: `Switched to ${nextStyle === "mapbox" ? "satellite overlay" : nextStyle} style`,
                 duration: 2000,
               })
             }}

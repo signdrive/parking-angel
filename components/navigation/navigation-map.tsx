@@ -6,7 +6,6 @@ import { NavigationService } from "@/lib/navigation-service"
 import { cn } from "@/lib/utils"
 import { Navigation, ArrowUp, ArrowRight, ArrowLeft, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 
 interface NavigationMapProps {
   mapboxToken?: string
@@ -397,49 +396,32 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
   }
 
   // Fixed Mapbox loading
+  // Mapbox loading - only if specifically requested
   useEffect(() => {
+    // Only load Mapbox if user specifically selects it
+    if (settings.mapStyle !== "mapbox") return
+
     let mounted = true
 
     const loadMapbox = async () => {
       try {
         if (!mapboxToken) {
-          console.log("No Mapbox token, using TomTom-style visualization")
-          setMapError(true)
+          console.log("No Mapbox token available")
           return
         }
 
-        // Fixed dynamic import approach
         const mapboxgl = (await import("mapbox-gl")).default
 
         if (!mounted || !mapContainer.current) return
 
-        // Set access token on the imported module
         mapboxgl.accessToken = mapboxToken
-
-        // Get map style based on settings
-        const getMapboxStyle = () => {
-          switch (settings.mapStyle) {
-            case "satellite":
-              return "mapbox://styles/mapbox/satellite-v9"
-            case "terrain":
-              return "mapbox://styles/mapbox/outdoors-v12"
-            case "hybrid":
-              return "mapbox://styles/mapbox/satellite-streets-v12"
-            case "street":
-              return "mapbox://styles/mapbox/streets-v12"
-            default:
-              return isDayMode
-                ? "mapbox://styles/mapbox/navigation-day-v1"
-                : "mapbox://styles/mapbox/navigation-night-v1"
-          }
-        }
 
         const map = new mapboxgl.Map({
           container: mapContainer.current,
-          style: getMapboxStyle(),
+          style: "mapbox://styles/mapbox/navigation-day-v1",
           center: userLocation ? [userLocation.longitude, userLocation.latitude] : [-122.4194, 37.7749],
           zoom: 16,
-          pitch: settings.viewMode === "3d" ? 60 : settings.viewMode === "bird-eye" ? 30 : 0,
+          pitch: 60,
           bearing: userLocation?.heading || 0,
           attributionControl: false,
         })
@@ -449,7 +431,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
         map.on("load", () => {
           if (mounted) {
             setMapLoaded(true)
-            console.log("✅ Mapbox map loaded successfully")
+            console.log("✅ Mapbox map loaded as overlay")
           }
         })
 
@@ -476,7 +458,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     return () => {
       mounted = false
     }
-  }, [mapboxToken, isDayMode, userLocation])
+  }, [mapboxToken, settings.mapStyle, userLocation])
 
   // Update map when settings change
   useEffect(() => {
@@ -514,39 +496,12 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
   return (
     <div className="relative w-full h-full">
-      {/* Always show some content */}
-      {mapboxToken && !mapError ? <div ref={mapContainer} className="w-full h-full" /> : <TomTomStyleNavigation />}
+      {/* Always show TomTom-style navigation by default */}
+      <TomTomStyleNavigation />
 
-      {/* Loading overlay */}
-      {isInitializing && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-50">
-          <div className="text-center text-white">
-            <Navigation className="w-12 h-12 mx-auto mb-2 animate-pulse" />
-            <p className="text-sm">Loading Navigation...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Error overlay with retry */}
-      {initializationError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-900/80 z-50">
-          <div className="text-center text-white p-6">
-            <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-            <h3 className="text-lg font-bold mb-2">Navigation Error</h3>
-            <p className="text-sm mb-4">{initializationError}</p>
-            <Button
-              onClick={() => {
-                setInitializationError(null)
-                setMapError(false)
-                setIsInitializing(true)
-              }}
-              variant="outline"
-              className="text-white border-white hover:bg-white hover:text-red-900"
-            >
-              Retry
-            </Button>
-          </div>
-        </div>
+      {/* Optional Mapbox overlay - only if specifically enabled */}
+      {mapboxToken && mapLoaded && !mapError && settings.mapStyle === "mapbox" && (
+        <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
       )}
 
       {/* Speed indicator */}
