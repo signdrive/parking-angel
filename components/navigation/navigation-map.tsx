@@ -396,7 +396,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     )
   }
 
-  // Try to load Mapbox map
+  // Fixed Mapbox loading
   useEffect(() => {
     let mounted = true
 
@@ -408,12 +408,12 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
           return
         }
 
-        // Dynamic import of mapbox-gl
-        const mapboxgl = await import("mapbox-gl")
-        await import("mapbox-gl/dist/mapbox-gl.css")
+        // Fixed dynamic import approach
+        const mapboxgl = (await import("mapbox-gl")).default
 
         if (!mounted || !mapContainer.current) return
 
+        // Set access token on the imported module
         mapboxgl.accessToken = mapboxToken
 
         // Get map style based on settings

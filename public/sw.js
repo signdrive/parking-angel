@@ -1,21 +1,10 @@
-// Production-grade Service Worker with Comprehensive Error Handling
-const CACHE_NAME = "parking-angel-v7"
-const STATIC_CACHE = "parking-angel-static-v7"
-const ICON_CACHE = "parking-angel-icons-v7"
-const API_CACHE = "parking-angel-api-v7"
+// Production-grade Service Worker with Better API Handling
+const CACHE_NAME = "parking-angel-v8"
+const STATIC_CACHE = "parking-angel-static-v8"
+const API_CACHE = "parking-angel-api-v8"
 
 // Essential files for offline functionality
 const ESSENTIAL_FILES = ["/", "/dashboard", "/offline.html"]
-
-// All icon files for comprehensive caching
-const ICON_FILES = [
-  "/favicon.ico",
-  "/apple-touch-icon.png",
-  "/favicon-32x32.png",
-  "/favicon-16x16.png",
-  "/icon-192x192.png",
-  "/icon-512x512.png",
-]
 
 // External domains to ignore (don't cache)
 const EXTERNAL_DOMAINS = [
@@ -24,11 +13,12 @@ const EXTERNAL_DOMAINS = [
   "googleapis.com",
   "googleusercontent.com",
   "gstatic.com",
+  "supabase.co", // Don't interfere with Supabase
 ]
 
 // Install event with minimal caching
 self.addEventListener("install", (event) => {
-  console.log("Service Worker: Installing v7...")
+  console.log("Service Worker: Installing v8...")
 
   event.waitUntil(
     caches
@@ -51,7 +41,7 @@ self.addEventListener("install", (event) => {
 
 // Activate event
 self.addEventListener("activate", (event) => {
-  console.log("Service Worker: Activating v7...")
+  console.log("Service Worker: Activating v8...")
 
   event.waitUntil(
     caches
@@ -67,13 +57,13 @@ self.addEventListener("activate", (event) => {
         )
       })
       .then(() => {
-        console.log("Service Worker: Activated v7")
+        console.log("Service Worker: Activated v8")
         return self.clients.claim()
       }),
   )
 })
 
-// Fetch event with comprehensive error handling
+// Fetch event with better API handling
 self.addEventListener("fetch", (event) => {
   const { request } = event
   const url = new URL(request.url)
@@ -85,7 +75,17 @@ self.addEventListener("fetch", (event) => {
 
   // Skip external domains that we don't want to cache
   if (EXTERNAL_DOMAINS.some((domain) => url.hostname.includes(domain))) {
-    // Let external requests fail naturally without intervention
+    // Let external requests go through without intervention
+    return
+  }
+
+  // Skip Supabase API requests entirely - let them handle their own caching
+  if (url.hostname.includes("supabase.co")) {
+    return
+  }
+
+  // Skip internal API routes - let them handle their own responses
+  if (url.pathname.startsWith("/api/")) {
     return
   }
 
@@ -101,100 +101,33 @@ self.addEventListener("fetch", (event) => {
     return // Let these requests go through normally
   }
 
-  // Handle different types of requests
-  if (isApiRequest(url.pathname)) {
-    event.respondWith(handleApiRequest(request))
-  } else {
-    event.respondWith(handleRegularRequest(request))
-  }
+  // Only handle static assets and pages
+  event.respondWith(handleStaticRequest(request))
 })
 
-// API request handler with better error handling
-async function handleApiRequest(request) {
-  try {
-    const apiCache = await caches.open(API_CACHE)
-
-    // Try network first for fresh data
-    try {
-      const response = await fetch(request, { timeout: 10000 })
-      if (response.ok) {
-        const responseClone = response.clone()
-        apiCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
-        return response
-      }
-    } catch (fetchError) {
-      console.warn("Service Worker: API fetch failed, trying cache:", fetchError.message)
-    }
-
-    // Fallback to cache
-    const cachedResponse = await apiCache.match(request)
-    if (cachedResponse) {
-      console.log("Service Worker: Serving cached API response")
-      return cachedResponse
-    }
-
-    // Return offline response for API failures
-    return new Response(
-      JSON.stringify({
-        error: "Offline",
-        message: "This feature is not available offline",
-        timestamp: new Date().toISOString(),
-      }),
-      {
-        status: 503,
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-        },
-      },
-    )
-  } catch (error) {
-    console.error("Service Worker: API request error:", error)
-    return new Response(
-      JSON.stringify({
-        error: "Service Worker Error",
-        message: "An error occurred processing your request",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    )
-  }
-}
-
-// Regular request handler with better error handling
-async function handleRegularRequest(request) {
+// Static request handler
+async function handleStaticRequest(request) {
   try {
     const staticCache = await caches.open(STATIC_CACHE)
 
-    // Try cache first for better performance
-    const cachedResponse = await staticCache.match(request)
-    if (cachedResponse) {
-      // Serve from cache and update in background
-      updateCacheInBackground(request, staticCache)
-      return cachedResponse
-    }
-
-    // Try network
+    // Try network first for better performance
     try {
-      const response = await fetch(request, { timeout: 10000 })
+      const response = await fetch(request, { timeout: 5000 })
       if (response.ok) {
         // Cache successful responses
         const responseClone = response.clone()
         staticCache.put(request, responseClone).catch(() => {}) // Don't block on cache errors
         return response
       } else {
-        console.warn(`Service Worker: HTTP ${response.status} for ${request.url}`)
         throw new Error(`HTTP ${response.status}`)
       }
     } catch (fetchError) {
-      console.warn("Service Worker: Network request failed:", fetchError.message)
+      console.warn("Service Worker: Network request failed, trying cache:", fetchError.message)
 
-      // Try cache again as final fallback
-      const fallbackResponse = await staticCache.match(request)
-      if (fallbackResponse) {
-        return fallbackResponse
+      // Try cache as fallback
+      const cachedResponse = await staticCache.match(request)
+      if (cachedResponse) {
+        return cachedResponse
       }
 
       // Return offline page for navigation requests
@@ -222,28 +155,10 @@ async function handleRegularRequest(request) {
   }
 }
 
-// Background cache update
-async function updateCacheInBackground(request, cache) {
-  try {
-    const response = await fetch(request, { timeout: 5000 })
-    if (response.ok) {
-      await cache.put(request, response)
-    }
-  } catch (error) {
-    // Silently fail background updates
-    console.warn("Service Worker: Background update failed:", error.message)
-  }
-}
-
-// Utility functions
-function isApiRequest(pathname) {
-  return pathname.startsWith("/api/")
-}
-
 // Enhanced error handling for unhandled promise rejections
 self.addEventListener("unhandledrejection", (event) => {
   console.error("Service Worker: Unhandled promise rejection:", event.reason)
-  event.preventDefault() // Prevent the error from being logged to console repeatedly
+  event.preventDefault()
 })
 
 // Enhanced error handling for general errors
@@ -316,4 +231,4 @@ self.addEventListener("notificationclick", (event) => {
   }
 })
 
-console.log("Service Worker v7: Loaded with minimal icon interference")
+console.log("Service Worker v8: Loaded with minimal API interference")
