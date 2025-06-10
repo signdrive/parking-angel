@@ -13,15 +13,15 @@ import { Suspense } from "react"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Parking Angel - AI-Powered Parking Solutions",
+  title: "Park Algo - AI-Powered Parking Solutions",
   description: "Find parking spots in real-time with AI-powered predictions and smart recommendations.",
-  keywords: "parking, AI, real-time, smart parking, machine learning, predictions",
+  keywords: "parking, AI, real-time, smart parking, machine learning, predictions, algorithm",
   generator: "v0.dev",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Parking Angel",
+    title: "Park Algo",
   },
   formatDetection: {
     telephone: false,
@@ -69,11 +69,11 @@ export default function RootLayout({
         {/* Apple Web App Meta Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Parking Angel" />
+        <meta name="apple-mobile-web-app-title" content="Park Algo" />
 
         {/* Mobile Web App Meta Tags */}
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="mobile-web-app-title" content="Parking Angel" />
+        <meta name="mobile-web-app-title" content="Park Algo" />
 
         {/* Microsoft Tiles */}
         <meta name="msapplication-TileColor" content="#3b82f6" />
