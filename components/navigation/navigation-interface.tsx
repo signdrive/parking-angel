@@ -244,6 +244,8 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
         return Mountain
       case "hybrid":
         return Eye
+      case "street":
+        return Map
       default:
         return Navigation
     }
@@ -348,7 +350,9 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
             size="sm"
             className="text-xs h-7 px-2 text-white hover:bg-blue-600"
             onClick={() => {
-              const nextViewMode = settings.viewMode === "3d" ? "2d" : "3d"
+              const viewModes = ["3d", "bird-eye", "2d", "follow"] as const
+              const currentIndex = viewModes.indexOf(settings.viewMode)
+              const nextViewMode = viewModes[(currentIndex + 1) % viewModes.length]
               updateSettings({ viewMode: nextViewMode })
               toast({
                 title: "View Mode Changed",
@@ -366,13 +370,13 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
             size="sm"
             className="text-xs h-7 px-2 text-white hover:bg-blue-600"
             onClick={() => {
-              const styles = ["navigation", "satellite", "terrain", "street", "hybrid", "mapbox"] as const
+              const styles = ["navigation", "satellite", "terrain", "street", "hybrid"] as const
               const currentIndex = styles.indexOf(settings.mapStyle)
               const nextStyle = styles[(currentIndex + 1) % styles.length]
               updateSettings({ mapStyle: nextStyle })
               toast({
                 title: "Map Style Changed",
-                description: `Switched to ${nextStyle === "mapbox" ? "satellite overlay" : nextStyle} style`,
+                description: `Switched to ${nextStyle} view`,
                 duration: 2000,
               })
             }}
@@ -457,16 +461,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
 
       {/* Navigation Map - Main Content */}
       <div className="flex-1 relative">
-        {mapboxToken ? (
-          <NavigationMap mapboxToken={mapboxToken} />
-        ) : (
-          <div className="h-full flex items-center justify-center bg-gray-200">
-            <div className="text-center">
-              <Navigation className="w-12 h-12 mx-auto mb-2 opacity-50 animate-pulse" />
-              <p className="text-sm opacity-75">Loading Navigation Map...</p>
-            </div>
-          </div>
-        )}
+        <NavigationMap mapboxToken={mapboxToken} />
       </div>
 
       {/* Bottom Info Bar - TomTom style */}

@@ -31,7 +31,7 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsInitializing(false)
-      if (!mapLoaded && !mapError) {
+      if (!mapLoaded && !mapError && shouldUseMapbox()) {
         console.log("Map taking too long to load, showing fallback")
         setMapError(true)
       }
@@ -39,6 +39,11 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
     return () => clearTimeout(timer)
   }, [mapLoaded, mapError])
+
+  // Determine if we should use Mapbox based on map style
+  const shouldUseMapbox = () => {
+    return settings.mapStyle !== "navigation" && mapboxToken
+  }
 
   const TomTomStyleNavigation = () => {
     // Ensure we have route data
@@ -146,11 +151,28 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
       )
     }
 
+    // Determine perspective based on view mode
+    const getPerspectiveTransform = () => {
+      switch (settings.viewMode) {
+        case "3d":
+          return "rotateX(60deg)"
+        case "bird-eye":
+          return "rotateX(30deg)"
+        case "2d":
+          return "rotateX(0deg)"
+        default:
+          return "rotateX(60deg)"
+      }
+    }
+
     return (
       <div className={cn("h-full relative overflow-hidden", isDayMode ? "bg-gray-100" : "bg-gray-900")}>
         {/* 3D Perspective Container */}
         <div className="h-full w-full perspective-1000">
-          <div className="h-full w-full transition-transform duration-500" style={{ transform: "rotateX(60deg)" }}>
+          <div
+            className="h-full w-full transition-transform duration-500"
+            style={{ transform: getPerspectiveTransform() }}
+          >
             {/* Sky */}
             <div
               className={cn(
@@ -175,14 +197,20 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
                   isDayMode ? "bg-gray-400" : "bg-gray-700",
                 )}
                 style={{
-                  clipPath: "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
+                  clipPath:
+                    settings.viewMode === "2d"
+                      ? "polygon(40% 0%, 60% 0%, 60% 100%, 40% 100%)"
+                      : "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
                 }}
               >
                 {/* Road surface */}
                 <div
                   className={cn("absolute inset-[2px] transform-gpu", isDayMode ? "bg-gray-300" : "bg-gray-600")}
                   style={{
-                    clipPath: "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
+                    clipPath:
+                      settings.viewMode === "2d"
+                        ? "polygon(40% 0%, 60% 0%, 60% 100%, 40% 100%)"
+                        : "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
                   }}
                 >
                   {/* Center line */}
@@ -207,92 +235,94 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
               </div>
             </div>
 
-            {/* 3D Buildings */}
-            <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none">
-              {/* Left side buildings */}
-              {Array.from({ length: 6 }).map((_, i) => {
-                const height = 120 + Math.random() * 80
-                const width = 80 + Math.random() * 40
-                const distance = 10 + i * 15
-                const opacity = 1 - i * 0.15
+            {/* 3D Buildings - only show in 3D and bird-eye modes */}
+            {settings.viewMode !== "2d" && (
+              <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none">
+                {/* Left side buildings */}
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const height = 120 + Math.random() * 80
+                  const width = 80 + Math.random() * 40
+                  const distance = 10 + i * 15
+                  const opacity = 1 - i * 0.15
 
-                return (
-                  <div
-                    key={`left-${i}`}
-                    className={cn("absolute transform-gpu", isDayMode ? "bg-blue-100" : "bg-gray-700")}
-                    style={{
-                      height: `${height}px`,
-                      width: `${width}px`,
-                      bottom: `${50 + i * 2}%`,
-                      left: `${distance}%`,
-                      opacity,
-                      transform: `translateZ(${i * 10}px)`,
-                    }}
-                  >
-                    {/* Windows */}
-                    <div className="absolute inset-1 grid grid-cols-3 grid-rows-5 gap-1">
-                      {Array.from({ length: 15 }).map((_, j) => (
-                        <div
-                          key={j}
-                          className={cn(
-                            "rounded-sm",
-                            isDayMode
-                              ? j % 3 === 0
-                                ? "bg-blue-200"
-                                : "bg-blue-300"
-                              : j % 3 === 0
-                                ? "bg-yellow-500/20"
-                                : "bg-gray-800",
-                          )}
-                        />
-                      ))}
+                  return (
+                    <div
+                      key={`left-${i}`}
+                      className={cn("absolute transform-gpu", isDayMode ? "bg-blue-100" : "bg-gray-700")}
+                      style={{
+                        height: `${height}px`,
+                        width: `${width}px`,
+                        bottom: `${50 + i * 2}%`,
+                        left: `${distance}%`,
+                        opacity,
+                        transform: `translateZ(${i * 10}px)`,
+                      }}
+                    >
+                      {/* Windows */}
+                      <div className="absolute inset-1 grid grid-cols-3 grid-rows-5 gap-1">
+                        {Array.from({ length: 15 }).map((_, j) => (
+                          <div
+                            key={j}
+                            className={cn(
+                              "rounded-sm",
+                              isDayMode
+                                ? j % 3 === 0
+                                  ? "bg-blue-200"
+                                  : "bg-blue-300"
+                                : j % 3 === 0
+                                  ? "bg-yellow-500/20"
+                                  : "bg-gray-800",
+                            )}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
 
-              {/* Right side buildings */}
-              {Array.from({ length: 6 }).map((_, i) => {
-                const height = 120 + Math.random() * 80
-                const width = 80 + Math.random() * 40
-                const distance = 10 + i * 15
-                const opacity = 1 - i * 0.15
+                {/* Right side buildings */}
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const height = 120 + Math.random() * 80
+                  const width = 80 + Math.random() * 40
+                  const distance = 10 + i * 15
+                  const opacity = 1 - i * 0.15
 
-                return (
-                  <div
-                    key={`right-${i}`}
-                    className={cn("absolute transform-gpu", isDayMode ? "bg-blue-100" : "bg-gray-700")}
-                    style={{
-                      height: `${height}px`,
-                      width: `${width}px`,
-                      bottom: `${50 + i * 2}%`,
-                      right: `${distance}%`,
-                      opacity,
-                      transform: `translateZ(${i * 10}px)`,
-                    }}
-                  >
-                    {/* Windows */}
-                    <div className="absolute inset-1 grid grid-cols-3 grid-rows-5 gap-1">
-                      {Array.from({ length: 15 }).map((_, j) => (
-                        <div
-                          key={j}
-                          className={cn(
-                            "rounded-sm",
-                            isDayMode
-                              ? j % 3 === 0
-                                ? "bg-blue-200"
-                                : "bg-blue-300"
-                              : j % 3 === 0
-                                ? "bg-yellow-500/20"
-                                : "bg-gray-800",
-                          )}
-                        />
-                      ))}
+                  return (
+                    <div
+                      key={`right-${i}`}
+                      className={cn("absolute transform-gpu", isDayMode ? "bg-blue-100" : "bg-gray-700")}
+                      style={{
+                        height: `${height}px`,
+                        width: `${width}px`,
+                        bottom: `${50 + i * 2}%`,
+                        right: `${distance}%`,
+                        opacity,
+                        transform: `translateZ(${i * 10}px)`,
+                      }}
+                    >
+                      {/* Windows */}
+                      <div className="absolute inset-1 grid grid-cols-3 grid-rows-5 gap-1">
+                        {Array.from({ length: 15 }).map((_, j) => (
+                          <div
+                            key={j}
+                            className={cn(
+                              "rounded-sm",
+                              isDayMode
+                                ? j % 3 === 0
+                                  ? "bg-blue-200"
+                                  : "bg-blue-300"
+                                : j % 3 === 0
+                                  ? "bg-yellow-500/20"
+                                  : "bg-gray-800",
+                            )}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
 
             {/* Intersections */}
             {nextManeuver !== "straight" && (
@@ -395,33 +425,57 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     )
   }
 
-  // Fixed Mapbox loading
-  // Mapbox loading - only if specifically requested
+  // Mapbox loading - for satellite, terrain, street, hybrid views
   useEffect(() => {
-    // Only load Mapbox if user specifically selects it
-    if (settings.mapStyle !== "mapbox") return
+    if (!shouldUseMapbox()) {
+      // Clean up existing map if switching away from Mapbox
+      if (mapRef.current) {
+        mapRef.current.remove()
+        mapRef.current = null
+        setMapLoaded(false)
+      }
+      return
+    }
 
     let mounted = true
 
     const loadMapbox = async () => {
       try {
-        if (!mapboxToken) {
-          console.log("No Mapbox token available")
-          return
-        }
-
         const mapboxgl = (await import("mapbox-gl")).default
 
         if (!mounted || !mapContainer.current) return
 
-        mapboxgl.accessToken = mapboxToken
+        // Clean up existing map
+        if (mapRef.current) {
+          mapRef.current.remove()
+        }
+
+        mapboxgl.accessToken = mapboxToken!
+
+        // Get map style based on settings
+        const getMapboxStyle = () => {
+          switch (settings.mapStyle) {
+            case "satellite":
+              return "mapbox://styles/mapbox/satellite-v9"
+            case "terrain":
+              return "mapbox://styles/mapbox/outdoors-v12"
+            case "hybrid":
+              return "mapbox://styles/mapbox/satellite-streets-v12"
+            case "street":
+              return "mapbox://styles/mapbox/streets-v12"
+            default:
+              return isDayMode
+                ? "mapbox://styles/mapbox/navigation-day-v1"
+                : "mapbox://styles/mapbox/navigation-night-v1"
+          }
+        }
 
         const map = new mapboxgl.Map({
           container: mapContainer.current,
-          style: "mapbox://styles/mapbox/navigation-day-v1",
+          style: getMapboxStyle(),
           center: userLocation ? [userLocation.longitude, userLocation.latitude] : [-122.4194, 37.7749],
           zoom: 16,
-          pitch: 60,
+          pitch: settings.viewMode === "3d" ? 60 : settings.viewMode === "bird-eye" ? 30 : 0,
           bearing: userLocation?.heading || 0,
           attributionControl: false,
         })
@@ -431,7 +485,8 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
         map.on("load", () => {
           if (mounted) {
             setMapLoaded(true)
-            console.log("✅ Mapbox map loaded as overlay")
+            setMapError(false)
+            console.log("✅ Mapbox map loaded successfully")
           }
         })
 
@@ -458,11 +513,11 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
     return () => {
       mounted = false
     }
-  }, [mapboxToken, settings.mapStyle, userLocation])
+  }, [mapboxToken, settings.mapStyle, isDayMode, userLocation])
 
   // Update map when settings change
   useEffect(() => {
-    if (mapRef.current && mapLoaded) {
+    if (mapRef.current && mapLoaded && shouldUseMapbox()) {
       const map = mapRef.current
 
       // Update map style
@@ -496,12 +551,20 @@ export function NavigationMap({ mapboxToken }: NavigationMapProps) {
 
   return (
     <div className="relative w-full h-full">
-      {/* Always show TomTom-style navigation by default */}
-      <TomTomStyleNavigation />
+      {/* Show TomTom-style navigation for "navigation" style or as fallback */}
+      {(!shouldUseMapbox() || mapError || !mapLoaded) && <TomTomStyleNavigation />}
 
-      {/* Optional Mapbox overlay - only if specifically enabled */}
-      {mapboxToken && mapLoaded && !mapError && settings.mapStyle === "mapbox" && (
-        <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+      {/* Show Mapbox for other map styles */}
+      {shouldUseMapbox() && !mapError && <div ref={mapContainer} className="w-full h-full" />}
+
+      {/* Loading overlay for Mapbox */}
+      {shouldUseMapbox() && !mapLoaded && !mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-50">
+          <div className="text-center text-white">
+            <Navigation className="w-12 h-12 mx-auto mb-2 animate-pulse" />
+            <p className="text-sm">Loading {settings.mapStyle} view...</p>
+          </div>
+        </div>
       )}
 
       {/* Speed indicator */}
