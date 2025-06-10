@@ -24,7 +24,6 @@ const EXTERNAL_DOMAINS = [
   "googleapis.com",
   "googleusercontent.com",
   "gstatic.com",
-  "supabase.co", // Add this line
 ]
 
 // Install event with minimal caching
@@ -81,11 +80,6 @@ self.addEventListener("fetch", (event) => {
 
   // Skip non-GET requests
   if (request.method !== "GET") {
-    return
-  }
-
-  // Skip Supabase API requests completely - let them go directly
-  if (url.hostname.includes("supabase.co")) {
     return
   }
 

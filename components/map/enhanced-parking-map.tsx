@@ -41,7 +41,6 @@ interface EnhancedParkingMapProps {
   onLoadingChange?: (loading: boolean) => void
 }
 
-// Export as a named export
 export function EnhancedParkingMap({
   onSpotSelect,
   onStatsUpdate,
@@ -93,23 +92,12 @@ export function EnhancedParkingMap({
 
   // Handle map click - defined outside the initialization to avoid recreation
   const handleMapClick = useCallback(
-    async (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
-      if (!e.lngLat) {
-        console.warn("Map click event missing coordinates")
-        return
-      }
-
+    async (e: mapboxgl.MapMouseEvent) => {
       console.log("Map clicked at:", e.lngLat)
 
       const clickLocation = {
         lat: e.lngLat.lat,
         lng: e.lngLat.lng,
-      }
-
-      // Validate coordinates
-      if (!clickLocation.lat || !clickLocation.lng || isNaN(clickLocation.lat) || isNaN(clickLocation.lng)) {
-        console.warn("Invalid coordinates from map click")
-        return
       }
 
       // Show loading indicator
@@ -135,7 +123,6 @@ export function EnhancedParkingMap({
         })
       } finally {
         setAnalyzingArea(false)
-        onLoadingChange?.(false)
       }
     },
     [onLocationClick, onLoadingChange],
@@ -146,78 +133,55 @@ export function EnhancedParkingMap({
     if (!mapContainer.current || map.current || !mapboxToken) return
 
     try {
-      // Ensure mapboxgl is available
-      if (typeof mapboxgl === "undefined") {
-        setMapboxError("Mapbox library not loaded")
-        return
-      }
-
-      // Set access token safely
-      if (mapboxgl.accessToken !== mapboxToken) {
-        mapboxgl.accessToken = mapboxToken
-      }
+      mapboxgl.accessToken = mapboxToken
 
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: "mapbox://styles/mapbox/streets-v12",
         center: [-122.4194, 37.7749],
         zoom: 15,
-        attributionControl: false,
       })
 
-      // Add controls with error handling
-      try {
-        map.current.addControl(
-          new mapboxgl.GeolocateControl({
-            positionOptions: { enableHighAccuracy: true },
-            trackUserLocation: true,
-            showUserHeading: true,
-          }),
-        )
-        map.current.addControl(new mapboxgl.NavigationControl())
-      } catch (controlError) {
-        console.warn("Failed to add map controls:", controlError)
-      }
+      map.current.addControl(
+        new mapboxgl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+          showUserHeading: true,
+        }),
+      )
 
-      // Wait for map to load before adding event handlers
+      map.current.addControl(new mapboxgl.NavigationControl())
+
+      // Wait for map to load before adding click handler
       map.current.on("load", () => {
         console.log("Map loaded successfully")
         setMapInitialized(true)
 
         if (map.current) {
-          // Add click handler with error boundary
-          try {
-            map.current.on("click", handleMapClick)
-          } catch (handlerError) {
-            console.error("Failed to add click handler:", handlerError)
-          }
+          // Add click handler
+          map.current.on("click", handleMapClick)
+
+          // Add debug click handler
+          map.current.on("click", (e) => {
+            console.log("Debug: Map clicked at:", e.lngLat)
+          })
         }
       })
 
-      // Enhanced error handling
       map.current.on("error", (e) => {
         console.error("Mapbox error:", e)
-        const errorMsg = e.error?.message || "Failed to load map"
-        setMapboxError(`Map error: ${errorMsg}`)
-      })
-
-      // Handle style load errors
-      map.current.on("style.load", () => {
-        console.log("Map style loaded")
+        setMapboxError("Failed to load map. Please check your internet connection.")
       })
     } catch (error) {
       console.error("Failed to initialize Mapbox:", error)
-      setMapboxError(`Initialization failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      setMapboxError("Failed to initialize map.")
     }
 
     return () => {
       if (map.current) {
-        try {
-          map.current.off("click", handleMapClick)
-          map.current.remove()
-        } catch (cleanupError) {
-          console.warn("Error during map cleanup:", cleanupError)
-        }
+        // Clean up event listeners
+        map.current.off("click", handleMapClick)
+        map.current.remove()
         map.current = null
       }
     }
@@ -249,10 +213,7 @@ export function EnhancedParkingMap({
     }
 
     try {
-      console.log("🚗 Starting navigation to spot:", spot)
-      console.log("📍 User location:", { latitude, longitude })
-      console.log("📍 Destination:", { latitude: spot.latitude, longitude: spot.longitude })
-
+      console.log("🚗 Starting navigation to spot:", spot.name)
       setLoading(true)
 
       toast({
@@ -260,23 +221,13 @@ export function EnhancedParkingMap({
         description: `Finding the best route to ${spot.name}`,
       })
 
-      // Validate coordinates before calculating route
-      if (!spot.latitude || !spot.longitude || isNaN(spot.latitude) || isNaN(spot.longitude)) {
-        throw new Error("Invalid destination coordinates")
-      }
-
       // Calculate route to the parking spot
       const route = await navigationService.calculateRoute([longitude, latitude], [spot.longitude, spot.latitude], {
         avoidTraffic: true,
         routeType: "fastest",
       })
 
-      console.log("📍 Route calculated successfully:", route)
-
-      // Validate route before starting navigation
-      if (!route || !route.instructions || route.instructions.length === 0) {
-        throw new Error("Invalid route calculated")
-      }
+      console.log("📍 Route calculated, starting navigation...")
 
       // Start navigation
       startNavigation(
@@ -474,31 +425,18 @@ export function EnhancedParkingMap({
     }
   }
 
-  const calculateDistance = (
-    point1: { lat: number; lng: number },
-    point2: { latitude: number; longitude: number },
-  ): number => {
-    try {
-      if (!point1?.lat || !point1?.lng || !point2?.latitude || !point2?.longitude) {
-        console.warn("Invalid coordinates for distance calculation")
-        return 0
-      }
-
-      const R = 6371 // Earth's radius in km
-      const dLat = ((point2.latitude - point1.lat) * Math.PI) / 180
-      const dLng = ((point2.longitude - point1.lng) * Math.PI) / 180
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos((point1.lat * Math.PI) / 180) *
-          Math.cos((point2.latitude * Math.PI) / 180) *
-          Math.sin(dLng / 2) *
-          Math.sin(dLng / 2)
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-      return R * c * 1000 // Return distance in meters
-    } catch (error) {
-      console.error("Error calculating distance:", error)
-      return 0
-    }
+  const calculateDistance = (point1: { lat: number; lng: number }, point2: { lat: number; lng: number }): number => {
+    const R = 6371 // Earth's radius in km
+    const dLat = ((point2.latitude - point1.lat) * Math.PI) / 180
+    const dLng = ((point2.longitude - point1.lng) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((point1.lat * Math.PI) / 180) *
+        Math.cos((point2.latitude * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c * 1000 // Return distance in meters
   }
 
   const generateRecommendationReason = (
@@ -555,67 +493,25 @@ export function EnhancedParkingMap({
   const fetchRealParkingData = async (lat: number, lng: number) => {
     setLoading(true)
     try {
-      // Use our API endpoint instead of direct Supabase calls
-      const response = await fetch(`/api/spots/nearby?lat=${lat}&lng=${lng}&radius=2000&limit=50`)
-
-      if (!response.ok) {
-        throw new Error(`API responded with status: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.success && Array.isArray(data.data)) {
-        setRealSpots(data.data)
-        toast({
-          title: "Parking data loaded",
-          description: `Found ${data.data.length} parking spots nearby.`,
-        })
-      } else {
-        // Fallback to mock data if API fails
-        const mockSpots = generateMockSpots(lat, lng)
-        setRealSpots(mockSpots)
-        toast({
-          title: "Using sample data",
-          description: "Live data unavailable, showing sample parking spots.",
-        })
-      }
-    } catch (error) {
-      console.error("Error fetching parking data:", error)
-
-      // Always provide fallback data
-      const mockSpots = generateMockSpots(lat, lng)
-      setRealSpots(mockSpots)
+      const spots = await parkingService.getRealParkingSpots(lat, lng, 2000, {
+        requireAvailability: true,
+      })
+      setRealSpots(spots)
 
       toast({
+        title: "Parking data loaded",
+        description: `Found ${spots.length} parking spots nearby.`,
+      })
+    } catch (error) {
+      console.error("Error fetching real parking data:", error)
+      toast({
         title: "Data loading error",
-        description: "Using sample data while service is unavailable.",
+        description: "Could not load parking data. Please try again.",
         variant: "destructive",
       })
     } finally {
       setLoading(false)
     }
-  }
-
-  const generateMockSpots = (centerLat: number, centerLng: number): RealParkingSpot[] => {
-    return Array.from({ length: 10 }, (_, i) => {
-      const latOffset = (Math.random() - 0.5) * 0.01
-      const lngOffset = (Math.random() - 0.5) * 0.01
-
-      return {
-        id: `mock-${i}`,
-        name: `Sample Parking ${i + 1}`,
-        latitude: centerLat + latOffset,
-        longitude: centerLng + lngOffset,
-        address: `${100 + i} Sample Street`,
-        spot_type: i % 3 === 0 ? "garage" : i % 3 === 1 ? "street" : "lot",
-        provider: i % 2 === 0 ? "City Parking" : "Private Lot",
-        is_available: Math.random() > 0.3,
-        price_per_hour: i % 3 === 0 ? 0 : Math.floor(Math.random() * 15) + 5,
-        real_time_data: i % 4 === 0,
-        total_spaces: i % 3 === 0 ? Math.floor(Math.random() * 100) + 20 : undefined,
-        available_spaces: i % 3 === 0 ? Math.floor(Math.random() * 30) : undefined,
-      }
-    })
   }
 
   // Update parking spot markers
@@ -1016,5 +912,4 @@ export function EnhancedParkingMap({
   )
 }
 
-// Also export as default for backward compatibility
 export default EnhancedParkingMap

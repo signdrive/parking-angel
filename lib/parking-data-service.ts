@@ -1,3 +1,5 @@
+import { supabase } from "./supabase"
+
 // Real parking data providers
 export const PARKING_PROVIDERS = {
   PARKWHIZ: "parkwhiz",
@@ -6,7 +8,7 @@ export const PARKING_PROVIDERS = {
   GOOGLE_PLACES: "google_places",
   OPENSTREETMAP: "openstreetmap",
   CITY_API: "city_api",
-  TFL: "tfl",
+  TFL: "tfl", // Added TfL
 } as const
 
 export interface RealParkingSpot {
@@ -30,7 +32,7 @@ export interface RealParkingSpot {
   provider: string
   provider_id: string
   real_time_data: boolean
-  last_updated: string
+  last_updated: Date | string // Updated to accept string too
   distance?: number
   opening_hours?: {
     [key: string]: { open: string; close: string }
@@ -46,65 +48,12 @@ export class ParkingDataService {
   private static instance: ParkingDataService
   private cache = new Map<string, { data: RealParkingSpot[]; timestamp: number }>()
   private readonly CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
-  private readonly MAX_RETRIES = 3
-  private readonly RETRY_DELAY = 1000
-
-  private constructor() {}
 
   static getInstance(): ParkingDataService {
     if (!ParkingDataService.instance) {
       ParkingDataService.instance = new ParkingDataService()
     }
     return ParkingDataService.instance
-  }
-
-  private getCacheKey(lat: number, lng: number, radius: number): string {
-    return `${lat.toFixed(4)}_${lng.toFixed(4)}_${radius}`
-  }
-
-  private isValidCache(timestamp: number): boolean {
-    return Date.now() - timestamp < this.CACHE_DURATION
-  }
-
-  private async delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-
-  private async fetchWithRetry(url: string, retries = this.MAX_RETRIES): Promise<Response> {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
-
-        const response = await fetch(url, {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          signal: controller.signal,
-        })
-
-        clearTimeout(timeoutId)
-
-        if (response.ok) {
-          return response
-        }
-
-        if (response.status === 503 && i < retries - 1) {
-          console.warn(`Service unavailable, retrying in ${this.RETRY_DELAY}ms... (${i + 1}/${retries})`)
-          await this.delay(this.RETRY_DELAY * (i + 1))
-          continue
-        }
-
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      } catch (error) {
-        if (i === retries - 1) {
-          throw error
-        }
-        console.warn(`Request failed, retrying... (${i + 1}/${retries})`, error)
-        await this.delay(this.RETRY_DELAY * (i + 1))
-      }
-    }
-    throw new Error("Max retries exceeded")
   }
 
   async getRealParkingSpots(
@@ -118,183 +67,54 @@ export class ParkingDataService {
       maxPrice?: number
       requireRealTime?: boolean
       requireAvailability?: boolean
-      limit?: number
     } = {},
   ): Promise<RealParkingSpot[]> {
-    const cacheKey = this.getCacheKey(latitude, longitude, radius)
+    const cacheKey = `${latitude},${longitude},${radius}`
     const cached = this.cache.get(cacheKey)
 
-    // Return cached data if valid
-    if (cached && this.isValidCache(cached.timestamp)) {
-      console.log("🎯 Returning cached parking data")
+    if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
       return this.filterSpots(cached.data, options)
     }
 
     try {
-      console.log("🔍 Fetching fresh parking data...")
+      const allSpots: RealParkingSpot[] = []
 
-      // Use our API endpoint with better error handling
-      const url = new URL("/api/spots/nearby", window.location.origin)
-      url.searchParams.set("lat", latitude.toString())
-      url.searchParams.set("lng", longitude.toString())
-      url.searchParams.set("radius", radius.toString())
-      url.searchParams.set("limit", (options.limit || 50).toString())
+      // Determine location and fetch appropriate data
+      const isLondon = this.isInLondon(latitude, longitude)
 
-      const response = await this.fetchWithRetry(url.toString())
-      const data = await response.json()
+      // Fetch from multiple providers in parallel
+      const providers = await Promise.allSettled([
+        this.fetchGooglePlacesParking(latitude, longitude, radius),
+        this.fetchOpenStreetMapParking(latitude, longitude, radius),
+        ...(isLondon ? [this.fetchTfLParking(latitude, longitude, radius)] : []),
+        this.fetchCityAPIData(latitude, longitude, radius),
+        // Add other providers as needed
+      ])
 
-      if (data.success && Array.isArray(data.data)) {
-        const spots: RealParkingSpot[] = data.data.map((spot: any) => ({
-          id: spot.id?.toString() || `spot-${Math.random()}`,
-          name: spot.name || `Parking Spot ${spot.id}`,
-          latitude: Number.parseFloat(spot.latitude?.toString() || "0"),
-          longitude: Number.parseFloat(spot.longitude?.toString() || "0"),
-          address: spot.address || "Address not available",
-          spot_type: this.normalizeSpotType(spot.spot_type),
-          provider: spot.provider || "Unknown",
-          provider_id: spot.provider_id || spot.id?.toString() || "",
-          is_available: spot.is_available !== false,
-          price_per_hour: spot.price_per_hour ? Number.parseFloat(spot.price_per_hour.toString()) : undefined,
-          real_time_data: Boolean(spot.real_time_data),
-          total_spaces: spot.total_spaces ? Number.parseInt(spot.total_spaces.toString()) : undefined,
-          available_spaces: spot.available_spaces ? Number.parseInt(spot.available_spaces.toString()) : undefined,
-          last_updated: spot.last_updated || new Date().toISOString(),
-          restrictions: spot.restrictions || [],
-          payment_methods: spot.payment_methods || [],
-          accessibility: Boolean(spot.accessibility),
-          covered: Boolean(spot.covered),
-          security: Boolean(spot.security),
-          ev_charging: Boolean(spot.ev_charging),
-        }))
-
-        // Filter spots based on options
-        const filteredSpots = this.filterSpots(spots, options)
-
-        // Cache the results
-        this.cache.set(cacheKey, {
-          data: filteredSpots,
-          timestamp: Date.now(),
-        })
-
-        console.log(`✅ Fetched ${filteredSpots.length} parking spots`)
-        return filteredSpots
-      } else {
-        throw new Error("Invalid response format from API")
-      }
-    } catch (error) {
-      console.error("❌ Failed to fetch parking data:", error)
-
-      // Return cached data even if expired, or generate mock data
-      if (cached) {
-        console.log("🔄 Returning expired cached data as fallback")
-        return this.filterSpots(cached.data, options)
-      }
-
-      console.log("🎭 Generating mock data as fallback")
-      const mockData = this.generateMockData(latitude, longitude, radius, options.limit || 20)
-      return this.filterSpots(mockData, options)
-    }
-  }
-
-  private normalizeSpotType(spotType: any): "street" | "garage" | "lot" | "meter" | "private" {
-    const type = spotType?.toString().toLowerCase()
-    switch (type) {
-      case "garage":
-      case "parking_garage":
-        return "garage"
-      case "street":
-      case "street_side":
-        return "street"
-      case "lot":
-      case "parking_lot":
-        return "lot"
-      case "meter":
-      case "parking_meter":
-        return "meter"
-      case "private":
-        return "private"
-      default:
-        return "street"
-    }
-  }
-
-  private filterSpots(spots: RealParkingSpot[], options: any): RealParkingSpot[] {
-    return spots.filter((spot) => {
-      if (options.maxPrice && spot.price_per_hour && spot.price_per_hour > options.maxPrice) {
-        return false
-      }
-      if (options.requireRealTime && !spot.real_time_data) {
-        return false
-      }
-      if (options.requireAvailability && !spot.is_available) {
-        return false
-      }
-      if (options.includeStreetParking === false && spot.spot_type === "street") {
-        return false
-      }
-      if (options.includeGarages === false && spot.spot_type === "garage") {
-        return false
-      }
-      if (options.includeLots === false && spot.spot_type === "lot") {
-        return false
-      }
-      return true
-    })
-  }
-
-  private generateMockData(lat: number, lng: number, radius: number, limit: number): RealParkingSpot[] {
-    const spots: RealParkingSpot[] = []
-    const radiusInDegrees = radius / 111000 // Rough conversion from meters to degrees
-
-    for (let i = 0; i < limit; i++) {
-      const angle = (Math.PI * 2 * i) / limit
-      const distance = Math.random() * radiusInDegrees
-
-      const spotLat = lat + distance * Math.cos(angle)
-      const spotLng = lng + distance * Math.sin(angle)
-
-      const spotTypes: Array<"garage" | "street" | "lot" | "meter" | "private"> = [
-        "garage",
-        "street",
-        "lot",
-        "meter",
-        "private",
-      ]
-
-      spots.push({
-        id: `mock-${i}`,
-        name: `Sample Parking ${i + 1}`,
-        latitude: spotLat,
-        longitude: spotLng,
-        address: `${100 + i} Sample Street`,
-        spot_type: spotTypes[i % spotTypes.length],
-        provider: i % 2 === 0 ? "City Parking" : "Private Lot",
-        provider_id: `mock-provider-${i}`,
-        is_available: Math.random() > 0.2,
-        price_per_hour: i % 4 === 0 ? 0 : Math.floor(Math.random() * 15) + 5,
-        real_time_data: i % 3 === 0,
-        total_spaces: i % 3 === 0 ? Math.floor(Math.random() * 100) + 20 : undefined,
-        available_spaces: i % 3 === 0 ? Math.floor(Math.random() * 30) : undefined,
-        last_updated: new Date().toISOString(),
-        restrictions: [],
-        payment_methods: ["credit_card", "mobile_app"],
-        accessibility: Math.random() > 0.7,
-        covered: Math.random() > 0.6,
-        security: Math.random() > 0.5,
-        ev_charging: Math.random() > 0.8,
+      providers.forEach((result) => {
+        if (result.status === "fulfilled") {
+          allSpots.push(...result.value)
+        }
       })
+
+      // Remove duplicates based on location proximity
+      const uniqueSpots = this.removeDuplicateSpots(allSpots)
+
+      // Cache the results
+      this.cache.set(cacheKey, { data: uniqueSpots, timestamp: Date.now() })
+
+      // Store in our database for future reference
+      await this.storeRealParkingData(uniqueSpots)
+
+      return this.filterSpots(uniqueSpots, options)
+    } catch (error) {
+      console.error("Error fetching real parking data:", error)
+      return []
     }
-
-    return spots
   }
 
-  public clearCache(): void {
-    this.cache.clear()
-    console.log("🧹 Parking data cache cleared")
-  }
-
-  // Legacy methods for compatibility
   private isInLondon(lat: number, lng: number): boolean {
+    // London bounding box (approximate)
     const LONDON_BOUNDS = {
       north: 51.6723,
       south: 51.2867,
@@ -305,6 +125,122 @@ export class ParkingDataService {
     return (
       lat >= LONDON_BOUNDS.south && lat <= LONDON_BOUNDS.north && lng >= LONDON_BOUNDS.west && lng <= LONDON_BOUNDS.east
     )
+  }
+
+  private async fetchTfLParking(lat: number, lng: number, radius: number): Promise<RealParkingSpot[]> {
+    try {
+      const response = await fetch(`/api/parking/tfl`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng, radius }),
+      })
+
+      if (!response.ok) throw new Error("TfL API failed")
+      const data = await response.json()
+      return data.spots || []
+    } catch (error) {
+      console.error("TfL parking fetch failed:", error)
+      return []
+    }
+  }
+
+  private async fetchGooglePlacesParking(lat: number, lng: number, radius: number): Promise<RealParkingSpot[]> {
+    try {
+      const response = await fetch(`/api/parking/google-places`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng, radius }),
+      })
+
+      if (!response.ok) throw new Error("Google Places API failed")
+      const data = await response.json()
+      return data.spots || []
+    } catch (error) {
+      console.error("Google Places parking fetch failed:", error)
+      return []
+    }
+  }
+
+  private async fetchOpenStreetMapParking(lat: number, lng: number, radius: number): Promise<RealParkingSpot[]> {
+    try {
+      // Overpass API query for parking amenities
+      const query = `
+        [out:json][timeout:25];
+        (
+          node["amenity"="parking"](around:${radius},${lat},${lng});
+          way["amenity"="parking"](around:${radius},${lat},${lng});
+          relation["amenity"="parking"](around:${radius},${lat},${lng});
+        );
+        out center meta;
+      `
+
+      const response = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: query,
+      })
+
+      if (!response.ok) throw new Error("OpenStreetMap API failed")
+      const data = await response.json()
+
+      return data.elements.map((element: any) => ({
+        id: `osm_${element.id}`,
+        name: element.tags?.name || "Parking Area",
+        latitude: element.lat || element.center?.lat,
+        longitude: element.lon || element.center?.lon,
+        address: this.buildAddress(element.tags),
+        spot_type: this.mapOSMParkingType(element.tags),
+        is_available: true,
+        total_spaces: element.tags?.capacity ? Number.parseInt(element.tags.capacity) : undefined,
+        price_per_hour: element.tags?.fee === "yes" ? undefined : 0,
+        restrictions: this.parseOSMRestrictions(element.tags),
+        accessibility: element.tags?.wheelchair === "yes",
+        covered: element.tags?.covered === "yes",
+        security: element.tags?.supervised === "yes",
+        provider: PARKING_PROVIDERS.OPENSTREETMAP,
+        provider_id: element.id.toString(),
+        real_time_data: false,
+        last_updated: new Date().toISOString(), // Fixed: Use string directly
+        opening_hours: this.parseOpeningHours(element.tags?.opening_hours),
+      }))
+    } catch (error) {
+      console.error("OpenStreetMap parking fetch failed:", error)
+      return []
+    }
+  }
+
+  private async fetchCityAPIData(lat: number, lng: number, radius: number): Promise<RealParkingSpot[]> {
+    try {
+      const response = await fetch(`/api/parking/city-data`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng, radius }),
+      })
+
+      if (!response.ok) throw new Error("City API failed")
+      const data = await response.json()
+      return data.spots || []
+    } catch (error) {
+      console.error("City API parking fetch failed:", error)
+      return []
+    }
+  }
+
+  private removeDuplicateSpots(spots: RealParkingSpot[]): RealParkingSpot[] {
+    const uniqueSpots: RealParkingSpot[] = []
+    const DUPLICATE_THRESHOLD = 50 // meters
+
+    for (const spot of spots) {
+      const isDuplicate = uniqueSpots.some((existing) => {
+        const distance = this.calculateDistance(spot.latitude, spot.longitude, existing.latitude, existing.longitude)
+        return distance < DUPLICATE_THRESHOLD
+      })
+
+      if (!isDuplicate) {
+        uniqueSpots.push(spot)
+      }
+    }
+
+    return uniqueSpots
   }
 
   private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -318,5 +254,96 @@ export class ParkingDataService {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
     return R * c
+  }
+
+  private filterSpots(spots: RealParkingSpot[], options: any): RealParkingSpot[] {
+    return spots.filter((spot) => {
+      if (options.maxPrice && spot.price_per_hour && spot.price_per_hour > options.maxPrice) {
+        return false
+      }
+      if (options.requireRealTime && !spot.real_time_data) {
+        return false
+      }
+      if (options.requireAvailability && !spot.is_available) {
+        return false
+      }
+      return true
+    })
+  }
+
+  private async storeRealParkingData(spots: RealParkingSpot[]): Promise<void> {
+    try {
+      for (const spot of spots) {
+        // Fix for last_updated - ensure it's a string
+        const lastUpdated =
+          typeof spot.last_updated === "object" && spot.last_updated instanceof Date
+            ? spot.last_updated.toISOString()
+            : typeof spot.last_updated === "string"
+              ? spot.last_updated
+              : new Date().toISOString()
+
+        await supabase.from("real_parking_spots").upsert(
+          {
+            provider_id: spot.provider_id,
+            provider: spot.provider,
+            name: spot.name,
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            address: spot.address,
+            spot_type: spot.spot_type,
+            price_per_hour: spot.price_per_hour,
+            is_available: spot.is_available,
+            total_spaces: spot.total_spaces,
+            available_spaces: spot.available_spaces,
+            real_time_data: spot.real_time_data,
+            last_updated: lastUpdated, // Fixed: Use the processed value
+            metadata: {
+              restrictions: spot.restrictions,
+              payment_methods: spot.payment_methods,
+              accessibility: spot.accessibility,
+              covered: spot.covered,
+              security: spot.security,
+              ev_charging: spot.ev_charging,
+              opening_hours: spot.opening_hours,
+              contact_info: spot.contact_info,
+            },
+          },
+          { onConflict: "provider,provider_id" },
+        )
+      }
+    } catch (error) {
+      console.error("Error storing real parking data:", error)
+    }
+  }
+
+  private buildAddress(tags: any): string {
+    const parts = []
+    if (tags["addr:housenumber"]) parts.push(tags["addr:housenumber"])
+    if (tags["addr:street"]) parts.push(tags["addr:street"])
+    if (tags["addr:city"]) parts.push(tags["addr:city"])
+    return parts.join(", ") || "Address not available"
+  }
+
+  private mapOSMParkingType(tags: any): "street" | "garage" | "lot" | "meter" | "private" {
+    if (tags.parking === "street_side") return "street"
+    if (tags.parking === "multi-storey") return "garage"
+    if (tags.parking === "underground") return "garage"
+    if (tags.parking === "surface") return "lot"
+    if (tags.fee === "yes") return "meter"
+    return "lot"
+  }
+
+  private parseOSMRestrictions(tags: any): string[] {
+    const restrictions = []
+    if (tags.maxstay) restrictions.push(`Max stay: ${tags.maxstay}`)
+    if (tags.access && tags.access !== "yes") restrictions.push(`Access: ${tags.access}`)
+    if (tags.fee === "yes") restrictions.push("Paid parking")
+    return restrictions
+  }
+
+  private parseOpeningHours(hours: string): any {
+    if (!hours) return undefined
+    // Simple parsing - in production, use a proper opening hours parser
+    return { note: hours }
   }
 }

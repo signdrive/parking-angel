@@ -10,16 +10,13 @@ import { FloatingAIChat } from "@/components/ai/floating-ai-chat"
 import { UserProfileEnhanced } from "@/components/dashboard/user-profile-enhanced"
 import { ParkingHistory } from "@/components/dashboard/parking-history"
 import { SmartAssistant } from "@/components/ai/smart-assistant"
-import { NavigationInterface } from "@/components/navigation/navigation-interface"
 import { MapPin } from "lucide-react"
 import { PWADebug } from "@/components/pwa/pwa-debug"
 import { usePersistentState } from "@/hooks/use-persistent-state"
-import { useNavigationStore } from "@/lib/navigation-store"
 
 export default function DashboardPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const { isNavigating, destination, currentRoute, currentStep, resetNavigation } = useNavigationStore()
 
   // Persistent states
   const [activeTab, setActiveTab] = usePersistentState("dashboardActiveTab", "map")
@@ -34,22 +31,11 @@ export default function DashboardPage() {
   const [areaAnalysis, setAreaAnalysis] = useState<any>(null)
   const [mapLoading, setMapLoading] = useState(false)
 
-  // Reset navigation state on page load to ensure clean state
-  useEffect(() => {
-    console.log("Dashboard mounted, resetting navigation state")
-    resetNavigation()
-  }, [resetNavigation])
-
   useEffect(() => {
     if (!loading && !user) {
       router.push("/")
     }
   }, [user, loading, router])
-
-  const handleExitNavigation = () => {
-    console.log("Exiting navigation from dashboard")
-    resetNavigation()
-  }
 
   if (loading) {
     return (
@@ -65,20 +51,6 @@ export default function DashboardPage() {
   if (!user) {
     return null
   }
-
-  // Show navigation interface if actively navigating
-  if (isNavigating) {
-    console.log("Dashboard: Navigation is active, showing NavigationInterface")
-    console.log("Navigation state:", {
-      isNavigating,
-      destination: destination?.name,
-      routeDistance: currentRoute?.distance,
-      currentStep,
-    })
-    return <NavigationInterface onExit={handleExitNavigation} />
-  }
-
-  console.log("Dashboard: No active navigation, showing main dashboard")
 
   const renderMainContent = () => {
     switch (activeTab) {

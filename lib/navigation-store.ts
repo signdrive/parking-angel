@@ -29,18 +29,13 @@ export interface NavigationStep {
   }
 }
 
-interface NavigationDestination {
-  latitude: number
-  longitude: number
-  name: string
-  spotId: string
-}
-
-interface NavigationRoute {
+export interface NavigationRoute {
+  id: string
   distance: number
   duration: number
-  coordinates: [number, number][]
-  instructions: string[]
+  steps: NavigationStep[]
+  geometry: [number, number][]
+  trafficDelays: number
 }
 
 export interface NavigationSettings {
@@ -69,7 +64,14 @@ interface NavigationState {
     heading: number
     speed: number
   } | null
-  destination: NavigationDestination | null
+  destination: {
+    latitude: number
+    longitude: number
+    name: string
+    spotId?: string
+  } | null
+
+  // Navigation state
   eta: Date | null
   remainingDistance: number
   remainingTime: number
@@ -83,13 +85,15 @@ interface NavigationState {
   settings: NavigationSettings
 
   // Actions
-  startNavigation: (destination: NavigationDestination, route: NavigationRoute) => void
+  startNavigation: (
+    destination: { latitude: number; longitude: number; name: string; spotId?: string },
+    route: NavigationRoute,
+  ) => void
   stopNavigation: () => void
   setRoute: (route: NavigationRoute) => void
-  setDestination: (destination: NavigationDestination) => void
+  setDestination: (destination: { latitude: number; longitude: number; name: string; spotId?: string }) => void
   updateUserLocation: (location: { latitude: number; longitude: number; heading: number; speed: number }) => void
   nextStepAction: () => void
-  previousStep: () => void
   recalculateRoute: () => void
   confirmArrival: () => void
   updateGpsSignal: (strength: "strong" | "weak" | "lost") => void
@@ -100,7 +104,7 @@ interface NavigationState {
 export const useNavigationStore = create<NavigationState>()(
   persist(
     (set, get) => ({
-      // Initial state - ensure isNavigating is false by default
+      // Initial state
       isNavigating: false,
       currentRoute: null,
       currentStep: 0,
@@ -131,14 +135,7 @@ export const useNavigationStore = create<NavigationState>()(
 
       // Actions
       startNavigation: (destination, route) => {
-        console.log("🚗 Starting navigation to:", destination.name)
-        console.log("📍 Route details:", {
-          distance: route.distance,
-          duration: route.duration,
-          instructionsCount: route.instructions?.length || 0,
-          coordinates: route.coordinates?.length || 0,
-        })
-
+        console.log("🚀 Starting navigation to:", destination.name)
         set({
           isNavigating: true,
           destination,
@@ -147,15 +144,7 @@ export const useNavigationStore = create<NavigationState>()(
           remainingDistance: route.distance,
           remainingTime: route.duration,
           eta: new Date(Date.now() + route.duration * 1000),
-          nextStep: route.instructions?.length > 1 ? route.instructions[1] : null,
-        })
-
-        // Verify state was set
-        const state = get()
-        console.log("✅ Navigation state after start:", {
-          isNavigating: state.isNavigating,
-          hasDestination: !!state.destination,
-          hasRoute: !!state.currentRoute,
+          nextStep: route.steps[1] || null,
         })
       },
 
@@ -183,7 +172,7 @@ export const useNavigationStore = create<NavigationState>()(
           remainingDistance: route.distance,
           remainingTime: route.duration,
           eta: new Date(Date.now() + route.duration * 1000),
-          nextStep: route.instructions.length > 1 ? route.instructions[1] : null,
+          nextStep: route.steps[1] || null,
         })
       },
 
@@ -193,9 +182,9 @@ export const useNavigationStore = create<NavigationState>()(
 
       nextStepAction: () => {
         const state = get()
-        if (state.currentRoute && state.currentStep < state.currentRoute.instructions.length - 1) {
+        if (state.currentRoute && state.currentStep < state.currentRoute.steps.length - 1) {
           const newStep = state.currentStep + 1
-          const remainingSteps = state.currentRoute.instructions.slice(newStep)
+          const remainingSteps = state.currentRoute.steps.slice(newStep)
           const remainingDistance = remainingSteps.reduce((sum, step) => sum + step.distance, 0)
           const remainingTime = remainingSteps.reduce((sum, step) => sum + step.duration, 0)
 
@@ -204,15 +193,8 @@ export const useNavigationStore = create<NavigationState>()(
             remainingDistance,
             remainingTime,
             eta: new Date(Date.now() + remainingTime * 1000),
-            nextStep: state.currentRoute.instructions[newStep + 1] || null,
+            nextStep: state.currentRoute.steps[newStep + 1] || null,
           })
-        }
-      },
-
-      previousStep: () => {
-        const { currentStep } = get()
-        if (currentStep > 0) {
-          set({ currentStep: currentStep - 1 })
         }
       },
 
@@ -263,11 +245,7 @@ export const useNavigationStore = create<NavigationState>()(
     }),
     {
       name: "navigation-store",
-      // Only persist settings, not navigation state
-      partialize: (state) => ({
-        settings: state.settings,
-        // Don't persist navigation state to avoid showing stale navigation on reload
-      }),
+      partialize: (state) => ({ settings: state.settings }),
     },
   ),
 )
