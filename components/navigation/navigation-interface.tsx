@@ -44,30 +44,41 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
 
   // Check navigation state and handle errors
   useEffect(() => {
+    console.log("NavigationInterface: Checking navigation state", {
+      isNavigating,
+      hasDestination: !!destination,
+      hasRoute: !!currentRoute,
+      currentStep,
+    })
+
     setIsLoading(true)
 
     if (!isNavigating) {
-      console.log("Navigation interface: Not navigating, exiting...")
-      onExit()
+      console.log("Navigation interface: Not navigating, but staying mounted for debugging")
+      setError("Navigation not active")
+      setIsLoading(false)
       return
     }
 
     if (!destination) {
-      console.error("Navigation interface: No destination found")
+      console.log("Navigation interface: No destination found")
       setError("No destination specified")
+      setIsLoading(false)
       return
     }
 
     if (!currentRoute) {
-      console.error("Navigation interface: No route found")
+      console.log("Navigation interface: No route found")
       setError("No route calculated")
+      setIsLoading(false)
       return
     }
 
     // All good, stop loading
+    console.log("Navigation interface: All data present, showing navigation")
     setIsLoading(false)
     setError(null)
-  }, [isNavigating, destination, currentRoute, onExit])
+  }, [isNavigating, destination, currentRoute])
 
   useEffect(() => {
     if (!isNavigating || isLoading || error) return
@@ -102,23 +113,40 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
           <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold mb-2">Navigation Error</h3>
           <p className="text-gray-300 mb-4">{error}</p>
-          <Button
-            onClick={onExit}
-            variant="outline"
-            className="text-white border-white hover:bg-white hover:text-gray-900"
-          >
-            Return to Map
-          </Button>
+          <div className="space-y-4">
+            <Button
+              onClick={onExit}
+              variant="outline"
+              className="text-white border-white hover:bg-white hover:text-gray-900"
+            >
+              Return to Map
+            </Button>
+            <Button
+              onClick={() => {
+                console.log("Debug: Current navigation state:", {
+                  isNavigating,
+                  destination,
+                  currentRoute,
+                  currentStep,
+                })
+              }}
+              variant="ghost"
+              className="text-gray-400 hover:text-white"
+            >
+              Debug State
+            </Button>
+          </div>
         </div>
       </div>
     )
   }
 
-  // Don't render if missing required data
+  // Don't auto-exit, let user manually exit via button
   if (!isNavigating || !destination || !currentRoute) {
-    console.log("NavigationInterface: Missing required data, calling onExit")
-    onExit()
-    return null
+    // Show error state instead of calling onExit immediately
+    if (!error) {
+      setError("Navigation data missing")
+    }
   }
 
   const currentInstruction = currentRoute.instructions?.[currentStep] || "Continue straight"

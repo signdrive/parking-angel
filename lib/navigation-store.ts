@@ -132,6 +132,13 @@ export const useNavigationStore = create<NavigationState>()(
       // Actions
       startNavigation: (destination, route) => {
         console.log("🚗 Starting navigation to:", destination.name)
+        console.log("📍 Route details:", {
+          distance: route.distance,
+          duration: route.duration,
+          instructionsCount: route.instructions?.length || 0,
+          coordinates: route.coordinates?.length || 0,
+        })
+
         set({
           isNavigating: true,
           destination,
@@ -140,7 +147,15 @@ export const useNavigationStore = create<NavigationState>()(
           remainingDistance: route.distance,
           remainingTime: route.duration,
           eta: new Date(Date.now() + route.duration * 1000),
-          nextStep: route.instructions.length > 1 ? route.instructions[1] : null,
+          nextStep: route.instructions?.length > 1 ? route.instructions[1] : null,
+        })
+
+        // Verify state was set
+        const state = get()
+        console.log("✅ Navigation state after start:", {
+          isNavigating: state.isNavigating,
+          hasDestination: !!state.destination,
+          hasRoute: !!state.currentRoute,
         })
       },
 

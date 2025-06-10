@@ -19,7 +19,7 @@ import { useNavigationStore } from "@/lib/navigation-store"
 export default function DashboardPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const { isNavigating, resetNavigation } = useNavigationStore()
+  const { isNavigating, destination, currentRoute, currentStep, resetNavigation } = useNavigationStore()
 
   // Persistent states
   const [activeTab, setActiveTab] = usePersistentState("dashboardActiveTab", "map")
@@ -69,6 +69,12 @@ export default function DashboardPage() {
   // Show navigation interface if actively navigating
   if (isNavigating) {
     console.log("Dashboard: Navigation is active, showing NavigationInterface")
+    console.log("Navigation state:", {
+      isNavigating,
+      destination: destination?.name,
+      routeDistance: currentRoute?.distance,
+      currentStep,
+    })
     return <NavigationInterface onExit={handleExitNavigation} />
   }
 
