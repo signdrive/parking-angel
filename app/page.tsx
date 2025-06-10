@@ -1,231 +1,211 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/hooks/use-auth"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Brain, Zap, TrendingUp } from "lucide-react"
-import Link from "next/link"
+import { MapPin, Users, Clock, Star, AlertCircle } from "lucide-react"
+import { isSupabaseConfigured } from "@/lib/supabase"
+import { EnvironmentCheck } from "@/components/setup/environment-check"
+import { ConnectionTest } from "@/components/setup/connection-test"
+import { ComprehensiveTest } from "@/components/setup/comprehensive-test"
 
 export default function HomePage() {
-  const { user, loading } = useAuth()
-  const router = useRouter()
+  const [mounted, setMounted] = useState(false)
+  const [showSetup, setShowSetup] = useState(false)
 
   useEffect(() => {
-    if (!loading && user) {
-      router.push("/dashboard")
-    }
-  }, [user, loading, router])
+    setMounted(true)
+    // Show setup if Supabase is not configured
+    setShowSetup(!isSupabaseConfigured())
+  }, [])
 
-  if (loading) {
+  if (!mounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading Park Algo...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     )
   }
 
-  if (user) {
-    return null // Will redirect to dashboard
+  if (showSetup) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <header className="container mx-auto px-4 py-6">
+          <nav className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <MapPin className="w-8 h-8 text-blue-600" />
+              <span className="text-2xl font-bold text-gray-900">Parking Angel</span>
+            </div>
+            <Button onClick={() => setShowSetup(false)} variant="outline">
+              View App
+            </Button>
+          </nav>
+        </header>
+
+        <main className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+              <h1 className="text-3xl font-bold text-gray-900 mb-4">Setup Required</h1>
+              <p className="text-lg text-gray-600">
+                Welcome to Parking Angel! Let's get your app configured and ready to use.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <EnvironmentCheck />
+              <ConnectionTest />
+              <ComprehensiveTest />
+            </div>
+
+            <div className="mt-8 text-center">
+              <p className="text-sm text-gray-600 mb-4">
+                Need help? Check out the{" "}
+                <a href="#" className="text-blue-600 hover:underline">
+                  setup documentation
+                </a>
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <MapPin className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Park Algo
-                </h1>
-                <p className="text-sm text-gray-600">AI-Powered Parking Solutions</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="outline" asChild>
-                <Link href="/auth/login">Sign In</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/auth/signup">Get Started</Link>
-              </Button>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <header className="container mx-auto px-4 py-6">
+        <nav className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <MapPin className="w-8 h-8 text-blue-600" />
+            <span className="text-2xl font-bold text-gray-900">Parking Angel</span>
+            <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              AI POWERED
+            </span>
           </div>
-        </div>
+          <div className="space-x-4">
+            <Link href="/auth/login">
+              <Button variant="ghost">Sign In</Button>
+            </Link>
+            <Link href="/auth/signup">
+              <Button>Get Started</Button>
+            </Link>
+            {!isSupabaseConfigured() && (
+              <Button onClick={() => setShowSetup(true)} variant="outline">
+                Setup
+              </Button>
+            )}
+          </div>
+        </nav>
       </header>
 
-      {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="text-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center space-x-2 bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <Brain className="w-4 h-4" />
-            <span>Powered by Advanced AI Algorithms</span>
-          </div>
-
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Find Perfect Parking with{" "}
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              AI Intelligence
-            </span>
-          </h1>
-
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            Park Algo uses machine learning algorithms to predict parking availability, optimize routes, and provide
-            real-time insights for the smartest parking decisions.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="text-lg px-8 py-3" asChild>
-              <Link href="/auth/signup">
-                <Zap className="w-5 h-5 mr-2" />
-                Start Finding Parking
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" className="text-lg px-8 py-3" asChild>
-              <Link href="/auth/login">
-                <MapPin className="w-5 h-5 mr-2" />
-                View Live Map
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="container mx-auto px-4 py-20">
+      <main className="container mx-auto px-4 py-12">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Intelligent Parking Solutions</h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Our AI algorithms analyze patterns, predict availability, and optimize your parking experience
+          <h1 className="text-5xl font-bold text-gray-900 mb-6">
+            Find Parking Spots with <span className="text-blue-600">AI Intelligence</span>
+          </h1>
+          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            Join thousands of drivers using our AI-powered platform with secure authentication, real-time analytics, and
+            smart notifications.
           </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                <Brain className="w-6 h-6 text-blue-600" />
-              </div>
-              <CardTitle>AI Predictions</CardTitle>
-              <CardDescription>
-                Machine learning algorithms predict parking availability with 95% accuracy
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Real-time availability forecasting</li>
-                <li>• Pattern recognition and analysis</li>
-                <li>• Demand prediction modeling</li>
-                <li>• Smart recommendation engine</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                <TrendingUp className="w-6 h-6 text-purple-600" />
-              </div>
-              <CardTitle>Route Optimization</CardTitle>
-              <CardDescription>Advanced algorithms find the fastest route to available parking spots</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Dynamic route calculation</li>
-                <li>• Traffic-aware navigation</li>
-                <li>• Multi-factor optimization</li>
-                <li>• Real-time route updates</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                <Zap className="w-6 h-6 text-green-600" />
-              </div>
-              <CardTitle>Smart Analytics</CardTitle>
-              <CardDescription>Comprehensive insights and analytics for optimal parking decisions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Usage pattern analysis</li>
-                <li>• Cost optimization insights</li>
-                <li>• Time-based recommendations</li>
-                <li>• Personalized suggestions</li>
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by Thousands</h2>
-            <p className="text-xl text-blue-100">Join the community of smart parkers using Park Algo</p>
-          </div>
-
-          <div className="grid md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-4xl font-bold mb-2">50K+</div>
-              <div className="text-blue-100">Active Users</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold mb-2">1M+</div>
-              <div className="text-blue-100">Parking Sessions</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold mb-2">95%</div>
-              <div className="text-blue-100">Prediction Accuracy</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold mb-2">4.9★</div>
-              <div className="text-blue-100">User Rating</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="text-center max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-            Ready to Transform Your Parking Experience?
-          </h2>
-          <p className="text-xl text-gray-600 mb-8">
-            Join thousands of users who have revolutionized their parking with Park Algo's AI-powered solutions.
-          </p>
-          <Button size="lg" className="text-lg px-8 py-3" asChild>
+          <div className="space-x-4">
             <Link href="/auth/signup">
-              <Brain className="w-5 h-5 mr-2" />
-              Get Started with AI Parking
+              <Button size="lg" className="px-8 py-3">
+                Start Finding Parking
+              </Button>
             </Link>
-          </Button>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold">Park Algo</span>
-            </div>
-            <div className="text-gray-400 text-sm">© 2024 Park Algo. All rights reserved.</div>
+            <Link href="/dashboard">
+              <Button size="lg" variant="outline" className="px-8 py-3">
+                View Live Map
+              </Button>
+            </Link>
           </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+          <Card>
+            <CardHeader className="text-center">
+              <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+              <CardTitle>AI Powered</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-center">
+                Smart parking predictions using machine learning and real-time data analysis
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="text-center">
+              <Users className="w-12 h-12 text-green-600 mx-auto mb-4" />
+              <CardTitle>Secure Authentication</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-center">
+                Secure login with Supabase authentication for enhanced user experience and data protection
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="text-center">
+              <Clock className="w-12 h-12 text-orange-600 mx-auto mb-4" />
+              <CardTitle>Real-time Updates</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-center">
+                Live parking availability updates across all devices with real-time database synchronization
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="text-center">
+              <Star className="w-12 h-12 text-purple-600 mx-auto mb-4" />
+              <CardTitle>Smart Analytics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-center">
+                Advanced user behavior tracking and parking pattern insights for better recommendations
+              </CardDescription>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready for AI-Powered Parking?</h2>
+          <p className="text-gray-600 mb-6">
+            Experience the next generation of parking apps with intelligent predictions and real-time features.
+          </p>
+          <div className="space-x-4">
+            <Link href="/auth/signup">
+              <Button size="lg" className="px-8 py-3">
+                Get Started Now
+              </Button>
+            </Link>
+            <Link href="/auth/login">
+              <Button size="lg" variant="outline" className="px-8 py-3">
+                Sign In
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </main>
+
+      <footer className="container mx-auto px-4 py-8 mt-16 border-t">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <MapPin className="w-6 h-6 text-blue-600" />
+            <span className="font-semibold text-gray-900">Parking Angel</span>
+            <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              AI POWERED
+            </span>
+          </div>
+          <p className="text-gray-600">© 2024 Parking Angel. Powered by AI & Supabase.</p>
         </div>
       </footer>
     </div>

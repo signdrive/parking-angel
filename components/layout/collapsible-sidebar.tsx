@@ -62,7 +62,7 @@ export function CollapsibleSidebar({ activeTab, onTabChange, className }: Collap
           {!isCollapsed && (
             <div className="flex items-center space-x-2">
               <MapPin className="w-6 h-6 text-blue-400" />
-              <span className="font-bold text-lg">Park Algo</span>
+              <span className="font-bold text-lg">Parking Angel</span>
             </div>
           )}
           {isCollapsed && (

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
-import { useAutoLocation } from "@/hooks/use-auto-location"
+import { useGeolocation } from "@/hooks/use-geolocation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -67,41 +67,7 @@ export function EnhancedParkingMap({
   const [isMapReady, setIsMapReady] = useState(false)
   const [initializationTimeout, setInitializationTimeout] = useState(false)
 
-  // Replace this line:
-  // const { latitude, longitude, error: locationError } = useGeolocation()
-
-  // With this:
-  const {
-    location,
-    loading: locationLoading,
-    error: locationError,
-    centerOnLocation,
-    refreshLocation: autoRefreshLocation,
-    hasPermission,
-  } = useAutoLocation({
-    autoCenter: true,
-    enableWatching: true,
-    onLocationUpdate: (newLocation) => {
-      // Auto-center map when location updates
-      if (map.current && newLocation) {
-        map.current.setCenter([newLocation.longitude, newLocation.latitude])
-
-        // Add/update user location marker
-        new mapboxgl.Marker({ color: "#3B82F6" })
-          .setLngLat([newLocation.longitude, newLocation.latitude])
-          .setPopup(new mapboxgl.Popup().setHTML("<p>Your Location</p>"))
-          .addTo(map.current)
-
-        // Fetch parking data for new location
-        fetchRealParkingData(newLocation.latitude, newLocation.longitude)
-      }
-    },
-  })
-
-  // Extract latitude and longitude from location object
-  const latitude = location?.latitude
-  const longitude = location?.longitude
-
+  const { latitude, longitude, error: locationError } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
   const aiPredictor = AISpotPredictor.getInstance()
   const navigationService = NavigationService.getInstance()
@@ -627,13 +593,13 @@ export function EnhancedParkingMap({
       case "garage":
         return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v1a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/></svg>`
       case "meter":
-        return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1a2 2 0 002 2V4zM4 13v3a2 2 0 002 2h8a2 2 0 002 2v-3a2 2 0 002-2V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"/></svg>`
+        return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1a2 2 0 002 2V4zM4 13v3a2 2 0 002 2h8a2 2 0 002-2v-3a2 2 0 002-2V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"/></svg>`
       default:
         return `<svg class="${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/></svg>`
     }
   }
 
-  // Add manual click handler for testing
+  // Add a manual click handler for testing
   const handleManualClick = () => {
     if (!map.current || !latitude || !longitude) return
 
@@ -745,22 +711,6 @@ export function EnhancedParkingMap({
         </div>
       </div>
     )
-  }
-
-  const centerMapOnLocation = async () => {
-    try {
-      await centerOnLocation()
-    } catch (error) {
-      console.error("Failed to center on location:", error)
-    }
-  }
-
-  const refreshLocation = async () => {
-    try {
-      await autoRefreshLocation()
-    } catch (error) {
-      console.error("Failed to refresh location:", error)
-    }
   }
 
   return (
@@ -1064,5 +1014,4 @@ export function EnhancedParkingMap({
   )
 }
 
-// Export both named and default exports
 export default EnhancedParkingMap
