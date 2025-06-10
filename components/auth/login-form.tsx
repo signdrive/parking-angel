@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
-import { Chrome, Loader2, AlertTriangle, CheckCircle } from "lucide-react"
-import { signInWithEmail, signInWithGoogle } from "@/lib/auth-production"
+import { signInWithEmail, signInWithGoogle } from "@/lib/auth"
+import { Chrome } from "lucide-react"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -18,83 +18,56 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    setSuccess(null)
 
-    try {
-      const { data, error: authError } = await signInWithEmail(email, password)
+    const { error } = await signInWithEmail(email, password)
 
-      if (authError) {
-        setError(authError.message)
-      } else if (data?.user) {
-        setSuccess("Login successful! Redirecting...")
-        setTimeout(() => {
-          router.push("/dashboard")
-        }, 1000)
-      } else {
-        setError("Login failed. Please try again.")
-      }
-    } catch (err) {
-      console.error("Login error:", err)
-      setError("An unexpected error occurred. Please try again.")
-    } finally {
-      setLoading(false)
+    if (error) {
+      setError(error.message)
+    } else {
+      router.push("/dashboard")
     }
+
+    setLoading(false)
   }
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true)
     setError(null)
-    setSuccess(null)
 
-    try {
-      const { data, error: authError } = await signInWithGoogle()
+    const { error } = await signInWithGoogle()
 
-      if (authError) {
-        setError(authError.message)
-        setGoogleLoading(false)
-      } else {
-        setSuccess("Redirecting to Google...")
-        // Don't set loading to false as we're redirecting
-      }
-    } catch (err) {
-      console.error("Google sign-in error:", err)
-      setError("Google sign-in failed. Please try email login.")
+    if (error) {
+      setError(error.message)
       setGoogleLoading(false)
     }
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto shadow-lg">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-gray-900">Welcome to Park Algo</CardTitle>
-        <CardDescription className="text-gray-600">Sign in to access your smart parking dashboard</CardDescription>
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle>Welcome Back</CardTitle>
+        <CardDescription>Sign in to your Parking Angel account</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Status Messages */}
         {error && (
           <Alert variant="destructive">
-            <AlertTriangle className="w-4 h-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {success && (
-          <Alert className="border-green-200 bg-green-50">
-            <CheckCircle className="w-4 h-4 text-green-600" />
-            <AlertDescription className="text-green-800">{success}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Google Sign In */}
+        {/* Google Sign In - ALWAYS SHOW */}
         <Button onClick={handleGoogleSignIn} disabled={googleLoading || loading} variant="outline" className="w-full">
-          {googleLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Chrome className="w-4 h-4 mr-2" />}
+          {googleLoading ? (
+            <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mr-2" />
+          ) : (
+            <Chrome className="w-4 h-4 mr-2" />
+          )}
           Continue with Google
         </Button>
 
@@ -119,7 +92,6 @@ export function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={loading || googleLoading}
-              placeholder="Enter your email"
             />
           </div>
 
@@ -133,36 +105,13 @@ export function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={loading || googleLoading}
-              placeholder="Enter your password"
             />
           </div>
 
           <Button type="submit" className="w-full" disabled={loading || googleLoading}>
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Signing In...
-              </>
-            ) : (
-              "Sign In"
-            )}
+            {loading ? "Signing In..." : "Sign In"}
           </Button>
         </form>
-
-        {/* Help Text */}
-        <div className="text-center text-sm text-gray-500 space-y-2">
-          <p>
-            Don't have an account?{" "}
-            <a href="/auth/signup" className="text-blue-600 hover:underline">
-              Sign up
-            </a>
-          </p>
-          <p>
-            <a href="/auth/forgot-password" className="text-blue-600 hover:underline">
-              Forgot your password?
-            </a>
-          </p>
-        </div>
       </CardContent>
     </Card>
   )

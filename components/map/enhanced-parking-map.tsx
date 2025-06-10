@@ -1064,4 +1064,5 @@ export function EnhancedParkingMap({
   )
 }
 
+// Export both named and default exports
 export default EnhancedParkingMap

@@ -1,8 +1,25 @@
+export interface LocationCoordinates {
+  latitude: number
+  longitude: number
+  accuracy?: number
+  timestamp: number
+}
+
+export interface LocationServiceOptions {
+  enableHighAccuracy?: boolean
+  timeout?: number
+  maximumAge?: number
+  autoCenter?: boolean
+}
+
 export class LocationService {
   private static instance: LocationService
-  private currentLocation: GeolocationPosition | null = null
+  private currentLocation: LocationCoordinates | null = null
   private watchId: number | null = null
-  private callbacks: Set<(location: GeolocationPosition) => void> = new Set()
+  private callbacks: Set<(location: LocationCoordinates | null) => void> = new Set()
+  private errorCallbacks: Set<(error: GeolocationPositionError) => void> = new Set()
+
+  private constructor() {}
 
   static getInstance(): LocationService {
     if (!LocationService.instance) {
@@ -11,124 +28,140 @@ export class LocationService {
     return LocationService.instance
   }
 
-  async getCurrentLocation(options?: PositionOptions): Promise<GeolocationPosition> {
+  async getCurrentLocation(options: LocationServiceOptions = {}): Promise<LocationCoordinates> {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
         reject(new Error("Geolocation is not supported by this browser"))
         return
       }
 
+      const defaultOptions: PositionOptions = {
+        enableHighAccuracy: options.enableHighAccuracy ?? true,
+        timeout: options.timeout ?? 10000,
+        maximumAge: options.maximumAge ?? 300000, // 5 minutes
+      }
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          this.currentLocation = position
-          this.notifyCallbacks(position)
-          resolve(position)
+          const location: LocationCoordinates = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: Date.now(),
+          }
+
+          this.currentLocation = location
+          this.notifyCallbacks(location)
+          resolve(location)
         },
         (error) => {
-          console.error("Geolocation error:", error)
-          reject(this.getLocationError(error))
+          this.notifyErrorCallbacks(error)
+          reject(error)
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000,
-          ...options,
-        },
+        defaultOptions,
       )
     })
   }
 
+  startWatching(options: LocationServiceOptions = {}): void {
+    if (!navigator.geolocation) {
+      throw new Error("Geolocation is not supported by this browser")
+    }
+
+    if (this.watchId !== null) {
+      this.stopWatching()
+    }
+
+    const defaultOptions: PositionOptions = {
+      enableHighAccuracy: options.enableHighAccuracy ?? true,
+      timeout: options.timeout ?? 10000,
+      maximumAge: options.maximumAge ?? 60000, // 1 minute for watching
+    }
+
+    this.watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const location: LocationCoordinates = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: Date.now(),
+        }
+
+        this.currentLocation = location
+        this.notifyCallbacks(location)
+      },
+      (error) => {
+        this.notifyErrorCallbacks(error)
+      },
+      defaultOptions,
+    )
+  }
+
+  stopWatching(): void {
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId)
+      this.watchId = null
+    }
+  }
+
+  getLastKnownLocation(): LocationCoordinates | null {
+    return this.currentLocation
+  }
+
+  onLocationUpdate(callback: (location: LocationCoordinates | null) => void): () => void {
+    this.callbacks.add(callback)
+
+    // Immediately call with current location if available
+    if (this.currentLocation) {
+      callback(this.currentLocation)
+    }
+
+    // Return unsubscribe function
+    return () => {
+      this.callbacks.delete(callback)
+    }
+  }
+
+  onLocationError(callback: (error: GeolocationPositionError) => void): () => void {
+    this.errorCallbacks.add(callback)
+
+    // Return unsubscribe function
+    return () => {
+      this.errorCallbacks.delete(callback)
+    }
+  }
+
+  private notifyCallbacks(location: LocationCoordinates): void {
+    this.callbacks.forEach((callback) => callback(location))
+  }
+
+  private notifyErrorCallbacks(error: GeolocationPositionError): void {
+    this.errorCallbacks.forEach((callback) => callback(error))
+  }
+
   async requestPermission(): Promise<PermissionState> {
     if (!navigator.permissions) {
-      // Fallback for browsers without permissions API
-      try {
-        await this.getCurrentLocation()
-        return "granted"
-      } catch {
-        return "denied"
-      }
+      throw new Error("Permissions API not supported")
     }
 
     const permission = await navigator.permissions.query({ name: "geolocation" })
     return permission.state
   }
 
-  startWatching(callback: (location: GeolocationPosition) => void): number | null {
-    if (!navigator.geolocation) {
-      console.error("Geolocation is not supported")
-      return null
-    }
-
-    this.callbacks.add(callback)
-
-    if (!this.watchId) {
-      this.watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          this.currentLocation = position
-          this.notifyCallbacks(position)
-        },
-        (error) => {
-          console.error("Geolocation watch error:", error)
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000,
-        },
-      )
-    }
-
-    return this.watchId
-  }
-
-  stopWatching(callback?: (location: GeolocationPosition) => void): void {
-    if (callback) {
-      this.callbacks.delete(callback)
-    }
-
-    if (this.callbacks.size === 0 && this.watchId) {
-      navigator.geolocation.clearWatch(this.watchId)
-      this.watchId = null
-    }
-  }
-
-  private notifyCallbacks(location: GeolocationPosition): void {
-    this.callbacks.forEach((callback) => {
-      try {
-        callback(location)
-      } catch (error) {
-        console.error("Error in location callback:", error)
-      }
-    })
-  }
-
-  private getLocationError(error: GeolocationPositionError): Error {
-    switch (error.code) {
-      case error.PERMISSION_DENIED:
-        return new Error("Location access denied by user")
-      case error.POSITION_UNAVAILABLE:
-        return new Error("Location information unavailable")
-      case error.TIMEOUT:
-        return new Error("Location request timed out")
-      default:
-        return new Error("An unknown location error occurred")
-    }
-  }
-
-  getLastKnownLocation(): GeolocationPosition | null {
-    return this.currentLocation
-  }
-
   calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-    const R = 6371 // Earth's radius in km
-    const dLat = ((lat2 - lat1) * Math.PI) / 180
-    const dLng = ((lng2 - lng1) * Math.PI) / 180
+    const R = 6371 // Earth's radius in kilometers
+    const dLat = this.toRadians(lat2 - lat1)
+    const dLng = this.toRadians(lng2 - lng1)
+
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+      Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     return R * c * 1000 // Return distance in meters
   }
-}
 
-export default LocationService
+  private toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180)
+  }
+}
