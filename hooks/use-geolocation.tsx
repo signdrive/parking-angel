@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 
 interface GeolocationState {
   latitude: number | null
@@ -9,15 +9,7 @@ interface GeolocationState {
   loading: boolean
 }
 
-interface UseGeolocationOptions {
-  autoCenter?: boolean
-  enableWatching?: boolean
-  onLocationUpdate?: (location: { latitude: number; longitude: number }) => void
-}
-
-export function useGeolocation(options: UseGeolocationOptions = {}) {
-  const { autoCenter = true, enableWatching = false, onLocationUpdate } = options
-
+export function useGeolocation() {
   const [state, setState] = useState<GeolocationState>({
     latitude: null,
     longitude: null,
@@ -25,7 +17,7 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
     loading: true,
   })
 
-  const getCurrentLocation = useCallback(() => {
+  useEffect(() => {
     if (!navigator.geolocation) {
       setState((prev) => ({
         ...prev,
@@ -36,22 +28,12 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
     }
 
     const handleSuccess = (position: GeolocationPosition) => {
-      const newLocation = {
+      setState({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
-      }
-
-      setState({
-        latitude: newLocation.latitude,
-        longitude: newLocation.longitude,
         error: null,
         loading: false,
       })
-
-      // Call the callback if provided
-      if (onLocationUpdate) {
-        onLocationUpdate(newLocation)
-      }
     }
 
     const handleError = (error: GeolocationPositionError) => {
@@ -67,61 +49,7 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
       timeout: 10000,
       maximumAge: 300000,
     })
-  }, [onLocationUpdate])
+  }, [])
 
-  useEffect(() => {
-    getCurrentLocation()
-
-    // Set up watching if enabled
-    let watchId: number | null = null
-    if (enableWatching && navigator.geolocation) {
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const newLocation = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          }
-
-          setState({
-            latitude: newLocation.latitude,
-            longitude: newLocation.longitude,
-            error: null,
-            loading: false,
-          })
-
-          if (onLocationUpdate) {
-            onLocationUpdate(newLocation)
-          }
-        },
-        (error) => {
-          setState((prev) => ({
-            ...prev,
-            error: error.message,
-            loading: false,
-          }))
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000,
-        },
-      )
-    }
-
-    return () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId)
-      }
-    }
-  }, [getCurrentLocation, enableWatching, onLocationUpdate])
-
-  const refreshLocation = useCallback(() => {
-    setState((prev) => ({ ...prev, loading: true }))
-    getCurrentLocation()
-  }, [getCurrentLocation])
-
-  return {
-    ...state,
-    refreshLocation,
-  }
+  return state
 }

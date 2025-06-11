@@ -21,8 +21,8 @@ export default function AdminDashboard() {
   // Admin emails - these work even without email confirmation
   const adminEmails = [
     "admin@parkalgo.com",
-    "admin@parkingangel.com",
     "your-email@example.com", // Replace with your actual email
+    // Add more admin emails as needed
   ]
 
   // Check if user is admin (works even if email not confirmed)
@@ -46,22 +46,7 @@ export default function AdminDashboard() {
   }
 
   if (!user || !isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="w-96">
-          <CardHeader className="text-center">
-            <Shield className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>You don't have admin permissions to access this area.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full">
-              <Link href="/dashboard">Return to Dashboard</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
+    return null
   }
 
   // Check if email is confirmed
@@ -780,15 +765,6 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </main>
-
-      <div className="mt-8 text-center">
-        <p className="text-sm text-gray-500">
-          Logged in as: <span className="font-medium">{user?.email}</span>
-        </p>
-        <Button asChild variant="ghost" className="mt-2">
-          <Link href="/dashboard">← Back to User Dashboard</Link>
-        </Button>
-      </div>
     </div>
   )
 }

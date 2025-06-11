@@ -1,57 +1,78 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { Spot } from "@/types/Spot"
-import { useMap } from "@/context/MapContext"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import type { Database } from "@/lib/supabase"
 
-const useParkingSpots = () => {
-  const [spots, setSpots] = useState<Spot[]>([])
+type ParkingSpot = Database["public"]["Tables"]["parking_spots"]["Row"]
+
+interface UseParkingSpotsProps {
+  latitude?: number | null
+  longitude?: number | null
+  radius?: number
+}
+
+export function useParkingSpots({ latitude, longitude, radius = 500 }: UseParkingSpotsProps) {
+  const [spots, setSpots] = useState<ParkingSpot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { map } = useMap()
 
   useEffect(() => {
-    if (!map) {
+    if (!latitude || !longitude || !isSupabaseConfigured()) {
+      setLoading(false)
+      if (!isSupabaseConfigured()) {
+        setError("Database not configured")
+      }
       return
     }
 
-    const fetchNearbySpots = async () => {
-      setLoading(true)
-      setError(null)
-
-      const bounds = map.getBounds()
-      const ne = bounds.getNorthEast()
-      const sw = bounds.getSouthWest()
-
+    const fetchSpots = async () => {
       try {
-        const response = await fetch(
-          `/api/spots/nearby-simple?ne_lat=${ne.lat()}&ne_lng=${ne.lng()}&sw_lat=${sw.lat()}&sw_lng=${sw.lng()}`,
-        )
+        setLoading(true)
+        const { data, error } = await supabase.rpc("find_nearby_spots", {
+          user_lat: latitude,
+          user_lng: longitude,
+          radius_meters: radius,
+        })
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
-        }
-
-        const data: Spot[] = await response.json()
-        setSpots(data)
-      } catch (e: any) {
-        setError(e.message || "An unexpected error occurred.")
+        if (error) throw error
+        setSpots(data || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch parking spots")
       } finally {
         setLoading(false)
       }
     }
 
-    // Initial fetch and then fetch on map move
-    fetchNearbySpots()
-    map.on("moveend", fetchNearbySpots)
+    fetchSpots()
 
-    // Cleanup listener on unmount
-    return () => {
-      map.off("moveend", fetchNearbySpots)
+    if (isSupabaseConfigured()) {
+      const channel = supabase
+        .channel("parking-spots-changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "parking_spots",
+          },
+          (payload) => {
+            if (payload.eventType === "INSERT") {
+              setSpots((prev) => [...prev, payload.new as ParkingSpot])
+            } else if (payload.eventType === "UPDATE") {
+              setSpots((prev) => prev.map((spot) => (spot.id === payload.new.id ? (payload.new as ParkingSpot) : spot)))
+            } else if (payload.eventType === "DELETE") {
+              setSpots((prev) => prev.filter((spot) => spot.id !== payload.old.id))
+            }
+          },
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
     }
-  }, [map])
+  }, [latitude, longitude, radius])
 
   return { spots, loading, error }
 }
-
-export default useParkingSpots

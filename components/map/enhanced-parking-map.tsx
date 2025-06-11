@@ -51,7 +51,6 @@ export function EnhancedParkingMap({
 }: EnhancedParkingMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
-  const userMarker = useRef<mapboxgl.Marker | null>(null)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportLocation, setReportLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [mapboxError, setMapboxError] = useState<string | null>(null)
@@ -63,58 +62,12 @@ export function EnhancedParkingMap({
   const [analyzingArea, setAnalyzingArea] = useState(false)
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [mapInitialized, setMapInitialized] = useState(false)
+
+  // Add state for better error management
   const [isMapReady, setIsMapReady] = useState(false)
   const [initializationTimeout, setInitializationTimeout] = useState(false)
-  const [hasAutocentered, setHasAutocentered] = useState(false)
 
-  // Use geolocation with auto-centering enabled
-  const {
-    latitude,
-    longitude,
-    error: locationError,
-    loading: locationLoading,
-    refreshLocation,
-  } = useGeolocation({
-    autoCenter: true,
-    enableWatching: true,
-    onLocationUpdate: (newLocation) => {
-      console.log("📍 Location updated:", newLocation)
-
-      // Auto-center map when location updates (only once on initial load)
-      if (map.current && !hasAutocentered) {
-        console.log("🎯 Auto-centering map to user location")
-
-        map.current.flyTo({
-          center: [newLocation.longitude, newLocation.latitude],
-          zoom: 16,
-          essential: true,
-        })
-
-        // Update or create user location marker
-        if (userMarker.current) {
-          userMarker.current.setLngLat([newLocation.longitude, newLocation.latitude])
-        } else {
-          userMarker.current = new mapboxgl.Marker({
-            color: "#3B82F6",
-            scale: 1.2,
-          })
-            .setLngLat([newLocation.longitude, newLocation.latitude])
-            .setPopup(new mapboxgl.Popup().setHTML("<p><strong>Your Location</strong></p>"))
-            .addTo(map.current)
-        }
-
-        // Fetch parking data for new location
-        fetchRealParkingData(newLocation.latitude, newLocation.longitude)
-        setHasAutocentered(true)
-
-        toast({
-          title: "Location found",
-          description: `Map centered on your location`,
-        })
-      }
-    },
-  })
-
+  const { latitude, longitude, error: locationError } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
   const aiPredictor = AISpotPredictor.getInstance()
   const navigationService = NavigationService.getInstance()
@@ -142,7 +95,7 @@ export function EnhancedParkingMap({
     fetchMapboxToken()
   }, [])
 
-  // Handle map click
+  // Handle map click - defined outside the initialization to avoid recreation
   const handleMapClick = useCallback(
     async (e: mapboxgl.MapMouseEvent) => {
       console.log("Map clicked at:", e.lngLat)
@@ -152,6 +105,7 @@ export function EnhancedParkingMap({
         lng: e.lngLat.lng,
       }
 
+      // Show loading indicator
       setAnalyzingArea(true)
       setAreaAnalysis(null)
       onLocationClick?.(clickLocation)
@@ -163,6 +117,7 @@ export function EnhancedParkingMap({
       })
 
       try {
+        // Analyze the clicked area with AI
         await analyzeAreaWithAI(clickLocation)
       } catch (error) {
         console.error("Error analyzing area:", error)
@@ -188,7 +143,7 @@ export function EnhancedParkingMap({
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: "mapbox://styles/mapbox/streets-v12",
-        center: [-122.4194, 37.7749], // Default center (will be updated when location is found)
+        center: [-122.4194, 37.7749],
         zoom: 15,
       })
 
@@ -202,42 +157,23 @@ export function EnhancedParkingMap({
 
       map.current.addControl(new mapboxgl.NavigationControl())
 
+      // Update the map load handler
       map.current.on("load", () => {
-        console.log("🗺️ Map loaded successfully")
+        console.log("Map loaded successfully")
         setMapInitialized(true)
         setIsMapReady(true)
         setMapboxError(null)
 
         if (map.current) {
+          // Add click handler
           map.current.on("click", handleMapClick)
-        }
-
-        // If we already have location, center the map immediately
-        if (latitude && longitude && !hasAutocentered) {
-          console.log("🎯 Map loaded, centering on existing location")
-          map.current.flyTo({
-            center: [longitude, latitude],
-            zoom: 16,
-            essential: true,
-          })
-
-          userMarker.current = new mapboxgl.Marker({
-            color: "#3B82F6",
-            scale: 1.2,
-          })
-            .setLngLat([longitude, latitude])
-            .setPopup(new mapboxgl.Popup().setHTML("<p><strong>Your Location</strong></p>"))
-            .addTo(map.current)
-
-          fetchRealParkingData(latitude, longitude)
-          setHasAutocentered(true)
         }
       })
 
       map.current.on("error", (e) => {
         console.error("Mapbox error:", e)
         setMapboxError("Map failed to load. Using fallback view.")
-        setIsMapReady(true)
+        setIsMapReady(true) // Still set ready to show fallback
       })
     } catch (error) {
       console.error("Failed to initialize Mapbox:", error)
@@ -246,16 +182,13 @@ export function EnhancedParkingMap({
 
     return () => {
       if (map.current) {
+        // Clean up event listeners
         map.current.off("click", handleMapClick)
         map.current.remove()
         map.current = null
       }
-      if (userMarker.current) {
-        userMarker.current.remove()
-        userMarker.current = null
-      }
     }
-  }, [mapboxToken, handleMapClick, latitude, longitude, hasAutocentered])
+  }, [mapboxToken, handleMapClick])
 
   // Add timeout for map initialization
   useEffect(() => {
@@ -264,25 +197,25 @@ export function EnhancedParkingMap({
         console.warn("Map initialization timeout, showing fallback")
         setInitializationTimeout(true)
       }
-    }, 10000)
+    }, 10000) // 10 second timeout
 
     return () => clearTimeout(timer)
   }, [isMapReady])
 
   // Update map center when user location is available
-  // useEffect(() => {
-  //   if (map.current && latitude && longitude) {
-  //     map.current.setCenter([longitude, latitude])
+  useEffect(() => {
+    if (map.current && latitude && longitude) {
+      map.current.setCenter([longitude, latitude])
 
-  //     new mapboxgl.Marker({ color: "#3B82F6" })
-  //       .setLngLat([longitude, latitude])
-  //       .setPopup(new mapboxgl.Popup().setHTML("<p>Your Location</p>"))
-  //       .addTo(map.current)
+      new mapboxgl.Marker({ color: "#3B82F6" })
+        .setLngLat([longitude, latitude])
+        .setPopup(new mapboxgl.Popup().setHTML("<p>Your Location</p>"))
+        .addTo(map.current)
 
-  //     // Fetch real parking data for this location
-  //     fetchRealParkingData(latitude, longitude)
-  //   }
-  // }, [latitude, longitude])
+      // Fetch real parking data for this location
+      fetchRealParkingData(latitude, longitude)
+    }
+  }, [latitude, longitude])
 
   const startNavigationToSpot = async (spot: RealParkingSpot) => {
     if (!latitude || !longitude) {
@@ -303,11 +236,15 @@ export function EnhancedParkingMap({
         description: `Finding the best route to ${spot.name}`,
       })
 
+      // Calculate route to the parking spot
       const route = await navigationService.calculateRoute([longitude, latitude], [spot.longitude, spot.latitude], {
         avoidTraffic: true,
         routeType: "fastest",
       })
 
+      console.log("📍 Route calculated, starting navigation...")
+
+      // Start navigation
       startNavigation(
         {
           latitude: spot.latitude,
@@ -318,13 +255,16 @@ export function EnhancedParkingMap({
         route,
       )
 
+      console.log("✅ Navigation started successfully!")
       toast({
         title: "Navigation started",
         description: `Navigating to ${spot.name} - ${navigationService.formatDistance(route.distance)} away`,
       })
     } catch (error) {
       console.error("❌ Failed to start navigation:", error)
+
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+
       toast({
         title: "Navigation failed",
         description: `Could not calculate route: ${errorMessage}`,
@@ -339,15 +279,27 @@ export function EnhancedParkingMap({
     try {
       console.log("Analyzing area at:", clickLocation)
 
-      const nearbySpots = await parkingService.getRealParkingSpots(clickLocation.lat, clickLocation.lng, 500, {
-        requireAvailability: false,
-      })
+      // Find all parking spots within 500m of clicked location
+      const nearbySpots = await parkingService.getRealParkingSpots(
+        clickLocation.lat,
+        clickLocation.lng,
+        500, // 500m radius
+        {
+          requireAvailability: false, // Include all spots for analysis
+        },
+      )
 
+      console.log(`Found ${nearbySpots.length} nearby spots`)
+
+      // Update the displayed spots and map markers for the clicked area
       setRealSpots(nearbySpots)
+
+      // Update the loading state briefly to show we're fetching
       setLoading(true)
       setTimeout(() => setLoading(false), 500)
 
       if (nearbySpots.length === 0) {
+        console.log("No spots found in this area")
         setAreaAnalysis({
           clickLocation,
           nearbySpots: [],
@@ -368,12 +320,13 @@ export function EnhancedParkingMap({
         return
       }
 
+      // Get AI predictions for each spot
       const predictions: SpotPrediction[] = []
       for (const spot of nearbySpots) {
         try {
           const prediction = await aiPredictor.predictSpotAvailability(
             spot.id.toString(),
-            new Date(Date.now() + 30 * 60 * 1000),
+            new Date(Date.now() + 30 * 60 * 1000), // 30 minutes from now
             "30min",
           )
           predictions.push(prediction)
@@ -382,6 +335,9 @@ export function EnhancedParkingMap({
         }
       }
 
+      console.log(`Generated ${predictions.length} predictions`)
+
+      // Analyze the area and find best recommendation
       const analysis = await performAreaAnalysis(clickLocation, nearbySpots, predictions)
       setAreaAnalysis(analysis)
       onAreaAnalysis?.(analysis)
@@ -392,12 +348,15 @@ export function EnhancedParkingMap({
         description: `Found ${nearbySpots.length} parking spots in this area.`,
       })
 
+      // Add click marker to map
       if (map.current) {
+        // Remove existing click marker
         const existingMarker = document.querySelector(".click-marker")
         if (existingMarker) {
           existingMarker.remove()
         }
 
+        // Add new click marker
         const el = document.createElement("div")
         el.className = "click-marker"
         el.innerHTML = `
@@ -427,9 +386,11 @@ export function EnhancedParkingMap({
     spots: RealParkingSpot[],
     predictions: SpotPrediction[],
   ): Promise<AreaAnalysis> => {
+    // Calculate area insights
     const prices = spots.filter((s) => s.price_per_hour).map((s) => s.price_per_hour!)
     const averagePrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0
 
+    // Find best recommendation based on AI predictions
     let bestRecommendation: AreaAnalysis["bestRecommendation"] = null
     let bestScore = -1
 
@@ -439,9 +400,10 @@ export function EnhancedParkingMap({
 
       if (!prediction) continue
 
+      // Calculate recommendation score
       const availabilityScore = prediction.predictedAvailability
       const confidenceScore = prediction.confidence
-      const distanceScore = Math.max(0, 100 - calculateDistance(clickLocation, spot) * 10)
+      const distanceScore = Math.max(0, 100 - calculateDistance(clickLocation, spot) * 10) // Closer = better
 
       const totalScore = (availabilityScore * 0.4 + confidenceScore * 0.3 + distanceScore * 0.3) / 100
 
@@ -455,8 +417,13 @@ export function EnhancedParkingMap({
       }
     }
 
+    // Analyze availability trend
     const availabilityTrend = analyzeAvailabilityTrend(predictions)
+
+    // Determine demand level
     const demandLevel = calculateDemandLevel(predictions)
+
+    // Calculate best time to arrive
     const bestTimeToArrive = calculateBestArrivalTime(predictions)
 
     return {
@@ -474,7 +441,7 @@ export function EnhancedParkingMap({
   }
 
   const calculateDistance = (point1: { lat: number; lng: number }, point2: { lat: number; lng: number }): number => {
-    const R = 6371
+    const R = 6371 // Earth's radius in km
     const dLat = ((point2.latitude - point1.lat) * Math.PI) / 180
     const dLng = ((point2.longitude - point1.lng) * Math.PI) / 180
     const a =
@@ -484,7 +451,7 @@ export function EnhancedParkingMap({
         Math.sin(dLng / 2) *
         Math.sin(dLng / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c * 1000
+    return R * c * 1000 // Return distance in meters
   }
 
   const generateRecommendationReason = (
@@ -566,6 +533,7 @@ export function EnhancedParkingMap({
   useEffect(() => {
     if (!map.current) return
 
+    // Clear existing markers
     const existingMarkers = document.querySelectorAll(".parking-spot-marker")
     existingMarkers.forEach((marker) => marker.remove())
 
@@ -631,6 +599,7 @@ export function EnhancedParkingMap({
     }
   }
 
+  // Add a manual click handler for testing
   const handleManualClick = () => {
     if (!map.current || !latitude || !longitude) return
 
@@ -650,7 +619,9 @@ export function EnhancedParkingMap({
   // Add fallback map component
   const FallbackMapView = () => (
     <div className="h-full bg-gradient-to-b from-blue-100 to-green-100 relative overflow-hidden">
+      {/* Simple map-like background */}
       <div className="absolute inset-0">
+        {/* Grid pattern */}
         <div className="absolute inset-0 opacity-20">
           {Array.from({ length: 20 }).map((_, i) => (
             <div key={`h-${i}`} className="absolute w-full h-px bg-gray-400" style={{ top: `${i * 5}%` }} />
@@ -660,15 +631,18 @@ export function EnhancedParkingMap({
           ))}
         </div>
 
+        {/* Mock streets */}
         <div className="absolute top-1/2 left-0 right-0 h-8 bg-gray-300 transform -translate-y-1/2" />
         <div className="absolute top-0 bottom-0 left-1/2 w-8 bg-gray-300 transform -translate-x-1/2" />
 
+        {/* User location indicator */}
         {latitude && longitude && (
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
             <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg animate-pulse" />
           </div>
         )}
 
+        {/* Mock parking spots */}
         {realSpots.slice(0, 5).map((spot, index) => (
           <div
             key={spot.id}
@@ -685,6 +659,7 @@ export function EnhancedParkingMap({
         ))}
       </div>
 
+      {/* Fallback message */}
       <div className="absolute top-4 left-4 bg-white/90 p-3 rounded-lg shadow">
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="w-4 h-4 text-blue-500" />
@@ -744,29 +719,32 @@ export function EnhancedParkingMap({
         setMapboxError(null)
         setInitializationTimeout(false)
         setIsMapReady(false)
+        // Reinitialize map
         if (mapContainer.current && mapboxToken) {
+          // Trigger map reinitialization
           window.location.reload()
         }
       }}
       onExit={() => {
+        // Could add a callback prop for this
         console.log("User requested to exit from error state")
       }}
     >
       <div className="relative h-full">
+        {/* Main map container */}
         {!mapboxError && !initializationTimeout ? (
           <div ref={mapContainer} className="h-full w-full" />
         ) : (
           <FallbackMapView />
         )}
 
+        {/* Loading overlay */}
         {!isMapReady && !mapboxError && !initializationTimeout && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-50">
             <div className="text-center">
               <MapPin className="w-12 h-12 mx-auto mb-4 text-blue-500 animate-pulse" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Map...</h3>
-              <p className="text-gray-600">
-                {locationLoading ? "Getting your location..." : "Initializing map service"}
-              </p>
+              <p className="text-gray-600">Initializing map service</p>
             </div>
           </div>
         )}
@@ -806,24 +784,6 @@ export function EnhancedParkingMap({
             </div>
           </Card>
 
-          {/* Location Status */}
-          <Card className="p-3 bg-blue-50">
-            <div className="text-xs text-blue-800">
-              <div className="font-medium mb-1">Location Status</div>
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-2 h-2 rounded-full ${latitude && longitude ? "bg-green-500" : "bg-yellow-500"}`}
-                ></div>
-                <span>{latitude && longitude ? "Located" : locationLoading ? "Finding..." : "Unavailable"}</span>
-              </div>
-              {latitude && longitude && (
-                <div className="text-xs mt-1">
-                  {latitude.toFixed(4)}, {longitude.toFixed(4)}
-                </div>
-              )}
-            </div>
-          </Card>
-
           {/* AI Instructions */}
           <Card className="p-3 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
             <div className="flex items-center gap-2 mb-2">
@@ -842,6 +802,17 @@ export function EnhancedParkingMap({
             >
               {loading || analyzingArea ? "Analyzing..." : "Analyze Current Location"}
             </Button>
+          </Card>
+
+          {/* Map Status */}
+          <Card className="p-3 bg-blue-50">
+            <div className="text-xs text-blue-800">
+              <div className="font-medium mb-1">Map Status</div>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${mapInitialized ? "bg-green-500" : "bg-yellow-500"}`}></div>
+                <span>{mapInitialized ? "Ready" : "Initializing..."}</span>
+              </div>
+            </div>
           </Card>
         </div>
 
@@ -955,30 +926,6 @@ export function EnhancedParkingMap({
           </Card>
         )}
 
-        {/* Center on Location Button */}
-        <Button
-          variant="outline"
-          className="absolute bottom-6 right-24 rounded-full w-14 h-14 shadow-lg"
-          onClick={() => {
-            if (latitude && longitude && map.current) {
-              map.current.flyTo({
-                center: [longitude, latitude],
-                zoom: 16,
-                essential: true,
-              })
-              toast({
-                title: "Map centered",
-                description: "Centered on your current location",
-              })
-            } else {
-              refreshLocation()
-            }
-          }}
-          disabled={locationLoading}
-        >
-          <Navigation className="w-6 h-6" />
-        </Button>
-
         {/* Add Spot Button */}
         <Button
           className="absolute bottom-6 right-6 rounded-full w-14 h-14 shadow-lg"
@@ -991,6 +938,20 @@ export function EnhancedParkingMap({
           disabled={!latitude || !longitude}
         >
           <Plus className="w-6 h-6" />
+        </Button>
+
+        {/* Refresh Button */}
+        <Button
+          variant="outline"
+          className="absolute bottom-6 right-24 rounded-full w-14 h-14 shadow-lg"
+          onClick={() => {
+            if (latitude && longitude) {
+              fetchRealParkingData(latitude, longitude)
+            }
+          }}
+          disabled={!latitude || !longitude || loading}
+        >
+          <Navigation className="w-6 h-6" />
         </Button>
 
         <SpotReportDialog open={showReportDialog} onOpenChange={setShowReportDialog} location={reportLocation} />
