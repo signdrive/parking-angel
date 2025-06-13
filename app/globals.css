@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Navigation-specific styles */
+.user-location-marker {
+  z-index: 1000;
+}
+
+.destination-marker {
+  z-index: 999;
+}
+
+.turn-marker {
+  z-index: 998;
+}
+
+/* Mapbox navigation customizations */
+.mapboxgl-ctrl-nav-compass {
+  display: block !important;
+}
+
+.mapboxgl-ctrl-nav-compass .mapboxgl-ctrl-icon {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 29 29' xmlns='http://www.w3.org/2000/svg' fill='%23333'%3E%3Cpath d='m10.5 14 4-8 4 8h-8z'/%3E%3Cpath d='m10.5 16 4 8 4-8h-8z' fill='%23ccc'/%3E%3C/svg%3E") !important;
+}
+
+/* Hide default attribution in navigation mode */
+.mapboxgl-ctrl-attrib {
+  display: none !important;
+}
+
+/* Custom route styling */
+.mapboxgl-popup-content {
+  background: rgba(0, 0, 0, 0.8) !important;
+  color: white !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+}
+
+.mapboxgl-popup-tip {
+  border-top-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Navigation overlay animations */
+@keyframes pulse-gps {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.gps-pulse {
+  animation: pulse-gps 2s infinite;
+}
+
+/* Turn arrow animations */
+@keyframes turn-highlight {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.turn-highlight {
+  animation: turn-highlight 1s ease-in-out infinite;
+}
+
+/* Hide potential development overlays and browser extension UI elements */
+/* Next.js development overlays */
+[data-nextjs-dialog-overlay],
+[data-nextjs-toast],
+.__next-dev-error-overlay,
+.__nextjs_original-stack-frame,
+#__next-dev-error-overlay,
+#__nextjs_original-stack-frame,
+/* React DevTools */
+[data-react-devtools],
+/* Redux DevTools */
+[data-redux-devtools],
+/* General development tools */
+[data-dev-tool],
+[data-dev-overlay],
+/* Common browser extension selectors */
+iframe[src*="extension"],
+div[id*="extension"]:not([id*="extensionCheckbox"]),
+div[class*="extension"]:not([class*="extensionCheckbox"]),
+/* Potential floating development buttons */
+button[style*="position: fixed"]:not([class]):not([id]),
+div[style*="position: fixed"]:not([class]):not([id]) button,
+/* Common development overlay patterns */
+[role="alert"][style*="position: fixed"],
+[data-testid*="dev"],
+[data-cy*="dev"],
+/* Hide any single letter buttons in bottom left */
+button:only-child:not([class]):not([id])[style*="bottom"][style*="left"],
+div[style*="position: fixed"][style*="bottom"][style*="left"] button:only-child:not([class]):not([id]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hide any suspicious single-letter floating elements */
+*[style*="position: fixed"][style*="z-index"]:not([class]):not([id]):has-text("N"),
+*[style*="position: fixed"][style*="z-index"]:not([class]):not([id]):has-text("n") {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

@@ -1,0 +1,1 @@
+// Removed floating user avatar button and AI chat button from the footer
