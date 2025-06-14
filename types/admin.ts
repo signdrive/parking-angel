@@ -5,6 +5,7 @@ export interface Profile {
   created_at: string
   avatar_url: string | null
   role: string | null
+  status?: 'active' | 'suspended' | 'pending' // Added optional status
 }
 
 export interface ParkingSpot {
@@ -15,8 +16,8 @@ export interface ParkingSpot {
     lng: number
   }
   type: 'street' | 'garage' | 'lot'
-  status: 'active' | 'inactive'
-  reports: number
+  status: 'active' | 'inactive' | 'occupied' | 'maintenance' // Added more statuses for clarity if needed by UI
+  reports: number // This is a required field
   created_at: string
   last_updated: string
 }

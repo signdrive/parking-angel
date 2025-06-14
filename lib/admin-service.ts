@@ -1,4 +1,4 @@
-import { adminSupabase } from "./supabase/admin-client"
+import { getAdminSupabaseOrThrow } from "./supabase/admin-client" // Updated import
 import { Profile, ParkingSpot } from "@/types/admin"
 
 export class AdminService {
@@ -12,9 +12,14 @@ export class AdminService {
     return AdminService.instance
   }
 
+  private getSupabaseClient() {
+    return getAdminSupabaseOrThrow()
+  }
+
   async updateUserProfile(userId: string, data: Partial<Profile>): Promise<{ data: Profile | null; error: Error | null }> {
     try {
-      const { data: updatedProfile, error } = await adminSupabase
+      const supabase = this.getSupabaseClient()
+      const { data: updatedProfile, error } = await supabase
         .from("profiles")
         .update(data)
         .eq("id", userId)
@@ -31,7 +36,8 @@ export class AdminService {
 
   async suspendUser(userId: string): Promise<{ success: boolean; error: Error | null }> {
     try {
-      const { error } = await adminSupabase
+      const supabase = this.getSupabaseClient()
+      const { error } = await supabase
         .from("profiles")
         .update({ status: "suspended" })
         .eq("id", userId)
@@ -46,7 +52,8 @@ export class AdminService {
 
   async addParkingSpot(spot: Omit<ParkingSpot, "id" | "created_at" | "last_updated">): Promise<{ data: ParkingSpot | null; error: Error | null }> {
     try {
-      const { data, error } = await adminSupabase
+      const supabase = this.getSupabaseClient()
+      const { data, error } = await supabase
         .from("parking_spots")
         .insert([spot])
         .select()
@@ -62,7 +69,8 @@ export class AdminService {
 
   async updateParkingSpot(spotId: string, data: Partial<ParkingSpot>): Promise<{ data: ParkingSpot | null; error: Error | null }> {
     try {
-      const { data: updatedSpot, error } = await adminSupabase
+      const supabase = this.getSupabaseClient()
+      const { data: updatedSpot, error } = await supabase
         .from("parking_spots")
         .update(data)
         .eq("id", spotId)
@@ -79,7 +87,8 @@ export class AdminService {
 
   async removeParkingSpot(spotId: string): Promise<{ success: boolean; error: Error | null }> {
     try {
-      const { error } = await adminSupabase
+      const supabase = this.getSupabaseClient()
+      const { error } = await supabase
         .from("parking_spots")
         .delete()
         .eq("id", spotId)
@@ -100,15 +109,20 @@ export class AdminService {
     error: Error | null;
   }> {
     try {
+      const supabase = this.getSupabaseClient()
       const [
-        { count: totalUsers },
-        { count: activeSpots },
-        { count: dailyReports }
+        { count: totalUsers, error: usersError },
+        { count: activeSpots, error: spotsError },
+        { count: dailyReports, error: reportsError }
       ] = await Promise.all([
-        adminSupabase.from("profiles").select("*", { count: "exact", head: true }),
-        adminSupabase.from("parking_spots").select("*", { count: "exact", head: true }).eq("status", "active"),
-        adminSupabase.from("spot_reports").select("*", { count: "exact", head: true }).gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        supabase.from("profiles").select("*", { count: "exact", head: true }),
+        supabase.from("parking_spots").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("spot_reports").select("*", { count: "exact", head: true }).gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       ])
+
+      if (usersError) throw usersError;
+      if (spotsError) throw spotsError;
+      if (reportsError) throw reportsError;
 
       return {
         totalUsers: totalUsers || 0,

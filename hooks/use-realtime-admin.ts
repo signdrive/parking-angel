@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { getAdminSupabase } from '@/lib/supabase/admin-client'
+import { getAdminSupabaseOrThrow } from '@/lib/supabase/admin-client' // Changed import
 import type { Profile, ParkingSpot, SpotStatistics } from '@/types/admin'
 import { toast } from '@/components/ui/use-toast'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 
 export function useRealtimeAdmin() {
   const [realtimeProfiles, setRealtimeProfiles] = useState<Profile[]>([])
@@ -11,55 +11,68 @@ export function useRealtimeAdmin() {
     total: 0,
     active: 0,
     dailyReports: 0,
-    uptime: 99.9,
+    uptime: 99.9, // Placeholder
   })
   const [isLoading, setIsLoading] = useState(true)
+  const supabaseClientRef = useRef<SupabaseClient | null>(null); // Ref to hold the client
 
-  // Calculate statistics whenever spots change
+  // Initialize Supabase client on mount (client-side)
+  useEffect(() => {
+    try {
+      supabaseClientRef.current = getAdminSupabaseOrThrow();
+    } catch (error) {
+      console.error("Failed to initialize Supabase client in useRealtimeAdmin:", error);
+      toast({
+        title: "Realtime Error",
+        description: "Failed to connect for real-time updates.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  }, []);
+
   const calculateStats = useCallback((spots: ParkingSpot[]) => {
     const activeSpots = spots.filter(spot => spot.status === 'active').length
+    const dailyReports = spots.reduce((acc, spot) => acc + (spot.reports || 0), 0);
     setStats({
       total: spots.length,
       active: activeSpots,
-      dailyReports: spots.reduce((acc, spot) => acc + (spot.reports || 0), 0),
-      uptime: 99.9 // This could be calculated from actual monitoring data
+      dailyReports: dailyReports,
+      uptime: 99.9, // This could be calculated from actual monitoring data
     })
   }, [])
+
   const fetchInitialData = useCallback(async () => {
+    if (!supabaseClientRef.current) {
+      setIsLoading(false); // Stop loading if client is not available
+      return;
+    }
     setIsLoading(true)
     try {
-      const supabase = getAdminSupabase()
-      if (!supabase) {
-        throw new Error("Failed to initialize admin connection")
-      }
+      const supabase = supabaseClientRef.current;
       
-      // Fetch profiles
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
       
       if (profilesError) throw profilesError
-      
-      if (profilesData) {
-        setRealtimeProfiles(profilesData)
-      }
+      if (profilesData) setRealtimeProfiles(profilesData as Profile[])
 
-      // Fetch parking spots
       const { data: spotsData, error: spotsError } = await supabase
         .from('parking_spots')
         .select('*')
       
       if (spotsError) throw spotsError
-      
       if (spotsData) {
-        setRealtimeSpots(spotsData as ParkingSpot[])
-        calculateStats(spotsData as ParkingSpot[])
+        const typedSpotsData = spotsData as ParkingSpot[];
+        setRealtimeSpots(typedSpotsData)
+        calculateStats(typedSpotsData)
       }
     } catch (error) {
       console.error('Error fetching admin data:', error)
       toast({
         title: "Error",
-        description: "Failed to fetch admin data. Please try again.",
+        description: `Failed to fetch admin data. ${error instanceof Error ? error.message : ''}`,
         variant: "destructive",
       })
     } finally {
@@ -67,129 +80,84 @@ export function useRealtimeAdmin() {
     }
   }, [calculateStats])
 
-interface RealtimeAdminReturn {
-    realtimeProfiles: Profile[];
-    realtimeSpots: ParkingSpot[];
-    stats: SpotStatistics;
-    isLoading: boolean;
-    refresh: () => void;
-}
 
-interface Payload<T = any> {
-    eventType: 'INSERT' | 'UPDATE' | 'DELETE' | string;
-    new: T;
-    old: T;
-}
+  useEffect(() => {
+    if (!supabaseClientRef.current) return; // Don't proceed if client isn't initialized
 
-const refresh: () => void = useCallback(() => {
-    fetchInitialData()
-}, [fetchInitialData])
+    fetchInitialData(); // Fetch initial data once client is available
 
-useEffect(() => {
-    let isMounted: boolean = true
-    const profilesChannelRef: React.MutableRefObject<RealtimeChannel | null> = useRef<RealtimeChannel | null>(null)
-    const spotsChannelRef: React.MutableRefObject<RealtimeChannel | null> = useRef<RealtimeChannel | null>(null)
-    
-    const supabase = getAdminSupabase()
-    if (!supabase) {
-        setIsLoading(false)
-        toast({
-            title: "Error",
-            description: "Failed to initialize admin connection. Please try again later.",
-            variant: "destructive",
-        })
-        return
-    }
+    const supabase = supabaseClientRef.current;
+    let profilesChannel: RealtimeChannel | undefined;
+    let spotsChannel: RealtimeChannel | undefined;
 
-    const setupSubscriptions = async (): Promise<void> => {
-        if (!isMounted) return
+    // Profiles subscription
+    profilesChannel = supabase
+      .channel('admin-realtime-profiles')
+      .on<Profile>(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        (payload) => {
+          console.log('Profiles change received!', payload)
+          // Refetch all profiles for simplicity, or implement more granular updates
+          fetchInitialData(); 
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Subscribed to admin profiles changes!')
+        }
+        if (status === 'CHANNEL_ERROR' || err) {
+          console.error('Admin profiles subscription error:', err)
+          toast({ title: "Realtime Error", description: "Profile updates might be delayed.", variant: "destructive"})
+        }
+      });
 
-        // First fetch initial data
-        await fetchInitialData()
+    // Parking spots subscription
+    spotsChannel = supabase
+      .channel('admin-realtime-parking-spots')
+      .on<ParkingSpot>(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'parking_spots' },
+        (payload) => {
+          console.log('Parking spots change received!', payload)
+          // Refetch all spots for simplicity
+          fetchInitialData();
+        }
+      )
+      .subscribe((status, err) => {
+         if (status === 'SUBSCRIBED') {
+          console.log('Subscribed to admin parking spots changes!')
+        }
+        if (status === 'CHANNEL_ERROR' || err) {
+          console.error('Admin parking spots subscription error:', err)
+          toast({ title: "Realtime Error", description: "Parking spot updates might be delayed.", variant: "destructive"})
+        }
+      });
 
-        // Then set up realtime subscriptions
-        profilesChannelRef.current = supabase
-            .channel('profiles-changes')
-            .on(
-                'postgres_changes' as any,
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'profiles'
-                },
-                (payload: Payload<Profile>) => {
-                    if (!isMounted) return
-
-                    setRealtimeProfiles((prev: Profile[]) => {
-                        if (payload.eventType === 'INSERT') {
-                            return [...prev, payload.new as Profile]
-                        } else if (payload.eventType === 'DELETE') {
-                            return prev.filter(profile => profile.id !== payload.old.id)
-                        } else if (payload.eventType === 'UPDATE') {
-                            return prev.map(profile => 
-                                profile.id === payload.new.id ? { ...profile, ...payload.new } : profile
-                            )
-                        }
-                        return prev
-                    })
-                }
-            )
-            .subscribe()
-
-        spotsChannelRef.current = supabase
-            .channel('spots-changes')
-            .on(
-                'postgres_changes' as any,
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'parking_spots'
-                },
-                (payload: Payload<ParkingSpot>) => {
-                    if (!isMounted) return
-
-                    setRealtimeSpots((prev: ParkingSpot[]) => {
-                        let newSpots: ParkingSpot[]
-                        if (payload.eventType === 'INSERT') {
-                            newSpots = [...prev, payload.new as ParkingSpot]
-                        } else if (payload.eventType === 'DELETE') {
-                            newSpots = prev.filter(spot => spot.id !== payload.old.id)
-                        } else if (payload.eventType === 'UPDATE') {
-                            newSpots = prev.map(spot => 
-                                spot.id === payload.new.id ? { ...spot, ...payload.new } : spot
-                            )
-                        } else {
-                            newSpots = prev
-                        }
-                        // Calculate new stats after spots change
-                        calculateStats(newSpots)
-                        return newSpots
-                    })
-                }
-            )
-            .subscribe()
-    }
-
-    setupSubscriptions()
-    // Cleanup function
     return () => {
-        isMounted = false
-        if (profilesChannelRef.current) {
-            supabase.removeChannel(profilesChannelRef.current)
-            profilesChannelRef.current = null
-        }
-        if (spotsChannelRef.current) {
-            supabase.removeChannel(spotsChannelRef.current)
-            spotsChannelRef.current = null
-        }
+      if (profilesChannel) supabase.removeChannel(profilesChannel)
+      if (spotsChannel) supabase.removeChannel(spotsChannel)
     }
-}, [fetchInitialData, calculateStats])
+  }, [fetchInitialData]); // Rerun effect if fetchInitialData (and thus supabaseClientRef.current) changes
 
-  return {
-    realtimeProfiles,
-    realtimeSpots,
-    stats,
+  const refresh = useCallback(() => {
+    if (supabaseClientRef.current) { // Ensure client is available before refreshing
+        fetchInitialData();
+    } else {
+        console.warn("Attempted to refresh admin data before Supabase client was initialized.");
+        toast({
+            title: "Info",
+            description: "Real-time connection not yet established. Please wait.",
+            variant: "default",
+        });
+    }
+  }, [fetchInitialData]);
+
+  return { 
+    realtimeProfiles, 
+    realtimeSpots, 
+    stats, 
     isLoading,
-    refresh,
+    refresh
   }
 }

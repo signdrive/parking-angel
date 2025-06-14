@@ -9,48 +9,46 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Users, MapPin, Shield, AlertTriangle, DollarSign, Eye, Settings } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { adminSupabase } from "@/lib/supabase/admin-client"
+import { getAdminSupabaseOrThrow } from "@/lib/supabase/admin-client";
 import type { Profile, ParkingSpot, SpotStatistics } from "@/types/admin"
 import { useAdminOperations } from "@/hooks/use-admin-operations"
-import { useRealtimeAdmin } from "@/hooks/use-realtime-admin"
+import { useAdminRealtime } from "@/hooks/use-admin-realtime";
 import { toast } from "@/components/ui/use-toast"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { ParkingSpotForm } from "@/components/admin/parking-spot-form"
 
 export default function AdminDashboard() {
-  const { user, loading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const {
     isLoading: isOperationLoading,
-    editProfile,
+    editProfile, // Keep if used for editing, otherwise remove if not implemented
     suspendUser,
     addParkingSpot,
     updateParkingSpot,
     removeParkingSpot,
-    getSystemStats,
   } = useAdminOperations()
 
   const { 
-    realtimeProfiles, 
-    realtimeSpots, 
-    stats: spotStats, 
-    isLoading: isRealtimeLoading,
-    refresh 
-  } = useRealtimeAdmin()
+    profiles, 
+    parkingSpots, 
+    spotStats, 
+    analyticsData 
+  } = useAdminRealtime()
 
   const [activeTab, setActiveTab] = useState("overview")
   const [searchTerm, setSearchTerm] = useState("")
   const [isSpotFormOpen, setIsSpotFormOpen] = useState(false)
   const [editingSpot, setEditingSpot] = useState<ParkingSpot | undefined>()
 
-  // Admin verification
   const [role, setRole] = useState<string | null>(null)
   const [roleError, setRoleError] = useState<string | null>(null)
   const [roleLoading, setRoleLoading] = useState(true)
 
+  const isDataLoading = useMemo(() => !profiles && !parkingSpots, [profiles, parkingSpots]);
+
   useEffect(() => {
     let isMounted = true
-    const controller = new AbortController()
 
     async function fetchUserRole() {
       if (!user?.id) {
@@ -64,19 +62,18 @@ export default function AdminDashboard() {
 
       try {
         console.log('Fetching role for user:', user.id, user.email)
+        const supabase = getAdminSupabaseOrThrow();
 
-        // First try to get role from user metadata
         if (user.user_metadata?.role === 'admin') {
           console.log('Found admin role in user metadata')
           if (isMounted) {
             setRole('admin')
-           
+            setRoleLoading(false);
           }
           return
         }
 
-        // Then check the profiles table
-        const { data: profile, error } = await adminSupabase
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
@@ -84,16 +81,15 @@ export default function AdminDashboard() {
         
         if (!isMounted) return
 
-        if (error) {
-          console.error('Error fetching user role:', error)
-          setRoleError(error.message)
+        if (profileError) {
+          console.error('Error fetching user role:', profileError)
+          setRoleError(profileError.message)
           setRoleLoading(false)
           return
         }
 
-        if (!profile) {
+        if (!profileData) {
           console.log('No profile found, checking email list')
-          // Check if email is in admin list
           if (user.email && ['admin@parkalgo.com', 'admin@parking-angel.com', 'signdrive@gmail.com'].includes(user.email)) {
             console.log('Email found in admin list')
             setRole('admin')
@@ -101,8 +97,8 @@ export default function AdminDashboard() {
             setRole('user')
           }
         } else {
-          console.log('Profile found:', profile)
-          setRole(profile.role || 'user')
+          console.log('Profile found:', profileData)
+          setRole(profileData.role || 'user')
         }
         
         setRoleLoading(false)
@@ -123,55 +119,31 @@ export default function AdminDashboard() {
 
     return () => {
       isMounted = false
-      controller.abort()
     }
   }, [user])
 
   const isAdmin = useMemo(() => role === 'admin', [role])
 
   useEffect(() => {
-    if (!loading && !roleLoading && !isAdmin) {
+    if (!authLoading && !roleLoading && !isAdmin) {
       const message = role === null 
-        ? 'Access denied: Role not loaded yet'
+        ? 'Access denied: Role not loaded yet or user not authenticated.'
         : `Access denied: User is not admin (role: ${role})`
       console.log(message)
       
-      if (role !== null) {
+      if ((role !== null && !isAdmin) || (!authLoading && !user)) {
+         toast({ title: "Access Denied", description: "You do not have permission to view this page.", variant: "destructive" });
         router.push('/dashboard')
       }
     }
-  }, [loading, roleLoading, isAdmin, role, router])
+  }, [authLoading, roleLoading, isAdmin, role, router, user])
 
-  // Fetch profiles and parking spots
-  const fetchData = async () => {
-    if (!isAdmin) return
-    
-    try {
-      // Refresh data from realtime hook
-      await refresh()
-    } catch (error) {
-      console.error('Error fetching admin data:', error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch admin data. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  useEffect(() => {
-    if (isAdmin) {
-      fetchData()
-    }
-  }, [isAdmin])
-
-  // Filter profiles based on search term
   const filteredProfiles = useMemo(() => {
-    return realtimeProfiles?.filter(profile => 
+    return profiles?.filter(profile => 
       profile.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       profile.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
     ) || []
-  }, [realtimeProfiles, searchTerm])
+  }, [profiles, searchTerm])
 
   const menuItems = [
     { id: "overview", label: "Overview", icon: Shield },
@@ -182,8 +154,7 @@ export default function AdminDashboard() {
     { id: "settings", label: "Settings", icon: Settings },
   ]
 
-  // Loading state
-  if (loading || roleLoading) {
+  if (authLoading || roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -202,53 +173,6 @@ export default function AdminDashboard() {
     )
   }
 
-  // Access denied state
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Shield className="w-12 h-12 text-red-600 mx-auto mb-4" />
-          <p className="text-red-600">Access Denied: Admin privileges required</p>
-          <p className="text-sm text-gray-600 mt-2">
-            Current role: {role || 'No role assigned'}
-          </p>
-          {roleError && (
-            <p className="text-red-600 mt-2">Error: {roleError}</p>
-          )}
-          <Button
-            onClick={() => router.push('/dashboard')}
-            className="mt-4"
-          >
-            Return to Dashboard
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  const totalUsers = useMemo(() => realtimeProfiles?.length || 0, [realtimeProfiles])
-
-  // Loading state
-  if (loading || roleLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Shield className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading admin dashboard...</p>
-          {roleError && (
-            <p className="text-red-600 mt-2">Error: {roleError}</p>
-          )}
-          <div className="mt-4 text-sm text-gray-500">
-            <p>User ID: {user?.id || 'Not loaded'}</p>
-            <p>Email: {user?.email || 'Not loaded'}</p>
-            <p>Role: {role || 'Not loaded'}</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Access denied state
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -276,13 +200,22 @@ export default function AdminDashboard() {
     const confirmed = window.confirm("Are you sure you want to suspend this user?")
     if (!confirmed) return
 
-    const success = await suspendUser(userId)
+    const success = await suspendUser(userId) // suspendUser now returns boolean
     if (success) {
-      // The realtime subscription will update the UI
       toast({
         title: "Success",
-        description: "User has been suspended.",
+        description: "User has been suspended.", // Or "User status updated." if it's a soft suspension
       })
+      // Optionally, trigger a re-fetch or update local state if profiles aren't auto-updating
+    } else {
+      // The hook's handleError should have already shown a toast
+      // You might add additional logging or UI feedback here if needed
+      console.error("Failed to suspend user from page component.")
+      // toast({
+      //   title: "Error",
+      //   description: "Failed to suspend user. Check console for details.", // Generic message as hook handles specifics
+      //   variant: "destructive"
+      // })
     }
   }
 
@@ -290,26 +223,44 @@ export default function AdminDashboard() {
     const confirmed = window.confirm("Are you sure you want to remove this parking spot?")
     if (!confirmed) return
 
-    const success = await removeParkingSpot(spotId)
+    const success = await removeParkingSpot(spotId) // removeParkingSpot now returns boolean
     if (success) {
-      // The realtime subscription will update the UI
       toast({
         title: "Success",
         description: "Parking spot has been removed.",
       })
+      // Optionally, trigger a re-fetch or update local state if parkingSpots aren't auto-updating
+    } else {
+      // The hook's handleError should have already shown a toast
+      console.error("Failed to remove parking spot from page component.")
+      // toast({
+      //   title: "Error",
+      //   description: "Failed to remove parking spot. Check console for details.",
+      //   variant: "destructive"
+      // })
     }
   }
 
-  const handleSpotSubmit = async (data: Omit<ParkingSpot, 'id' | 'reports' | 'created_at' | 'last_updated'>) => {
+  const handleSpotSubmit = async (data: Omit<ParkingSpot, 'id' | 'created_at' | 'last_updated' | 'reports'> & { reports?: number }) => {
     try {
       if (editingSpot) {
-        await updateParkingSpot(editingSpot.id, data)
-        setEditingSpot(undefined)
+        // For updates, we pass the data as received. If 'reports' is part of 'data', it will be included.
+        // The updateParkingSpot in the hook expects Partial<ParkingSpot>, so this is fine.
+        await updateParkingSpot(editingSpot.id, data as Partial<ParkingSpot>);
+        setEditingSpot(undefined);
       } else {
-        await addParkingSpot(data)
+        // For adding a new spot, ensure `reports` is provided if required by the type, defaulting to 0.
+        const spotDataWithReports: Omit<ParkingSpot, "id" | "created_at" | "last_updated"> = {
+          ...data,
+          reports: data.reports || 0, // Default reports to 0 if not provided
+        };
+        await addParkingSpot(spotDataWithReports);
       }
-      setIsSpotFormOpen(false)
-      // No need to manually refresh, the real-time subscription will update the UI
+      setIsSpotFormOpen(false);
+      toast({
+        title: "Success",
+        description: `Parking spot ${editingSpot ? 'updated' : 'added'} successfully.`,
+      });
     } catch (error) {
       console.error('Error handling spot submit:', error)
       toast({
@@ -332,6 +283,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+      {/* Sidebar */}
       <aside className="w-64 bg-[#16181D] text-white">
         <div className="p-6">
           <div className="flex items-center gap-2">
@@ -374,7 +326,7 @@ export default function AdminDashboard() {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{spotStats.totalUsers}</div>
+                  <div className="text-2xl font-bold">{profiles?.length || 0}</div>
                   <p className="text-xs text-muted-foreground">
                     Total registered users
                   </p>
@@ -387,9 +339,9 @@ export default function AdminDashboard() {
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{spotStats.activeSpots}</div>
+                  <div className="text-2xl font-bold">{spotStats?.active || 0}</div>
                   <p className="text-xs text-muted-foreground">
-                    Out of {spotStats.totalSpots} total spots
+                    Out of {spotStats?.total || 0} total spots
                   </p>
                 </CardContent>
               </Card>
@@ -400,7 +352,7 @@ export default function AdminDashboard() {
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{spotStats.dailyReports}</div>
+                  <div className="text-2xl font-bold">{spotStats?.dailyReports || 0}</div>
                   <p className="text-xs text-muted-foreground">
                     Reports in the last 24h
                   </p>
@@ -413,13 +365,12 @@ export default function AdminDashboard() {
                   <Settings className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{spotStats.uptime}%</div>
-                  <p className="text-xs text-muted-foreground">
-                    Last 30 days
-                  </p>
+                  <div className="text-2xl font-bold">{spotStats?.uptime || 0}%</div>
+                  <div className="text-xs text-gray-500">Last 30 days</div>
                 </CardContent>
               </Card>
             </div>
+            {/* ... more overview content if any ... */}
           </TabsContent>
 
           <TabsContent value="profiles">
@@ -450,8 +401,8 @@ export default function AdminDashboard() {
                       <div>Join Date</div>
                       <div>Actions</div>
                     </div>
-                    {isLoading ? (
-                      <LoadingSpinner />
+                    {isDataLoading && (!profiles || profiles.length === 0) ? (
+                      <div className="p-8 text-center"><LoadingSpinner /></div>
                     ) : filteredProfiles.length === 0 ? (
                       <div className="p-8 text-center text-gray-500">
                         No profiles found
@@ -464,12 +415,12 @@ export default function AdminDashboard() {
                             <p className="text-sm text-gray-500">ID: {profile.id}</p>
                           </div>
                           <div>{profile.email}</div>
-                          <div>{new Date(profile.created_at).toLocaleDateString()}</div>
+                          <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}</div>
                           <div className="flex space-x-2">
                             <Button 
                               size="sm" 
                               variant="outline"
-                              onClick={() => editProfile(profile.id, { full_name: profile.full_name })}
+                              onClick={() => toast({ title: "Edit Clicked", description: `Edit action for ${profile.full_name} not fully implemented.`})}
                               disabled={isOperationLoading}
                             >
                               {isOperationLoading ? "Saving..." : "Edit"}
@@ -478,9 +429,9 @@ export default function AdminDashboard() {
                               size="sm" 
                               variant="destructive"
                               onClick={() => handleSuspendUser(profile.id)}
-                              disabled={isOperationLoading}
+                              disabled={isOperationLoading || profile.status === 'suspended'}
                             >
-                              {isOperationLoading ? "Processing..." : "Suspend"}
+                              {isOperationLoading ? "Processing..." : (profile.status === 'suspended' ? 'Suspended' : 'Suspend')}
                             </Button>
                           </div>
                         </div>
@@ -531,30 +482,31 @@ export default function AdminDashboard() {
                       <div>Actions</div>
                     </div>
                     <div className="divide-y">
-                      {isLoading ? (
-                        <LoadingSpinner />
-                      ) : realtimeSpots.length === 0 ? (
+                      {isDataLoading && (!parkingSpots || parkingSpots.length === 0) ? (
+                         <div className="p-8 text-center"><LoadingSpinner /></div>
+                      ) : parkingSpots && parkingSpots.length === 0 ? (
                         <div className="p-8 text-center text-gray-500">
                           No parking spots found
                         </div>
                       ) : (
-                        realtimeSpots.map((spot: ParkingSpot) => (
+                        parkingSpots?.map((spot: ParkingSpot) => (
                           <div key={spot.id} className="grid grid-cols-5 gap-4 p-4 items-center">
                             <div>
                               <p className="font-medium">{spot.location_name}</p>
                               <p className="text-sm text-gray-500">
-                                {`${spot.coordinates.lat.toFixed(4)}, ${spot.coordinates.lng.toFixed(4)}`}
+                                {spot.coordinates ? `${spot.coordinates.lat?.toFixed(4)}, ${spot.coordinates.lng?.toFixed(4)}` : 'N/A'}
                               </p>
                             </div>
                             <div>
                               <Badge variant="outline">{spot.type}</Badge>
                             </div>
                             <div>
-                              <Badge variant={spot.status === 'active' ? 'default' : 'destructive'}>
-                                {spot.status === 'active' ? 'Available' : 'Unavailable'}
+                              {/* Corrected Badge variant logic for ParkingSpot status */}
+                              <Badge variant={spot.status === 'active' ? 'default' : spot.status === 'occupied' ? 'secondary' : spot.status === 'inactive' ? 'outline' : 'destructive'}>
+                                {spot.status ? spot.status.charAt(0).toUpperCase() + spot.status.slice(1) : 'Unknown'}
                               </Badge>
                             </div>
-                            <div className="text-sm">{spot.reports} reports</div>
+                            <div className="text-sm">{spot.reports || 0} reports</div>
                             <div className="flex space-x-2">
                               <Button 
                                 size="sm" 
@@ -582,7 +534,6 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            {/* Parking Spot Form */}
             <ParkingSpotForm
               isOpen={isSpotFormOpen}
               onClose={closeSpotForm}
@@ -599,8 +550,7 @@ export default function AdminDashboard() {
                     <CardTitle className="text-sm font-medium">Total Active Spots</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{spotStats.activeSpots}</div>
-                    <div className="text-xs text-green-500">+12% from last month</div>
+                    <div className="text-2xl font-bold">{spotStats?.active || 0}</div>
                   </CardContent>
                 </Card>
                 <Card>
@@ -608,8 +558,7 @@ export default function AdminDashboard() {
                     <CardTitle className="text-sm font-medium">Avg Daily Reports</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{spotStats.dailyReports}</div>
-                    <div className="text-xs text-green-500">+8% from last week</div>
+                    <div className="text-2xl font-bold">{spotStats?.dailyReports || 0}</div>
                   </CardContent>
                 </Card>
                 <Card>
@@ -617,7 +566,7 @@ export default function AdminDashboard() {
                     <CardTitle className="text-sm font-medium">System Uptime</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{spotStats.uptime}%</div>
+                    <div className="text-2xl font-bold">{spotStats?.uptime || 0}%</div>
                     <div className="text-xs text-gray-500">Last 30 days</div>
                   </CardContent>
                 </Card>
@@ -626,13 +575,18 @@ export default function AdminDashboard() {
               <Card>
                 <CardHeader>
                   <CardTitle>Usage Analytics</CardTitle>
-                  <CardDescription>System usage patterns and trends</CardDescription>
+                  <CardDescription>System usage patterns and trends (using analyticsData)</CardDescription>
                 </CardHeader>
                 <CardContent className="pl-2">
-                  {/* Add chart or graph component here */}
-                  <div className="h-[200px] bg-gray-100 rounded-md flex items-center justify-center text-gray-500">
-                    Usage Graph Placeholder
-                  </div>
+                  {analyticsData && analyticsData.length > 0 ? (
+                    <div className="h-[200px] bg-gray-100 rounded-md flex items-center justify-center text-gray-700 overflow-auto text-xs">
+                      <pre>{JSON.stringify(analyticsData.slice(-5), null, 2)}</pre> 
+                    </div>
+                  ) : (
+                    <div className="h-[200px] bg-gray-100 rounded-md flex items-center justify-center text-gray-500">
+                      No analytics data available or loading...
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -697,7 +651,6 @@ export default function AdminDashboard() {
 
           <TabsContent value="settings">
             <div className="space-y-4">
-              {/* Navigation Back to User Dashboard */}
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex justify-between items-center">
@@ -712,14 +665,12 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              {/* System Settings */}
               <Card>
                 <CardHeader>
                   <CardTitle>System Settings</CardTitle>
                   <CardDescription>Configure system preferences and features</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Feature Toggles */}
                   <div className="space-y-4">
                     <h4 className="text-sm font-medium">Feature Toggles</h4>
                     <div className="space-y-4">
@@ -744,7 +695,6 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* API Configuration */}
                   <div className="space-y-4">
                     <h4 className="text-sm font-medium">API Configuration</h4>
                     <div className="grid gap-4">
@@ -759,7 +709,6 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Notification Settings */}
                   <div className="space-y-4">
                     <h4 className="text-sm font-medium">Notification Settings</h4>
                     <div className="space-y-4">
@@ -784,7 +733,6 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Save Settings Button */}
                   <div className="flex justify-end">
                     <Button>
                       Save Settings
@@ -793,7 +741,6 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Danger Zone */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-red-600">Danger Zone</CardTitle>
