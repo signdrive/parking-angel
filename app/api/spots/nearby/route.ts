@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { APIError, handleAPIError } from "@/lib/api-error"
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,60 +12,44 @@ export async function GET(request: NextRequest) {
     console.log("Nearby spots API called with:", { lat, lng, radius })
 
     if (!lat || !lng) {
-      console.error("Missing lat/lng parameters")
-      return NextResponse.json({ error: "Latitude and longitude are required" }, { status: 400 })
+      throw new APIError("Latitude and longitude are required", 400, "missing_coordinates")
     }
 
     // Validate coordinates
-    const latitude = Number.parseFloat(lat)
-    const longitude = Number.parseFloat(lng)
-    const radiusMeters = Number.parseInt(radius)
+    const parsedLat = Number.parseFloat(lat)
+    const parsedLng = Number.parseFloat(lng)
+    const parsedRadius = Number.parseInt(radius)
 
-    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusMeters)) {
-      console.error("Invalid coordinate parameters:", { lat, lng, radius })
-      return NextResponse.json({ error: "Invalid coordinate parameters" }, { status: 400 })
+    if (isNaN(parsedLat) || isNaN(parsedLng) || isNaN(parsedRadius)) {
+      throw new APIError("Invalid coordinate parameters", 400, "invalid_coordinates")
     }
 
-    if (latitude < -90 || latitude > 90) {
-      console.error("Invalid latitude:", latitude)
-      return NextResponse.json({ error: "Invalid latitude: must be between -90 and 90" }, { status: 400 })
+    if (parsedLat < -90 || parsedLat > 90) {
+      throw new APIError("Invalid latitude: must be between -90 and 90", 400, "invalid_latitude")
     }
 
-    if (longitude < -180 || longitude > 180) {
-      console.error("Invalid longitude:", longitude)
-      return NextResponse.json({ error: "Invalid longitude: must be between -180 and 180" }, { status: 400 })
+    if (parsedLng < -180 || parsedLng > 180) {
+      throw new APIError("Invalid longitude: must be between -180 and 180", 400, "invalid_longitude")
     }
 
-    console.log("Calling find_nearby_spots with validated params:", { latitude, longitude, radiusMeters })
+    console.log("Calling find_nearby_spots with validated params:", { parsedLat, parsedLng, parsedRadius })
 
     const { data: spots, error } = await supabase.rpc("find_nearby_spots", {
-      user_lat: latitude,
-      user_lng: longitude,
-      radius_meters: radiusMeters,
+      user_lat: parsedLat,
+      user_lng: parsedLng,
+      radius_meters: parsedRadius,
     })
 
     if (error) {
       console.error("Supabase RPC error:", error)
-      return NextResponse.json(
-        {
-          error: "Failed to fetch nearby spots",
-          details: error.message,
-          spots: [], // Return empty array as fallback
-        },
-        { status: 200 },
-      ) // Return 200 with empty spots instead of 500
+      throw new APIError("Failed to fetch nearby spots", 500, "database_error")
     }
 
-    console.log("Successfully fetched spots:", spots?.length || 0)
-    return NextResponse.json({ spots: spots || [] })
+    return NextResponse.json({
+      spots,
+      msg: "Successfully fetched nearby spots",
+    })
   } catch (error) {
-    console.error("Unexpected error in nearby spots API:", error)
-    return NextResponse.json(
-      {
-        error: "Internal server error",
-        spots: [], // Return empty array as fallback
-      },
-      { status: 200 },
-    ) // Return 200 with empty spots instead of 500
+    return handleAPIError(error)
   }
 }

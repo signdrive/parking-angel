@@ -12,33 +12,45 @@ interface UseParkingSpotsProps {
   radius?: number
 }
 
+interface APIError {
+  error: string
+  error_code: string
+  msg: string
+}
+
 export function useParkingSpots({ latitude, longitude, radius = 500 }: UseParkingSpotsProps) {
   const [spots, setSpots] = useState<ParkingSpot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!latitude || !longitude || !isSupabaseConfigured()) {
+    if (!latitude || !longitude) {
       setLoading(false)
-      if (!isSupabaseConfigured()) {
-        setError("Database not configured")
-      }
+      setError("Location is required")
       return
     }
 
     const fetchSpots = async () => {
       try {
         setLoading(true)
-        const { data, error } = await supabase.rpc("find_nearby_spots", {
-          user_lat: latitude,
-          user_lng: longitude,
-          radius_meters: radius,
-        })
+        setError(null)
 
-        if (error) throw error
-        setSpots(data || [])
+        const response = await fetch(
+          `/api/spots/nearby?lat=${latitude}&lng=${longitude}&radius=${radius}`
+        )
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          const apiError = data as APIError
+          throw new Error(apiError.msg || 'Failed to fetch spots')
+        }
+
+        setSpots(data.spots || [])
       } catch (err) {
+        console.error('Error fetching spots:', err)
         setError(err instanceof Error ? err.message : "Failed to fetch parking spots")
+        setSpots([])
       } finally {
         setLoading(false)
       }

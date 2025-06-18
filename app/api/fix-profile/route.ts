@@ -1,40 +1,37 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getCurrentUser, createOrUpdateProfile } from "@/lib/auth"
+import { APIError, handleAPIError } from "@/lib/api-error"
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
+    const { user, error: userError } = await getCurrentUser()
 
-    if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
+    if (userError || !user) {
+      throw new APIError("Not authenticated", 401, "auth_required")
     }
 
     // Try to create or update the profile
-    const result = await createOrUpdateProfile(user)
+    const { profile, error: profileError } = await createOrUpdateProfile({
+      id: user.id,
+      email: user.email,
+      full_name: user.user_metadata?.full_name,
+      avatar_url: user.user_metadata?.avatar_url,
+    })
 
-    if (result.error) {
-      return NextResponse.json(
-        {
-          error: "Failed to create profile",
-          details: result.error.message,
-        },
-        { status: 500 },
+    if (profileError) {
+      throw new APIError(
+        "Failed to create/update profile",
+        500,
+        "profile_update_failed",
       )
     }
 
     return NextResponse.json({
       success: true,
-      message: "Profile created/updated successfully",
-      profile: result.data,
+      msg: "Profile created/updated successfully",
+      profile,
     })
   } catch (error) {
-    console.error("Error in fix-profile API:", error)
-    return NextResponse.json(
-      {
-        error: "Internal server error",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    )
+    return handleAPIError(error)
   }
 }

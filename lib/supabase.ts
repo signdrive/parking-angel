@@ -1,17 +1,34 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables")
+export type Database = {
+  public: {
+    Tables: {
+      parking_spots: {
+        Row: {
+          id: string
+          created_at?: string
+          updated_at?: string
+          latitude: number
+          longitude: number
+          address?: string
+          available: boolean
+          type: string
+          price_per_hour?: number
+          restrictions?: string
+          reported_by?: string
+          last_reported?: string
+          verified?: boolean
+        }
+      }
+      // Add other tables as needed
+    }
+  }
 }
-
-export const supabase = createBrowserClient(
-  supabaseUrl,
-  supabaseAnonKey
-)
 
 export function isSupabaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  return !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 }
+
+const supabase = createClientComponentClient<Database>();
+
+export { supabase };
