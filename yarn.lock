@@ -2659,6 +2659,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@supabase/ssr@npm:^0.6.1":
+  version: 0.6.1
+  resolution: "@supabase/ssr@npm:0.6.1"
+  dependencies:
+    cookie: ^1.0.1
+  peerDependencies:
+    "@supabase/supabase-js": ^2.43.4
+  checksum: 54152ade021fb888634efca55aa6fbc4dee418ce9c7aa4ccd60f794206a83e175b8c75db6db4781fa9a8b064dde76c025592548982913bb57f6566f3883e3f56
+  languageName: node
+  linkType: hard
+
 "@supabase/storage-js@npm:2.7.1":
   version: 2.7.1
   resolution: "@supabase/storage-js@npm:2.7.1"
@@ -2848,15 +2859,6 @@ __metadata:
   dependencies:
     csstype: ^3.0.2
   checksum: 17e0c74d9c01214938fa805aaa8b97925bf3c5514e88fdf94bec42c0a6d4abbc63d4e30255db176f46fd7f0aa89f8085b9b2b2fa5abaffbbf7e5009386ada892
-  languageName: node
-  linkType: hard
-
-"@types/recharts@npm:^2.0.1":
-  version: 2.0.1
-  resolution: "@types/recharts@npm:2.0.1"
-  dependencies:
-    recharts: "*"
-  checksum: 627bc250f59a2aa7c5958328dd984445f44f3eff795d5959577f6506c68e225231e28cad088209b23304342d9db5f9f7e2858a3fbbcf9cf07affd6596fcdace8
   languageName: node
   linkType: hard
 
@@ -3204,6 +3206,13 @@ __metadata:
   version: 4.1.1
   resolution: "commander@npm:4.1.1"
   checksum: d7b9913ff92cae20cb577a4ac6fcc121bd6223319e54a40f51a14740a681ad5c574fd29a57da478a5f234a6fa6c52cbf0b7c641353e03c648b1ae85ba670b977
+  languageName: node
+  linkType: hard
+
+"cookie@npm:^1.0.1":
+  version: 1.0.2
+  resolution: "cookie@npm:1.0.2"
+  checksum: 2c5a6214147ffa7135ce41860c781de17e93128689b0d080d3116468274b3593b607bcd462ac210d3a61f081db3d3b09ae106e18d60b1f529580e95cf2db8a55
   languageName: node
   linkType: hard
 
@@ -4517,11 +4526,11 @@ __metadata:
     "@radix-ui/react-tooltip": 1.1.6
     "@stripe/react-stripe-js": ^3.7.0
     "@stripe/stripe-js": ^7.3.1
+    "@supabase/ssr": ^0.6.1
     "@supabase/supabase-js": latest
     "@types/node": ^22
     "@types/react": ^19
     "@types/react-dom": ^19
-    "@types/recharts": ^2.0.1
     autoprefixer: ^10.4.20
     class-variance-authority: ^0.7.1
     clsx: ^2.1.1
@@ -4990,7 +4999,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"recharts@npm:*, recharts@npm:^2.15.0":
+"recharts@npm:^2.15.0":
   version: 2.15.3
   resolution: "recharts@npm:2.15.3"
   dependencies:

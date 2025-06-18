@@ -14,6 +14,7 @@ export default function AuthCallbackPage() {
         // Check if we have an error from the OAuth provider
         const error = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
+        const code = searchParams.get('code');
         
         if (error) {
           console.error('OAuth error:', error, errorDescription);
@@ -21,8 +22,14 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        // Get session to complete the OAuth flow
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (!code) {
+          console.error('No code parameter found');
+          router.push('/auth/login');
+          return;
+        }
+
+        // Exchange code for session
+        const { data: { session }, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
         if (sessionError) {
           console.error('Session error:', sessionError);
@@ -49,9 +56,15 @@ export default function AuthCallbackPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold">Completing sign in...</h2>
-        <p className="text-sm text-gray-500">Please wait while we redirect you.</p>
+      <div className="w-full max-w-md space-y-8 p-10 rounded-xl shadow-lg">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-bold tracking-tight">
+            Completing sign in...
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Please wait while we authenticate your session
+          </p>
+        </div>
       </div>
     </div>
   );
