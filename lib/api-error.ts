@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { PostgrestError } from '@supabase/supabase-js';
 
 export class APIError extends Error {
   constructor(
@@ -10,6 +11,12 @@ export class APIError extends Error {
     this.name = 'APIError';
   }
 }
+
+type DatabaseError = {
+  code: string | number;
+  message?: string;
+  details?: string;
+};
 
 export function handleAPIError(error: unknown) {
   console.error('API Error:', error);
@@ -25,13 +32,26 @@ export function handleAPIError(error: unknown) {
     );
   }
 
-  // Handle Supabase errors
-  if (error && typeof error === 'object' && 'code' in error) {
+  // Handle Supabase PostgrestError
+  if (error instanceof PostgrestError) {
     return NextResponse.json(
       {
         error: 'Database error',
-        error_code: String(error.code),
-        msg: error.message || 'An error occurred while accessing the database'
+        error_code: error.code,
+        msg: error.message || error.details || 'An error occurred while accessing the database'
+      },
+      { status: 500 }
+    );
+  }
+
+  // Handle generic database errors
+  if (error && typeof error === 'object' && 'code' in error) {
+    const dbError = error as DatabaseError;
+    return NextResponse.json(
+      {
+        error: 'Database error',
+        error_code: String(dbError.code),
+        msg: dbError.message || dbError.details || 'An error occurred while accessing the database'
       },
       { status: 500 }
     );
@@ -42,7 +62,7 @@ export function handleAPIError(error: unknown) {
     {
       error: 'Internal server error',
       error_code: 'internal_error',
-      msg: 'An unexpected error occurred'
+      msg: error instanceof Error ? error.message : 'An unexpected error occurred'
     },
     { status: 500 }
   );

@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 
 export async function GET() {
   try {
+ 
     // Create Supabase client
     const supabase = createServerComponentClient({ cookies });
 
