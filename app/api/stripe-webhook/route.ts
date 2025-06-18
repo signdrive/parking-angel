@@ -2,13 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-05-28.basil",
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('Missing STRIPE_SECRET_KEY environment variable');
+}
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2024-03-14", // Update to latest stable version
+  typescript: true,
 });
 
+// Use service_role key for admin operations
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    }
+  }
 );
 
 function getPlanFromPriceId(priceId: string) {
@@ -18,21 +30,40 @@ function getPlanFromPriceId(priceId: string) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    return NextResponse.json(
+      { error: 'Missing STRIPE_WEBHOOK_SECRET' },
+      { status: 500 }
+    );
+  }
+
   const sig = req.headers.get("stripe-signature");
+  if (!sig) {
+    return NextResponse.json(
+      { error: 'No signature found in request' },
+      { status: 400 }
+    );
+  }
+
   const body = await req.text();
   let event;
+
   try {
     event = stripe.webhooks.constructEvent(
       body,
-      sig!,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err: any) {
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+    console.error('Webhook signature verification failed:', err.message);
+    return NextResponse.json(
+      { error: `Webhook Error: ${err.message}` },
+      { status: 400 }
+    );
   }
 
   if (event.type === "checkout.session.completed" || event.type === "invoice.paid") {
-    const session = event.data.object as any;
+    const session = event.data.object as Stripe.Checkout.Session;
     const email = session.customer_email || session.customer_details?.email;
     let plan = "Free";
     let priceId = "";
