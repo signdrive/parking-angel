@@ -1,7 +1,7 @@
 import { supabase } from "./supabase"
 import { User } from '@supabase/supabase-js'
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.parkalgo.com'
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.parkalgo.com'
 
 export async function signInWithGoogle() {
   try {
@@ -12,7 +12,8 @@ export async function signInWithGoogle() {
         queryParams: {
           access_type: 'offline',
           prompt: 'consent'
-        }
+        },
+        skipBrowserRedirect: false
       }
     })
 
@@ -37,7 +38,10 @@ export async function signUpWithEmail(email: string, password: string) {
     email,
     password,
     options: {
-      emailRedirectTo: `${siteUrl}/auth/callback`
+      emailRedirectTo: `${siteUrl}/auth/callback`,
+      data: {
+        redirect_url: `${siteUrl}/auth/callback`
+      }
     }
   })
   return { data, error }

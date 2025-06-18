@@ -19,10 +19,7 @@ export async function middleware(request: NextRequest) {
 
     // Check required environment variables
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      console.error('Missing required environment variables:', {
-        url: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-        key: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      })
+      console.error('Missing required environment variables')
       throw new Error('Missing Supabase configuration')
     }
 
@@ -31,8 +28,11 @@ export async function middleware(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
-          get: (name) => request.cookies.get(name)?.value,
-          set: (name, value, options) => {
+          get(name) {
+            return request.cookies.get(name)?.value
+          },
+          set(name, value, options) {
+            // Set new cookie
             response.cookies.set({
               name,
               value,
@@ -40,32 +40,54 @@ export async function middleware(request: NextRequest) {
               sameSite: 'lax',
               secure: process.env.NODE_ENV === 'production',
               path: '/',
+              domain: process.env.NODE_ENV === 'production' ? '.parkalgo.com' : undefined,
             })
           },
-          remove: (name, options) => {
+          remove(name, options) {
+            // Remove cookie
             response.cookies.set({
               name,
               value: '',
               ...options,
-              maxAge: -1,
               path: '/',
+              domain: process.env.NODE_ENV === 'production' ? '.parkalgo.com' : undefined,
+              maxAge: 0
             })
           },
         },
       }
     )
 
-    await supabase.auth.getSession()
+    // Refresh session if needed
+    const { data: { session }, error } = await supabase.auth.getSession()
+
+    // Handle auth paths
+    if (request.nextUrl.pathname.startsWith('/auth')) {
+      if (session) {
+        // If logged in and trying to access auth pages, redirect to dashboard
+        const redirectUrl = new URL('/dashboard', request.url)
+        return NextResponse.redirect(redirectUrl)
+      }
+      // Allow access to auth pages if not logged in
+      return response
+    }
+
+    // Handle protected routes
+    if (
+      request.nextUrl.pathname.startsWith('/dashboard') ||
+      request.nextUrl.pathname.startsWith('/profile')
+    ) {
+      if (!session) {
+        // If not logged in, redirect to login
+        const redirectUrl = new URL('/auth/login', request.url)
+        return NextResponse.redirect(redirectUrl)
+      }
+    }
 
     return response
-  } catch (error) {
-    console.error('Middleware error:', error)
-    return NextResponse.next({
-      status: 500,
-      headers: {
-        'Cache-Control': 'no-store, max-age=0',
-      },
-    })
+  } catch (e) {
+    console.error('Middleware error:', e)
+    return NextResponse.next()
   }
 }
 
