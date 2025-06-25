@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { AlertCircle } from 'lucide-react';
 
 export function PaymentModal({ open, onOpenChange, plan, amount, priceId }: {
   open: boolean;
@@ -45,6 +46,18 @@ export function PaymentModal({ open, onOpenChange, plan, amount, priceId }: {
             {amount > 0 ? `Pay $${amount} to unlock ${plan} features.` : 'No payment required.'}
           </DialogDescription>
         </DialogHeader>
+        
+        {/* Test Mode Notice */}
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center space-x-2 text-amber-800">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span className="font-medium text-sm">Beta Testing Mode</span>
+          </div>
+          <p className="text-xs text-amber-700 mt-1">
+            This is a test payment. No actual charges will be processed during our beta phase.
+          </p>
+        </div>
+        
         {loading && <div className="text-center py-8">Initializing payment...</div>}
         {error && <div className="text-red-500 text-center py-4">{error}</div>}
         <div className="text-center py-8">
@@ -54,7 +67,7 @@ export function PaymentModal({ open, onOpenChange, plan, amount, priceId }: {
             onClick={handleSubscribe}
             disabled={loading}
           >
-            {loading ? 'Processing...' : 'Pay Now'}
+            {loading ? 'Processing...' : 'Continue to Test Payment'}
           </Button>
         </div>
         <DialogClose asChild>

@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useAuth } from "@/hooks/use-auth"
-import { requestNotificationPermission, onMessageListener, subscribeToNotifications } from "@/lib/firebase-messaging"
+import { useAuth } from "@/components/auth/auth-provider"
+import { requestNotificationPermission, onMessageListener, subscribeToNotifications, NotificationPayload } from "@/lib/firebase-messaging"
 import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Bell, BellOff } from "lucide-react"
@@ -14,10 +14,8 @@ export function NotificationManager() {
 
   useEffect(() => {
     // Check if notifications are already enabled
-    setNotificationsEnabled(Notification.permission === "granted")
-
-    // Listen for foreground messages
-    const unsubscribe = onMessageListener((payload) => {
+    setNotificationsEnabled(Notification.permission === "granted")    // Listen for foreground messages
+    const unsubscribe = onMessageListener((payload: NotificationPayload) => {
       toast({
         title: payload.notification?.title || "New Notification",
         description: payload.notification?.body || "You have a new parking update",
@@ -28,13 +26,11 @@ export function NotificationManager() {
   }, [])
 
   const enableNotifications = async () => {
-    if (!user) return
-
-    setLoading(true)
+    if (!user) return    setLoading(true)
     try {
-      const token = await requestNotificationPermission()
-      if (token) {
-        await subscribeToNotifications(user.id, token)
+      const granted = await requestNotificationPermission()
+      if (granted) {
+        await subscribeToNotifications(user.id)
         setNotificationsEnabled(true)
         toast({
           title: "Notifications Enabled",

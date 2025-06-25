@@ -9,16 +9,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/components/auth/auth-provider"
 import { MapPin } from "lucide-react"
 
 interface SpotReportDialogProps {
   open: boolean
-  onOpenChange: (open: boolean) => void
+  toggleAction: (open: boolean) => void
   location: { lat: number; lng: number } | null
 }
 
-export function SpotReportDialog({ open, onOpenChange, location }: SpotReportDialogProps) {
+export function SpotReportDialog({ open, toggleAction, location }: SpotReportDialogProps) {
   const { user } = useAuth()
   const [spotType, setSpotType] = useState<string>("")
   const [address, setAddress] = useState("")
@@ -45,8 +45,7 @@ export function SpotReportDialog({ open, onOpenChange, location }: SpotReportDia
           longitude: location.lng,
           spotType: spotType || "street",
           address,
-          notes,
-        }),
+          notes,        }),
       })
 
       if (!response.ok) {
@@ -55,7 +54,7 @@ export function SpotReportDialog({ open, onOpenChange, location }: SpotReportDia
 
       setSuccess(true)
       setTimeout(() => {
-        onOpenChange(false)
+        toggleAction(false)
         setSuccess(false)
         setSpotType("")
         setAddress("")
@@ -67,23 +66,20 @@ export function SpotReportDialog({ open, onOpenChange, location }: SpotReportDia
       setLoading(false)
     }
   }
-
   if (!user) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
+    return (      <Dialog open={open} onOpenChange={toggleAction}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Sign In Required</DialogTitle>
             <DialogDescription>Please sign in to report parking spots.</DialogDescription>
           </DialogHeader>
-          <Button onClick={() => onOpenChange(false)}>Close</Button>
+          <Button onClick={() => toggleAction(false)}>Close</Button>
         </DialogContent>
       </Dialog>
     )
   }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={toggleAction}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -149,7 +145,7 @@ export function SpotReportDialog({ open, onOpenChange, location }: SpotReportDia
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => toggleAction(false)}
                 disabled={loading}
                 className="flex-1"
               >

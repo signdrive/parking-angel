@@ -3,7 +3,7 @@
 import React from "react"
 import type { ReactNode } from "react"
 import { useEffect } from "react"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/components/auth/auth-provider"
 import { usePathname } from "next/navigation"
 
 interface AnalyticsContextType {

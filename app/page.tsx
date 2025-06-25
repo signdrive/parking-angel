@@ -11,52 +11,70 @@ import { ConnectionTest } from "@/components/setup/connection-test"
 import { ComprehensiveTest } from "@/components/setup/comprehensive-test"
 import { PaymentModal } from "@/components/payment-modal"
 import { useGeolocation } from "@/hooks/use-geolocation"
+import { SiteFooter } from "@/components/layout/site-footer"
 
-const STRIPE_PRO_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || "";
-const STRIPE_ELITE_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_ELITE_PRICE_ID || "";
+const STRIPE_NAVIGATOR_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID || "";
+const STRIPE_PRO_PARKER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID || "";
+const STRIPE_FLEET_MANAGER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_FLEET_MANAGER_PRICE_ID || "";
 
-if (!STRIPE_PRO_PRICE_ID || !STRIPE_ELITE_PRICE_ID) {
-  console.warn("Stripe price IDs are missing. Check your .env.local and restart the dev server.");
+if (!STRIPE_NAVIGATOR_PRICE_ID || !STRIPE_PRO_PARKER_PRICE_ID || !STRIPE_FLEET_MANAGER_PRICE_ID) {
+  console.warn("Some Stripe price IDs are missing. Check your .env.local and restart the dev server.");
 }
 
 const plans = [
 	{
-		name: "Free",
+		name: "Starter",
 		price: 0,
-		description: "Basic access to AI-powered parking map and notifications.",
-		features: ["AI parking map", "Basic notifications", "Community spots"],
+		description: "Perfect for occasional parking with essential features.",
+		features: ["5 searches per day", "Basic parking map", "Community reports", "Email support"],
 		cta: "Get Started",
 		highlight: false,
-		id: "free",
+		id: "starter",
 	},
 	{
-		name: "Pro",
-		price: 9.99,
-		description: "Unlock advanced analytics, premium support, and more.",
+		name: "Navigator",
+		price: 8.99,
+		description: "Ideal for daily commuters with unlimited access.",
 		features: [
-			"All Free features",
+			"Unlimited searches",
+			"Ad-free experience", 
+			"Route planning",
+			"Spot hold service",
+			"EV charging spots",
+		],
+		cta: "Go Navigator",
+		highlight: true,
+		id: "navigator",
+	},
+	{
+		name: "Pro Parker",
+		price: 19.99,
+		description: "Advanced features for parking pros and smart city dwellers.",
+		features: [
+			"Everything in Navigator",
+			"AI-powered predictions",
+			"Smart notifications",
 			"Advanced analytics",
 			"Priority support",
-			"Save favorite spots",
 		],
 		cta: "Go Pro",
-		highlight: true,
-		id: "pro",
+		highlight: false,
+		id: "pro_parker",
 	},
 	{
-		name: "Elite",
-		price: 24.99,
-		description:
-			"Full access to all features, including AI concierge and elite badge.",
+		name: "Fleet Manager",
+		price: 49.99,
+		description: "Enterprise solution for businesses and fleet operators.",
 		features: [
-			"All Pro features",
-			"AI concierge",
-			"Elite badge",
-			"Early access to new features",
+			"Everything in Pro Parker",
+			"Multi-vehicle management",
+			"Team dashboard",
+			"API access",
+			"Dedicated support",
 		],
-		cta: "Go Elite",
+		cta: "Go Enterprise",
 		highlight: false,
-		id: "elite",
+		id: "fleet_manager",
 	},
 ]
 
@@ -160,6 +178,28 @@ export default function HomePage() {
 				</nav>
 			</header>
 
+			{/* Test Mode Banner */}
+			<div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 shadow-lg">
+				<div className="container mx-auto px-4">
+					<div className="flex items-center justify-center space-x-3">
+						<AlertCircle className="w-6 h-6 flex-shrink-0" />
+						<div className="text-center">
+							<h2 className="text-lg font-bold">
+								🚧 BETA TESTING MODE
+							</h2>
+							<p className="text-sm opacity-90">
+								We're currently in beta testing. No real payments will be processed. 
+								<span className="font-semibold ml-1">Coming Soon: Full Launch!</span>
+							</p>
+						</div>
+						<div className="hidden sm:flex items-center space-x-2 bg-white/20 rounded-full px-3 py-1">
+							<Clock className="w-4 h-4" />
+							<span className="text-sm font-medium">Test Phase</span>
+						</div>
+					</div>
+				</div>
+			</div>
+
 			<main className="container mx-auto px-4 py-12">
 				<div className="text-center mb-8">
 					<Button onClick={requestGeolocation} className="mb-2">Get My Location</Button>
@@ -197,22 +237,36 @@ export default function HomePage() {
 					<h2 className="text-4xl font-bold text-gray-900 mb-6 text-center">
 						Choose Your Plan
 					</h2>
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+					
+					{/* Test Mode Notice for Pricing */}
+					<div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8 mx-auto max-w-2xl">
+						<div className="flex items-center justify-center space-x-2 text-blue-800">
+							<CreditCard className="w-5 h-5" />
+							<span className="font-semibold">Test Mode Active</span>
+						</div>
+						<p className="text-center text-sm text-blue-700 mt-2">
+							All payment features are currently in testing phase. No actual charges will be processed during beta.
+						</p>
+					</div>
+					
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
 						{plans.map((plan) => (
 							<div
 								key={plan.id}
 								className={`rounded-2xl shadow-xl bg-white p-8 flex flex-col items-center border-2 transition-all duration-200 ${
 									plan.highlight ? "border-blue-500 scale-105" : "border-gray-200"
 								}`}
-							>
-								<div className="mb-4">
-									{plan.id === "free" && (
+							>								<div className="mb-4">
+									{plan.id === "starter" && (
 										<CheckCircle2 className="w-10 h-10 text-green-500" />
 									)}
-									{plan.id === "pro" && (
+									{plan.id === "navigator" && (
 										<Star className="w-10 h-10 text-blue-500" />
 									)}
-									{plan.id === "elite" && (
+									{plan.id === "pro_parker" && (
+										<Crown className="w-10 h-10 text-purple-500" />
+									)}
+									{plan.id === "fleet_manager" && (
 										<Crown className="w-10 h-10 text-yellow-500" />
 									)}
 								</div>
@@ -337,37 +391,24 @@ export default function HomePage() {
 							</Button>
 						</Link>
 					</div>
-				</div>
-
-				<PaymentModal
+				</div>				<PaymentModal
 					open={paymentOpen}
 					onOpenChange={setPaymentOpen}
 					plan={selectedPlan?.name || ""}
 					amount={selectedPlan?.price || 0}
 					priceId={
-						selectedPlan?.name === "Pro"
-							? STRIPE_PRO_PRICE_ID
-							: selectedPlan?.name === "Elite"
-							? STRIPE_ELITE_PRICE_ID
+						selectedPlan?.name === "Navigator"
+							? STRIPE_NAVIGATOR_PRICE_ID
+							: selectedPlan?.name === "Pro Parker"
+							? STRIPE_PRO_PARKER_PRICE_ID
+							: selectedPlan?.name === "Fleet Manager"
+							? STRIPE_FLEET_MANAGER_PRICE_ID
 							: ""
 					}
 				/>
 			</main>
 
-			<footer className="container mx-auto px-4 py-8 mt-16 border-t">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center space-x-2">
-						<MapPin className="w-6 h-6 text-blue-600" />
-						<span className="font-semibold text-gray-900">Park Algo</span>
-						<span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
-							AI POWERED
-						</span>
-					</div>
-					<p className="text-gray-600">
-						© 2024 Park Algo. Powered by AI & Supabase.
-					</p>
-				</div>
-			</footer>
+			<SiteFooter />
 		</div>
 	)
 }

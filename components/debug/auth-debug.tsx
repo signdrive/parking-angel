@@ -5,13 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useAuth } from "@/hooks/use-auth"
-import { supabase } from "@/lib/supabase"
-import { createOrUpdateProfile } from "@/lib/auth"
+import { useAuth } from "@/components/auth/auth-provider"
+import { getBrowserClient } from "@/lib/supabase/browser"
 import { AlertCircle, Bug, RefreshCw, Wrench, CheckCircle, Database } from "lucide-react"
 
 export function AuthDebug() {
-  const { user, loading, refreshUser } = useAuth()
+  const { user, isLoading, refreshSession } = useAuth()
   const [sessionData, setSessionData] = useState<any>(null)
   const [profileData, setProfileData] = useState<any>(null)
   const [profileError, setProfileError] = useState<any>(null)
@@ -20,13 +19,14 @@ export function AuthDebug() {
   const [fixing, setFixing] = useState(false)
   const [fixSuccess, setFixSuccess] = useState(false)
   const [rawProfileQuery, setRawProfileQuery] = useState<any>(null)
-
   const checkAuth = async () => {
     setChecking(true)
     setError(null)
     setProfileError(null)
 
     try {
+      const supabase = getBrowserClient()
+      
       // Check session
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) throw new Error(`Session error: ${sessionError.message}`)
@@ -58,7 +58,6 @@ export function AuthDebug() {
       setChecking(false)
     }
   }
-
   const fixProfile = async () => {
     if (!user) return
 
@@ -67,17 +66,27 @@ export function AuthDebug() {
     setFixSuccess(false)
 
     try {
-      // Try to create or update the profile
-      const result = await createOrUpdateProfile(user)
+      const supabase = getBrowserClient()
+      
+      // Try to create or update the profile manually
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+          avatar_url: user.user_metadata?.avatar_url || null,
+        })
+        .select()
 
-      if (result.error) {
-        throw new Error(result.error.message)
+      if (error) {
+        throw new Error(error.message)
       }
 
       setFixSuccess(true)
 
       // Refresh auth and check again
-      await refreshUser()
+      await refreshSession()
       await checkAuth()
     } catch (err) {
       console.error("Profile fix error:", err)
@@ -91,8 +100,14 @@ export function AuthDebug() {
     if (!user) return
 
     try {
-      // Test direct database access
-      const { data, error } = await supabase.rpc("get_user_profile", { user_id: user.id })
+      const supabase = getBrowserClient()
+      
+      // Test direct database access with a simple select
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        
       console.log("Direct query result:", { data, error })
     } catch (err) {
       console.error("Direct query error:", err)
@@ -132,7 +147,7 @@ export function AuthDebug() {
             <h3 className="font-medium mb-2">Auth Hook Status</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="font-medium">Loading:</div>
-              <div>{loading ? "True" : "False"}</div>
+              <div>{isLoading ? "True" : "False"}</div>
               <div className="font-medium">User:</div>
               <div>{user ? "Authenticated" : "Not authenticated"}</div>
               {user && (

@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, XCircle, AlertCircle, ExternalLink, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { isSupabaseConfigured } from "@/lib/supabase"
 
 export function EnvironmentCheck() {
   const [copied, setCopied] = useState<string | null>(null)
@@ -116,7 +115,7 @@ export function EnvironmentCheck() {
   }
 
   const allRequired = checks.filter((check) => check.required).every((check) => check.configured)
-  const supabaseConfigured = isSupabaseConfigured()
+  const supabaseConfigured = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   return (
     <Card>

@@ -11,14 +11,13 @@ export default function TestGooglePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
   const handleGoogleSignIn = async () => {
     setLoading(true)
     setError(null)
     setSuccess(null)
 
     try {
-      const { data, error } = await signInWithGoogle()
+      const { data, error } = await signInWithGoogle(`${window.location.origin}/dashboard`)
 
       if (error) {
         setError(error.message)

@@ -1,10 +1,19 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { getAdminSupabaseOrThrow } from "@/lib/supabase/admin-client" // Updated import
-import { Profile, ParkingSpot, SpotStatistics } from "@/types/admin"
+import { getBrowserClient } from "@/lib/supabase/browser"
+import { Database } from "@/lib/types/supabase"
 import { toast } from "@/components/ui/use-toast"
-import { SupabaseClient } from "@supabase/supabase-js" // Import SupabaseClient for type safety
+
+type Profile = Database['public']['Tables']['profiles']['Row']
+type ParkingSpot = Database['public']['Tables']['parking_spots']['Row']
+
+interface SpotStatistics {
+  total: number
+  active: number
+  dailyReports: number
+  uptime: number
+}
 
 export function useAdminRealtime() {
   const [realtimeData, setRealtimeData] = useState<{
@@ -22,19 +31,16 @@ export function useAdminRealtime() {
     },
   })
 
-  const [analyticsData, setAnalyticsData] = useState<any[]>([])
-  // Hold the client instance in state to ensure it's only initialized once client-side
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null)
+  const [analyticsData, setAnalyticsData] = useState<Array<{
+    timestamp: string
+    activeSpots: number
+    users: number
+  }>>([])
 
-  useEffect(() => {
-    // Initialize Supabase client on the client side
-    const client = getAdminSupabaseOrThrow()
-    setSupabase(client)
-  }, [])
+  const supabase = getBrowserClient()
 
   const updateStats = useCallback((spots: ParkingSpot[]) => {
-    const activeSpots = spots.filter(spot => spot.status === 'active').length
-    const dailyReports = spots.reduce((acc, spot) => acc + (spot.reports || 0), 0)
+    const activeSpots = spots.filter(spot => spot.is_available === true).length
 
     setRealtimeData(prev => ({
       ...prev,
@@ -42,27 +48,21 @@ export function useAdminRealtime() {
         ...prev.spotStats,
         total: spots.length,
         active: activeSpots,
-        dailyReports,
       },
     }))
 
-    // Update analytics data
     const timestamp = new Date().toISOString()
     setAnalyticsData(prev => [
       ...prev,
       {
         timestamp,
         activeSpots,
-        reports: dailyReports,
-        users: realtimeData.profiles.length, // This will use the latest state
+        users: realtimeData.profiles.length,
       },
-    ].slice(-50)) // Keep last 50 data points
-  }, [realtimeData.profiles.length]) // Added realtimeData.profiles.length as a dependency
+    ].slice(-50))  // Keep last 50 data points
+  }, [realtimeData.profiles.length])
 
   useEffect(() => {
-    if (!supabase) return // Don't run if supabase client isn't initialized
-
-    // Initial data fetch
     const fetchInitialData = async () => {
       try {
         const [profilesResponse, spotsResponse] = await Promise.all([
@@ -73,16 +73,16 @@ export function useAdminRealtime() {
         if (profilesResponse.error) throw profilesResponse.error
         if (spotsResponse.error) throw spotsResponse.error
 
-        const profiles = profilesResponse.data as Profile[] || []
-        const parkingSpots = spotsResponse.data as ParkingSpot[] || []
+        const profiles = profilesResponse.data || []
+        const parkingSpots = spotsResponse.data || []
 
         setRealtimeData(prev => ({
           ...prev,
-          profiles: profiles,
-          parkingSpots: parkingSpots,
+          profiles,
+          parkingSpots,
         }))
 
-        updateStats(parkingSpots) // Call updateStats with the fetched spots
+        updateStats(parkingSpots)
       } catch (error) {
         console.error('Error fetching initial data:', error)
         toast({
@@ -95,72 +95,35 @@ export function useAdminRealtime() {
 
     fetchInitialData()
 
-    // Set up real-time subscriptions
     const profilesSubscription = supabase
       .channel('profiles-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },
-        async (payload) => {
-          // Re-fetch all profiles to ensure consistency, or handle payload directly
-          const { data: profiles, error } = await supabase.from('profiles').select('*')
-          if (error) {
-            console.error('Error fetching profiles after change:', error)
-            toast({ title: "Error", description: "Failed to update user list.", variant: "destructive" })
-            return
-          }
-          setRealtimeData(prev => ({
-            ...prev,
-            profiles: (profiles as Profile[]) || [],
-          }))
-          // Note: updateStats is not directly called here as profile changes don't directly affect spot stats
-          // However, if user count is part of spotStats or analytics, it will be updated via updateStats's dependency on realtimeData.profiles.length
+        (payload) => {
+          console.log('Profiles change received!', payload)
+          fetchInitialData()
         }
       )
-      .subscribe((status, err) => {
-        if (err) {
-          console.error('Profiles subscription error:', err)
-          toast({ title: "Real-time Error", description: "User data updates might be delayed.", variant: "destructive"})
-        }
-      })
+      .subscribe()
 
     const spotsSubscription = supabase
       .channel('spots-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'parking_spots' },
-        async (payload) => {
-          // Re-fetch all spots to ensure consistency
-          const { data: spots, error } = await supabase.from('parking_spots').select('*')
-          if (error) {
-            console.error('Error fetching parking spots after change:', error)
-            toast({ title: "Error", description: "Failed to update parking spot list.", variant: "destructive" })
-            return
-          }
-          const updatedSpots = (spots as ParkingSpot[]) || []
-          setRealtimeData(prev => ({
-            ...prev,
-            parkingSpots: updatedSpots,
-          }))
-          updateStats(updatedSpots) // Call updateStats with the new spots
+        (payload) => {
+          console.log('Parking spots change received!', payload)
+          fetchInitialData()
         }
       )
-      .subscribe((status, err) => {
-        if (err) {
-          console.error('Parking spots subscription error:', err)
-          toast({ title: "Real-time Error", description: "Parking spot updates might be delayed.", variant: "destructive"})
-        }
-      })
+      .subscribe()
 
-    // Cleanup subscriptions
     return () => {
       supabase.removeChannel(profilesSubscription)
       supabase.removeChannel(spotsSubscription)
     }
-  }, [supabase, updateStats]) // Added supabase to dependency array
+  }, [supabase, updateStats])
 
-  return {
-    ...realtimeData,
-    analyticsData,
-  }
+  return { realtimeData, analyticsData }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
+import { useMapboxNoTelemetry } from "@/hooks/use-mapbox-no-telemetry"
 import { useParkingSpots } from "@/hooks/use-parking-spots"
 import { useGeolocation } from "@/hooks/use-geolocation"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,9 @@ interface ParkingMapProps {
 }
 
 export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
+  // Block Mapbox telemetry
+  useMapboxNoTelemetry()
+  
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const [showReportDialog, setShowReportDialog] = useState(false)
@@ -121,8 +125,7 @@ export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
       const el = document.createElement("div")
       el.className = "parking-spot-marker"
       el.innerHTML = `
-        <div class="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:bg-green-600 transition-colors">
-          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+        <div class="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:bg-green-600 transition-colors">          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
           </svg>
         </div>
@@ -130,10 +133,10 @@ export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
 
       const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
         <div class="p-2">
-          <h3 class="font-semibold">${spot.spot_type.charAt(0).toUpperCase() + spot.spot_type.slice(1)} Parking</h3>
+          <h3 class="font-semibold">${spot.spot_type ? spot.spot_type.charAt(0).toUpperCase() + spot.spot_type.slice(1) : 'Unknown'} Parking</h3>
           <p class="text-sm text-gray-600">${spot.address || "Address not available"}</p>
-          <p class="text-xs text-gray-500">Expires: ${new Date(spot.expires_at).toLocaleTimeString()}</p>
-          <p class="text-xs text-green-600">Confidence: ${spot.confidence_score}%</p>
+          <p class="text-xs text-gray-500">Updated: ${spot.updated_at ? new Date(spot.updated_at).toLocaleTimeString() : 'Unknown'}</p>
+          <p class="text-xs text-green-600">Confidence: ${spot.confidence_score || 0}%</p>
         </div>
       `)
 
@@ -207,7 +210,7 @@ export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
         <p className="text-sm font-medium">{spotsLoading ? "Loading..." : `${spots.length} spots nearby`}</p>
       </div>
 
-      <SpotReportDialog open={showReportDialog} onOpenChange={setShowReportDialog} location={reportLocation} />
+      <SpotReportDialog open={showReportDialog} toggleAction={setShowReportDialog} location={reportLocation} />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/components/auth/auth-provider"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,36 +10,40 @@ import { Badge } from "@/components/ui/badge"
 import { Users, MapPin, Shield, AlertTriangle, DollarSign, Eye, Settings } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { getAdminSupabaseOrThrow } from "@/lib/supabase/admin-client";
+import { getBrowserClient } from "@/lib/supabase/browser";
 import type { Profile, ParkingSpot, SpotStatistics } from "@/types/admin"
+import type { Database } from "@/lib/types/supabase"
+
+type SupabaseProfile = Database['public']['Tables']['profiles']['Row']
+type SupabaseParkingSpot = Database['public']['Tables']['parking_spots']['Row']
 import { useAdminOperations } from "@/hooks/use-admin-operations"
 import { useAdminRealtime } from "@/hooks/use-admin-realtime";
 import { toast } from "@/components/ui/use-toast"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { ParkingSpotForm } from "@/components/admin/parking-spot-form"
+import { ABTestingMarketingDashboard } from "@/components/admin/ab-testing-marketing-dashboard"
 
 export default function AdminDashboard() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
   const {
     isLoading: isOperationLoading,
     editProfile, // Keep if used for editing, otherwise remove if not implemented
     suspendUser,
     addParkingSpot,
-    updateParkingSpot,
-    removeParkingSpot,
+    editParkingSpot,
+    deleteParkingSpot,
   } = useAdminOperations()
 
   const { 
-    profiles, 
-    parkingSpots, 
-    spotStats, 
+    realtimeData: { profiles, parkingSpots, spotStats }, 
     analyticsData 
   } = useAdminRealtime()
 
   const [activeTab, setActiveTab] = useState("overview")
   const [searchTerm, setSearchTerm] = useState("")
   const [isSpotFormOpen, setIsSpotFormOpen] = useState(false)
-  const [editingSpot, setEditingSpot] = useState<ParkingSpot | undefined>()
+  const [editingSpot, setEditingSpot] = useState<SupabaseParkingSpot | undefined>()
 
   const [role, setRole] = useState<string | null>(null)
   const [roleError, setRoleError] = useState<string | null>(null)
@@ -58,11 +62,9 @@ export default function AdminDashboard() {
           setRoleLoading(false)
         }
         return
-      }
-
-      try {
+      }      try {
         console.log('Fetching role for user:', user.id, user.email)
-        const supabase = getAdminSupabaseOrThrow();
+        const supabase = getBrowserClient();
 
         if (user.user_metadata?.role === 'admin') {
           console.log('Found admin role in user metadata')
@@ -139,7 +141,7 @@ export default function AdminDashboard() {
   }, [authLoading, roleLoading, isAdmin, role, router, user])
 
   const filteredProfiles = useMemo(() => {
-    return profiles?.filter(profile => 
+    return profiles?.filter((profile: SupabaseProfile) => 
       profile.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       profile.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
     ) || []
@@ -152,6 +154,7 @@ export default function AdminDashboard() {
     { id: "analytics", label: "Analytics", icon: Eye },
     { id: "reports", label: "Reports", icon: AlertTriangle },
     { id: "settings", label: "Settings", icon: Settings },
+    { id: "ab-testing", label: "A/B Testing", icon: DollarSign },
   ]
 
   if (authLoading || roleLoading) {
@@ -218,12 +221,11 @@ export default function AdminDashboard() {
       // })
     }
   }
-
   const handleRemoveSpot = async (spotId: string) => {
     const confirmed = window.confirm("Are you sure you want to remove this parking spot?")
     if (!confirmed) return
 
-    const success = await removeParkingSpot(spotId) // removeParkingSpot now returns boolean
+    const success = await deleteParkingSpot(spotId) // deleteParkingSpot now returns boolean
     if (success) {
       toast({
         title: "Success",
@@ -240,21 +242,16 @@ export default function AdminDashboard() {
       // })
     }
   }
-
-  const handleSpotSubmit = async (data: Omit<ParkingSpot, 'id' | 'created_at' | 'last_updated' | 'reports'> & { reports?: number }) => {
+  const handleSpotSubmit = async (data: any) => {
     try {
       if (editingSpot) {
-        // For updates, we pass the data as received. If 'reports' is part of 'data', it will be included.
-        // The updateParkingSpot in the hook expects Partial<ParkingSpot>, so this is fine.
-        await updateParkingSpot(editingSpot.id, data as Partial<ParkingSpot>);
+        // For updates, we pass the data as received.
+        // The editParkingSpot in the hook expects Partial<ParkingSpot>, so this is fine.
+        await editParkingSpot(editingSpot.id, data);
         setEditingSpot(undefined);
       } else {
-        // For adding a new spot, ensure `reports` is provided if required by the type, defaulting to 0.
-        const spotDataWithReports: Omit<ParkingSpot, "id" | "created_at" | "last_updated"> = {
-          ...data,
-          reports: data.reports || 0, // Default reports to 0 if not provided
-        };
-        await addParkingSpot(spotDataWithReports);
+        // For adding a new spot
+        await addParkingSpot(data);
       }
       setIsSpotFormOpen(false);
       toast({
@@ -270,8 +267,7 @@ export default function AdminDashboard() {
       })
     }
   }
-
-  const openSpotForm = (spot?: ParkingSpot) => {
+  const openSpotForm = (spot?: SupabaseParkingSpot) => {
     setEditingSpot(spot)
     setIsSpotFormOpen(true)
   }
@@ -408,7 +404,7 @@ export default function AdminDashboard() {
                         No profiles found
                       </div>
                     ) : (
-                      filteredProfiles.map((profile) => (
+                      filteredProfiles.map((profile: SupabaseProfile) => (
                         <div key={profile.id} className="grid grid-cols-4 gap-4 p-4 border-b items-center hover:bg-gray-50">
                           <div>
                             <p className="font-medium">{profile.full_name || 'N/A'}</p>
@@ -416,8 +412,7 @@ export default function AdminDashboard() {
                           </div>
                           <div>{profile.email}</div>
                           <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}</div>
-                          <div className="flex space-x-2">
-                            <Button 
+                          <div className="flex space-x-2">                            <Button 
                               size="sm" 
                               variant="outline"
                               onClick={() => toast({ title: "Edit Clicked", description: `Edit action for ${profile.full_name} not fully implemented.`})}
@@ -425,17 +420,16 @@ export default function AdminDashboard() {
                             >
                               {isOperationLoading ? "Saving..." : "Edit"}
                             </Button>
-                            <Button 
+                            <Button
                               size="sm" 
                               variant="destructive"
                               onClick={() => handleSuspendUser(profile.id)}
-                              disabled={isOperationLoading || profile.status === 'suspended'}
+                              disabled={isOperationLoading || profile.role === 'suspended'}
                             >
-                              {isOperationLoading ? "Processing..." : (profile.status === 'suspended' ? 'Suspended' : 'Suspend')}
+                              {isOperationLoading ? "Processing..." : (profile.role === 'suspended' ? 'Suspended' : 'Suspend')}
                             </Button>
                           </div>
-                        </div>
-                      ))
+                        </div>                      ))
                     )}
                   </div>
                 </div>
@@ -489,24 +483,23 @@ export default function AdminDashboard() {
                           No parking spots found
                         </div>
                       ) : (
-                        parkingSpots?.map((spot: ParkingSpot) => (
-                          <div key={spot.id} className="grid grid-cols-5 gap-4 p-4 items-center">
-                            <div>
-                              <p className="font-medium">{spot.location_name}</p>
+                        parkingSpots?.map((spot: SupabaseParkingSpot) => (
+                          <div key={spot.id} className="grid grid-cols-5 gap-4 p-4 items-center">                            <div>
+                              <p className="font-medium">{spot.name}</p>
                               <p className="text-sm text-gray-500">
-                                {spot.coordinates ? `${spot.coordinates.lat?.toFixed(4)}, ${spot.coordinates.lng?.toFixed(4)}` : 'N/A'}
+                                {`${spot.latitude?.toFixed(4)}, ${spot.longitude?.toFixed(4)}`}
                               </p>
                             </div>
                             <div>
-                              <Badge variant="outline">{spot.type}</Badge>
+                              <Badge variant="outline">{spot.spot_type || 'unknown'}</Badge>
                             </div>
                             <div>
-                              {/* Corrected Badge variant logic for ParkingSpot status */}
-                              <Badge variant={spot.status === 'active' ? 'default' : spot.status === 'occupied' ? 'secondary' : spot.status === 'inactive' ? 'outline' : 'destructive'}>
-                                {spot.status ? spot.status.charAt(0).toUpperCase() + spot.status.slice(1) : 'Unknown'}
+                              {/* Status badge using is_available field */}
+                              <Badge variant={spot.is_available ? 'default' : 'secondary'}>
+                                {spot.is_available ? 'Available' : 'Occupied'}
                               </Badge>
                             </div>
-                            <div className="text-sm">{spot.reports || 0} reports</div>
+                            <div className="text-sm">{spot.confidence_score?.toFixed(2) || 'N/A'} confidence</div>
                             <div className="flex space-x-2">
                               <Button 
                                 size="sm" 
@@ -532,13 +525,11 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </CardContent>
-            </Card>
-
-            <ParkingSpotForm
+            </Card>            <ParkingSpotForm
               isOpen={isSpotFormOpen}
-              onClose={closeSpotForm}
-              onSubmit={handleSpotSubmit}
-              initialData={editingSpot}
+              onCloseAction={closeSpotForm}
+              onSubmitAction={handleSpotSubmit}
+              initialData={editingSpot as any}
             />
           </TabsContent>
 
@@ -768,6 +759,22 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="ab-testing">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>A/B Testing & Marketing</CardTitle>
+                    <CardDescription>Manage experiments and marketing settings</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ABTestingMarketingDashboard />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

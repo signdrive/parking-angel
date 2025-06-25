@@ -1,37 +1,51 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getCurrentUser, createOrUpdateProfile } from "@/lib/auth"
-import { APIError, handleAPIError } from "@/lib/api-error"
+import { getServerClient } from "@/lib/supabase/server-utils"
+import { getUser } from "@/lib/server-auth"
+
+async function createOrUpdateProfile(user: any) {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase
+    .from("profiles")
+    .upsert({ id: user.id, email: user.email }, { onConflict: "id" })
+    .select()
+    .single()
+  return { data, error }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, error: userError } = await getCurrentUser()
+    const user = await getUser()
 
-    if (userError || !user) {
-      throw new APIError("Not authenticated", 401, "auth_required")
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     // Try to create or update the profile
-    const { profile, error: profileError } = await createOrUpdateProfile({
-      id: user.id,
-      email: user.email,
-      full_name: user.user_metadata?.full_name,
-      avatar_url: user.user_metadata?.avatar_url,
-    })
+    const result = await createOrUpdateProfile(user)
 
-    if (profileError) {
-      throw new APIError(
-        "Failed to create/update profile",
-        500,
-        "profile_update_failed",
+    if (result.error) {
+      return NextResponse.json(
+        {
+          error: "Failed to create profile",
+          details: result.error.message,
+        },
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
       success: true,
-      msg: "Profile created/updated successfully",
-      profile,
+      message: "Profile created/updated successfully",
+      profile: result.data,
     })
   } catch (error) {
-    return handleAPIError(error)
+    console.error("Error in fix-profile API:", error)
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }

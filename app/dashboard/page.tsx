@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/components/auth/auth-provider"
 import { useRouter } from "next/navigation"
 import { EnhancedParkingMap } from "@/components/map/enhanced-parking-map"
 import { CollapsibleSidebar } from "@/components/layout/collapsible-sidebar"
@@ -15,7 +15,7 @@ import { PWADebug } from "@/components/pwa/pwa-debug"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
 
   // Persistent states
@@ -31,14 +31,13 @@ export default function DashboardPage() {
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [areaAnalysis, setAreaAnalysis] = useState<any>(null)
   const [mapLoading, setMapLoading] = useState(false)
-
   useEffect(() => {
-    if (!loading && !user) {
+    if (!isLoading && !user) {
       router.push("/")
     }
-  }, [user, loading, router])
+  }, [user, isLoading, router])
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="text-center">

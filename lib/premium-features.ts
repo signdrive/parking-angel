@@ -1,4 +1,6 @@
-import { supabase } from "./supabase"
+import { getBrowserClient } from './supabase/browser'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from './types/supabase'
 
 export interface PremiumPlan {
   id: string
@@ -12,6 +14,10 @@ export interface PremiumPlan {
     advancedPredictions: boolean
     prioritySupport: boolean
     apiAccess: boolean
+    dailySearches: number // -1 for unlimited
+    spotHolds: boolean
+    evCharging: boolean
+    fleetManagement: boolean
   }
 }
 
@@ -27,54 +33,100 @@ export interface UserSubscription {
 
 export const PREMIUM_PLANS: PremiumPlan[] = [
   {
-    id: "free",
-    name: "Free",
+    id: "starter",
+    name: "Starter",
     price: 0,
     interval: "monthly",
-    features: ["Basic parking search", "Real-time availability", "5 saved spots", "Basic notifications"],
+    features: [
+      "5 searches per day",
+      "Basic parking map", 
+      "Community reports",
+      "Ad-supported experience",
+      "Email support"
+    ],
     limits: {
-      maxSavedSpots: 5,
-      maxAlerts: 3,
+      maxSavedSpots: 3,
+      maxAlerts: 2,
       advancedPredictions: false,
       prioritySupport: false,
       apiAccess: false,
+      dailySearches: 5,
+      spotHolds: false,
+      evCharging: false,
+      fleetManagement: false,
     },
   },
   {
-    id: "pro",
-    name: "Pro",
-    price: 9.99,
+    id: "navigator",
+    name: "Navigator", 
+    price: 8.99,
     interval: "monthly",
     features: [
-      "Everything in Free",
+      "Unlimited searches",
+      "Ad-free experience",
+      "Route planning integration",
+      "Real-time spot updates",
+      "10 saved favorites",
+      "Basic analytics",
+      "Spot hold service",
+      "EV charging integration",
+      "Email + chat support"
+    ],
+    limits: {
+      maxSavedSpots: 10,
+      maxAlerts: 10,
+      advancedPredictions: false,
+      prioritySupport: false,
+      apiAccess: false,
+      dailySearches: -1,
+      spotHolds: true,
+      evCharging: true,
+      fleetManagement: false,
+    },
+  },
+  {
+    id: "pro_parker",
+    name: "Pro Parker",
+    price: 19.99,
+    interval: "monthly", 
+    features: [
+      "Everything in Navigator",
       "AI-powered predictions",
       "Unlimited saved spots",
       "Smart notifications",
-      "Price alerts",
-      "Traffic integration",
-      "Event impact analysis",
+      "Price drop alerts",
+      "Weather-smart recommendations", 
+      "Advanced analytics dashboard",
+      "Priority support",
+      "Early access to features"
     ],
     limits: {
-      maxSavedSpots: -1, // Unlimited
-      maxAlerts: 20,
+      maxSavedSpots: -1,
+      maxAlerts: 25,
       advancedPredictions: true,
-      prioritySupport: false,
+      prioritySupport: true,
       apiAccess: false,
+      dailySearches: -1,
+      spotHolds: true,
+      evCharging: true,
+      fleetManagement: false,
     },
   },
   {
-    id: "premium",
-    name: "Premium",
-    price: 19.99,
+    id: "fleet_manager",
+    name: "Fleet Manager",
+    price: 49.99,
     interval: "monthly",
     features: [
-      "Everything in Pro",
-      "Priority customer support",
-      "Advanced analytics",
-      "API access",
-      "Custom integrations",
+      "Everything in Pro Parker",
+      "Multi-vehicle management",
+      "Team dashboard",
+      "API access & integrations",
       "Bulk booking discounts",
-      "White-label options",
+      "Custom reporting",
+      "Dedicated account manager",
+      "SLA guarantees",
+      "White-label options"
     ],
     limits: {
       maxSavedSpots: -1,
@@ -82,12 +134,23 @@ export const PREMIUM_PLANS: PremiumPlan[] = [
       advancedPredictions: true,
       prioritySupport: true,
       apiAccess: true,
+      dailySearches: -1,
+      spotHolds: true,
+      evCharging: true,
+      fleetManagement: true,
     },
   },
 ]
 
 export class PremiumFeatureService {
   private static instance: PremiumFeatureService
+  private supabase: SupabaseClient<Database>
+  private initialized: boolean = false
+
+  private constructor() {
+    this.supabase = getBrowserClient()
+    this.initialized = true
+  }
 
   static getInstance(): PremiumFeatureService {
     if (!PremiumFeatureService.instance) {
@@ -96,19 +159,26 @@ export class PremiumFeatureService {
     return PremiumFeatureService.instance
   }
 
+  private checkInitialized() {
+    if (!this.initialized || !this.supabase) {
+      throw new Error('PremiumFeatureService not properly initialized')
+    }
+  }
   async getUserSubscription(userId: string): Promise<UserSubscription | null> {
-    const { data } = await supabase.from("user_subscriptions").select("*").eq("user_id", userId).single()
+    this.checkInitialized()
+    const { data } = await this.supabase.from("user_subscriptions").select("*").eq("user_id", userId).single()
 
     if (!data) return null
 
+    // Map the database fields to our interface
     return {
-      userId: data.user_id,
+      userId: data.user_id ?? "",
       planId: data.plan_id,
-      status: data.status,
-      currentPeriodStart: new Date(data.current_period_start),
-      currentPeriodEnd: new Date(data.current_period_end),
+      status: data.status as "active" | "canceled" | "expired" | "trial",
+      currentPeriodStart: new Date(data.created_at || new Date()),  // Using created_at as start date
+      currentPeriodEnd: new Date(data.updated_at || new Date()),   // Using updated_at as end date
       trialEnd: data.trial_end ? new Date(data.trial_end) : undefined,
-      cancelAtPeriodEnd: data.cancel_at_period_end,
+      cancelAtPeriodEnd: data.cancel_at_period_end ?? false,
     }
   }
 
@@ -141,7 +211,7 @@ export class PremiumFeatureService {
   async startFreeTrial(userId: string, planId: string): Promise<{ success: boolean; error?: string }> {
     try {
       // Check if user already had a trial
-      const { data: existingTrial } = await supabase
+      const { data: existingTrial } = await this.supabase
         .from("user_subscriptions")
         .select("trial_end")
         .eq("user_id", userId)
@@ -155,7 +225,7 @@ export class PremiumFeatureService {
       const trialEnd = new Date()
       trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
 
-      await supabase.from("user_subscriptions").upsert({
+      await this.supabase.from("user_subscriptions").upsert({
         user_id: userId,
         plan_id: planId,
         status: "trial",
@@ -185,7 +255,7 @@ export class PremiumFeatureService {
 
       if (subscription) {
         // Update existing subscription
-        await supabase
+        await this.supabase
           .from("user_subscriptions")
           .update({
             plan_id: newPlanId,
@@ -198,7 +268,7 @@ export class PremiumFeatureService {
         const periodEnd = new Date()
         periodEnd.setMonth(periodEnd.getMonth() + 1)
 
-        await supabase.from("user_subscriptions").insert({
+        await this.supabase.from("user_subscriptions").insert({
           user_id: userId,
           plan_id: newPlanId,
           status: "active",
@@ -210,7 +280,7 @@ export class PremiumFeatureService {
       }
 
       // Log the upgrade
-      await supabase.from("subscription_events").insert({
+      await this.supabase.from("subscription_events").insert({
         user_id: userId,
         event_type: "upgrade",
         from_plan: subscription?.planId || "free",
@@ -233,7 +303,7 @@ export class PremiumFeatureService {
       }
 
       if (immediate) {
-        await supabase
+        await this.supabase
           .from("user_subscriptions")
           .update({
             status: "canceled",
@@ -241,7 +311,7 @@ export class PremiumFeatureService {
           })
           .eq("user_id", userId)
       } else {
-        await supabase
+        await this.supabase
           .from("user_subscriptions")
           .update({
             cancel_at_period_end: true,
@@ -266,10 +336,9 @@ export class PremiumFeatureService {
     const plan = await this.getUserPlan(userId)
 
     // Get current usage
-    const [savedSpotsResult, activeAlertsResult, apiCallsResult] = await Promise.all([
-      supabase.from("user_favorite_spots").select("id", { count: "exact" }).eq("user_id", userId),
-      supabase.from("user_alerts").select("id", { count: "exact" }).eq("user_id", userId).eq("active", true),
-      supabase
+    const [savedSpotsResult, apiCallsResult] = await Promise.all([
+      this.supabase.from("user_favorite_spots").select("id", { count: "exact" }).eq("user_id", userId),
+      this.supabase
         .from("api_usage")
         .select("calls", { count: "exact" })
         .eq("user_id", userId)
@@ -278,7 +347,7 @@ export class PremiumFeatureService {
 
     return {
       savedSpots: savedSpotsResult.count || 0,
-      activeAlerts: activeAlertsResult.count || 0,
+      activeAlerts: 0, // user_alerts not in types
       apiCalls: apiCallsResult.count || 0,
       planLimits: plan.limits,
     }

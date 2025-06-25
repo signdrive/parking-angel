@@ -1,30 +1,101 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
+import { type NextRequest, NextResponse } from "next/server";
+import { verifyUser } from "@/lib/server-auth";
+import { APIError, handleAPIError } from "@/lib/api-error";
+import { getServerClient } from "@/lib/supabase/server-utils";
+import type { Database } from "@/lib/types/supabase";
+
+type NotificationToken = Database['public']['Tables']['notification_tokens']['Insert'];
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    // Verify that user is authenticated
+    const { user } = await verifyUser(); // Correctly destructure the user object
 
-    const { fcmToken } = await request.json()
+    const { fcmToken, deviceId, deviceType, deviceName } = await request.json();
 
     if (!fcmToken) {
-      return NextResponse.json({ error: "FCM token is required" }, { status: 400 })
+      throw new APIError("FCM token is required", 400, "notifications/missing_token");
     }
 
-    // Store FCM token in your database (Supabase or Firebase)
-    // This is where you'd save the token for sending push notifications later
+    if (!deviceId) {
+      throw new APIError("Device ID is required", 400, "notifications/missing_device_id");
+    }
 
-    console.log(`Subscribed user ${user.id} with FCM token: ${fcmToken}`)
+    const supabase = await getServerClient();
+
+    // First, check if this token already exists for this user
+    const { data: existingToken, error: fetchError } = await supabase
+      .from('notification_tokens')
+      .select('id')
+      .match({ user_id: user.id, device_id: deviceId })
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found"
+      console.error('Error checking for existing token:', fetchError);
+      throw new APIError("Failed to check existing token", 500, "notifications/fetch_failed");
+    }
+
+    const now = new Date().toISOString();
+
+    if (existingToken) {
+      // Update the existing token
+      const { error: updateError } = await supabase
+        .from('notification_tokens')
+        .update({
+          fcm_token: fcmToken,
+          device_type: deviceType || null,
+          device_name: deviceName || null,
+          updated_at: now,
+          is_active: true
+        } satisfies Partial<NotificationToken>)
+        .match({ user_id: user.id, device_id: deviceId });
+
+      if (updateError) {
+        console.error('Error updating notification token:', updateError);
+        throw new APIError("Failed to update notification token", 500, "notifications/update_failed");
+      }
+    } else {
+      // Insert a new token
+      const { error: insertError } = await supabase
+        .from('notification_tokens')
+        .insert({
+          user_id: user.id,
+          device_id: deviceId,
+          fcm_token: fcmToken,
+          device_type: deviceType || null,
+          device_name: deviceName || null,
+          created_at: now,
+          updated_at: now,
+          is_active: true
+        } satisfies NotificationToken);
+
+      if (insertError) {
+        console.error('Error inserting notification token:', insertError);
+        throw new APIError("Failed to store notification token", 500, "notifications/insert_failed");
+      }
+    }
+
+    // Update user's notification preferences if they haven't been set
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        notifications_enabled: true,
+        updated_at: now
+      })
+      .eq('id', user.id)
+      .is('notifications_enabled', null);
+
+    if (profileError) {
+      // This is not a critical error, so just log it
+      console.warn("Non-critical error updating notification preferences:", profileError);
+    }
 
     return NextResponse.json({
       success: true,
       message: "Successfully subscribed to notifications",
-    })
+      deviceId
+    });
   } catch (error) {
-    console.error("Error subscribing to notifications:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleAPIError(error);
   }
 }

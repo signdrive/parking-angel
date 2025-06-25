@@ -1,4 +1,6 @@
-import { supabase } from "./supabase"
+import { getBrowserClient } from './supabase/browser'
+
+const supabase = getBrowserClient()
 
 export interface AIInsight {
   id: string

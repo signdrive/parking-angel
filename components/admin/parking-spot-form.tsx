@@ -17,34 +17,32 @@ const parkingSpotSchema = z.object({
     lng: z.number().min(-180).max(180),
   }),
   type: z.enum(["street", "garage", "lot"]),
-  status: z.enum(["active", "inactive"]).default("active"),
+  status: z.enum(["active", "inactive", "occupied", "maintenance"]).default("active"),
 })
 
 type ParkingSpotFormData = z.infer<typeof parkingSpotSchema>
 
 interface ParkingSpotFormProps {
   isOpen: boolean
-  onClose: () => void
-  onSubmit: (data: ParkingSpotFormData) => Promise<void>
+  onCloseAction: () => void
+  onSubmitAction: (data: ParkingSpotFormData) => Promise<void>
   initialData?: Partial<ParkingSpot>
 }
 
-export function ParkingSpotForm({ isOpen, onClose, onSubmit, initialData }: ParkingSpotFormProps) {
+export function ParkingSpotForm({ isOpen, onCloseAction, onSubmitAction, initialData }: ParkingSpotFormProps) {
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ParkingSpotFormData>({
     resolver: zodResolver(parkingSpotSchema),
     defaultValues: {
       location_name: initialData?.location_name || "",
       coordinates: initialData?.coordinates || { lat: 0, lng: 0 },
       type: initialData?.type || "street",
-      status: initialData?.status || "active",
-    },
+      status: initialData?.status || "active",    },
   })
-
-  const onSubmitForm = async (data: ParkingSpotFormData) => {
+    const handleFormSubmit = async (data: ParkingSpotFormData) => {
     try {
-      await onSubmit(data)
+      await onSubmitAction(data)
       reset()
-      onClose()
+      onCloseAction()
       toast({
         title: "Success",
         description: initialData ? "Parking spot updated successfully" : "New parking spot added successfully",
@@ -59,12 +57,12 @@ export function ParkingSpotForm({ isOpen, onClose, onSubmit, initialData }: Park
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onCloseAction}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{initialData ? "Edit Parking Spot" : "Add New Parking Spot"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-4">
+        <form onSubmit={handleSubmit(handleFormSubmit as any)} className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Location Name</label>
             <Input
@@ -130,13 +128,11 @@ export function ParkingSpotForm({ isOpen, onClose, onSubmit, initialData }: Park
             {errors.status && (
               <p className="text-sm text-red-500">{errors.status.message}</p>
             )}
-          </div>
-
-          <DialogFooter>
+          </div>          <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={onCloseAction}
               disabled={isSubmitting}
             >
               Cancel

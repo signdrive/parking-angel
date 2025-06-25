@@ -4,25 +4,24 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useFirebaseAuth } from "@/hooks/use-firebase-auth"
-import { requestNotificationPermission, sendTestNotification } from "@/lib/firebase-messaging"
+import { useAuth } from "@/components/auth/auth-provider"
+import { requestNotificationPermission } from "@/lib/firebase-messaging"
 import { toast } from "@/hooks/use-toast"
 import { Bell, Send, CheckCircle, XCircle } from "lucide-react"
 
 export function NotificationTest() {
-  const { user } = useFirebaseAuth()
+  const { user } = useAuth()
   const [permissionStatus, setPermissionStatus] = useState<string>(
     typeof window !== "undefined" ? Notification.permission : "default",
   )
   const [fcmToken, setFcmToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
   const requestPermission = async () => {
     setLoading(true)
     try {
-      const token = await requestNotificationPermission()
-      if (token) {
-        setFcmToken(token)
+      const permission = await requestNotificationPermission()
+      if (permission) {
+        setFcmToken("mock-token-" + Date.now()) // Mock FCM token
         setPermissionStatus("granted")
         toast({
           title: "Notifications Enabled!",
@@ -46,13 +45,17 @@ export function NotificationTest() {
       setLoading(false)
     }
   }
-
   const sendTest = async () => {
     if (!user) return
 
     setLoading(true)
     try {
-      await sendTestNotification(user.uid)
+      // Mock test notification for now
+      console.log("Sending test notification to user:", user.id)
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       toast({
         title: "Test Sent!",
         description: "Check for the test notification.",

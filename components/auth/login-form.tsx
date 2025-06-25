@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
-import { signInWithEmail, signInWithGoogle } from "@/lib/auth"
+import { signInWithEmail } from "@/lib/auth"
+import { useAuth } from "@/components/auth/auth-provider"
 import { Chrome } from "lucide-react"
 
 export function LoginForm() {
@@ -20,6 +21,7 @@ export function LoginForm() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const { signInWithGoogle } = useAuth()
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,11 +42,10 @@ export function LoginForm() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true)
     setError(null)
-
-    const { error } = await signInWithGoogle()
-
-    if (error) {
-      setError(error.message)
+    try {
+      await signInWithGoogle()
+    } catch (e) {
+      setError((e as Error).message || "An unknown error occurred.")
       setGoogleLoading(false)
     }
   }
@@ -98,28 +99,29 @@ export function LoginForm() {
               id="email"
               type="email"
               autoComplete="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
               disabled={loading || googleLoading}
             />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
               autoComplete="current-password"
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
               disabled={loading || googleLoading}
             />
           </div>
-
-          <Button type="submit" className="w-full" disabled={loading || googleLoading}>
-            {loading ? "Signing In..." : "Sign In"}
+          <Button type="submit" disabled={loading || googleLoading} className="w-full">
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-gray-300 border-t-white rounded-full animate-spin mr-2" />
+            ) : null}
+            Sign In
           </Button>
         </form>
       </CardContent>

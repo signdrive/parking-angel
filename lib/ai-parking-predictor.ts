@@ -1,5 +1,10 @@
-import { supabase } from "./supabase"
+import { getBrowserClient } from './supabase/browser'
 import type { RealParkingSpot } from "./parking-data-service"
+import type { Database } from '../types/supabase'
+
+type NearbySpot = Database['public']['Functions']['find_nearby_real_spots']['Returns'][0]
+
+const supabase = getBrowserClient()
 
 export interface ParkingPrediction {
   spotId: string
@@ -108,13 +113,12 @@ export class AIParkingPredictor {
       eventImpact,
     }
   }
-
   private async getHistoricalData(spotId: string, targetTime: Date) {
     const { data } = await supabase
       .from("parking_usage_history")
-      .select("*")
+      .select()
       .eq("spot_id", spotId)
-      .gte("timestamp", new Date(targetTime.getTime() - 30 * 24 * 60 * 60 * 1000)) // Last 30 days
+      .gte("timestamp", new Date(targetTime.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()) // Last 30 days
       .order("timestamp", { ascending: false })
 
     return data || []
@@ -300,20 +304,17 @@ export class AIParkingPredictor {
 
     return bestSlot.time
   }
-
   private async findAlternativeSpots(spot: RealParkingSpot, userPreferences: any): Promise<string[]> {
-    // Find nearby spots with similar characteristics
     const { data } = await supabase.rpc("find_nearby_real_spots", {
-      user_lat: spot.latitude,
-      user_lng: spot.longitude,
-      radius_meters: 1000,
-      max_price: userPreferences.maxPrice,
+      lat: spot.latitude,
+      lng: spot.longitude,
+      radius: 1000,
     })
 
     return (data || [])
-      .filter((s: any) => s.id !== spot.id)
+      .filter((s) => s.id !== spot.id)
       .slice(0, 3)
-      .map((s: any) => s.id)
+      .map((s) => s.id.toString())
   }
 
   async generateDemandForecast(lat: number, lng: number, date: Date): Promise<ParkingDemandForecast[]> {

@@ -3,13 +3,19 @@ export interface SpotPrediction {
   predictedAvailability: number // 0-100 percentage
   confidence: number // 0-100 percentage
   timeWindow: string
+  predictionTimeframe: "15min" | "30min" | "1hour" | "2hour"
+  currentAvailability: "available" | "occupied" | "limited"
+  recommendedAction: "book_now" | "wait" | "find_alternative"
+  priceImpact: "low" | "medium" | "high"
   factors: {
     historical: number
     timeOfDay: number
     dayOfWeek: number
     weather?: number
     events?: number
-  }
+    impact: number
+    description: string
+  }[]
   lastUpdated: Date
 }
 
@@ -81,40 +87,61 @@ export class AISpotPredictor {
 
     // Add some randomness for realism
     const randomFactor = (Math.random() - 0.5) * 20
-    const predictedAvailability = Math.max(5, Math.min(95, rawAvailability + randomFactor))
-
-    // Calculate confidence based on data quality
+    const predictedAvailability = Math.max(5, Math.min(95, rawAvailability + randomFactor))    // Calculate confidence based on data quality
     const confidence = Math.max(60, Math.min(95, 80 + (Math.random() - 0.5) * 20))
+
+    // Determine additional properties
+    const predictionTimeframe = timeWindow as "15min" | "30min" | "1hour" | "2hour"
+    const currentAvailability: "available" | "occupied" | "limited" = 
+      predictedAvailability > 70 ? "available" : 
+      predictedAvailability > 30 ? "limited" : "occupied"
+    
+    const recommendedAction: "book_now" | "wait" | "find_alternative" = 
+      predictedAvailability > 70 ? "book_now" :
+      predictedAvailability > 40 ? "wait" : "find_alternative"
+    
+    const priceImpact: "low" | "medium" | "high" = 
+      predictedAvailability > 60 ? "low" :
+      predictedAvailability > 30 ? "medium" : "high"
 
     return {
       spotId,
       predictedAvailability: Math.round(predictedAvailability),
       confidence: Math.round(confidence),
       timeWindow,
-      factors: {
+      predictionTimeframe,
+      currentAvailability,
+      recommendedAction,
+      priceImpact,      factors: [{
         historical: Math.round(historicalFactor * 100),
         timeOfDay: Math.round(timeOfDayFactor * 100),
         dayOfWeek: Math.round(dayOfWeekFactor * 100),
         weather: Math.round(75 + (Math.random() - 0.5) * 30),
         events: Math.round(50 + (Math.random() - 0.5) * 40),
-      },
+        impact: Math.round((timeOfDayFactor - 0.5) * 100),
+        description: `Time-based availability pattern`
+      }],
       lastUpdated: new Date(),
     }
   }
-
   private getFallbackPrediction(spotId: string, targetTime: Date, timeWindow: string): SpotPrediction {
     return {
       spotId,
       predictedAvailability: 50, // Neutral prediction
       confidence: 30, // Low confidence
       timeWindow,
-      factors: {
+      predictionTimeframe: timeWindow as "15min" | "30min" | "1hour" | "2hour",
+      currentAvailability: "limited",
+      recommendedAction: "wait",
+      priceImpact: "medium",      factors: [{
         historical: 50,
         timeOfDay: 50,
         dayOfWeek: 50,
         weather: 50,
         events: 50,
-      },
+        impact: 0,
+        description: "Fallback prediction with limited data"
+      }],
       lastUpdated: new Date(),
     }
   }

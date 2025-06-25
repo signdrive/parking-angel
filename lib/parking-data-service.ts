@@ -1,4 +1,7 @@
-import { supabase } from "./supabase"
+import { getBrowserClient } from "./supabase/browser"
+
+// Initialize client when needed to ensure we're in the browser
+const getSupabase = () => getBrowserClient()
 
 // Real parking data providers
 export const PARKING_PROVIDERS = {
@@ -282,7 +285,7 @@ export class ParkingDataService {
               ? spot.last_updated
               : new Date().toISOString()
 
-        await supabase.from("real_parking_spots").upsert(
+        await getSupabase().from("real_parking_spots").upsert(
           {
             provider_id: spot.provider_id,
             provider: spot.provider,

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
+import { useMapboxNoTelemetry } from "@/hooks/use-mapbox-no-telemetry"
 import { useGeolocation } from "@/hooks/use-geolocation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -49,6 +50,9 @@ export function EnhancedParkingMap({
   onAreaAnalysis,
   onLoadingChange,
 }: EnhancedParkingMapProps) {
+  // Block Mapbox telemetry
+  useMapboxNoTelemetry()
+  
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const [showReportDialog, setShowReportDialog] = useState(false)
@@ -132,7 +136,6 @@ export function EnhancedParkingMap({
     },
     [onLocationClick, onLoadingChange],
   )
-
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current || !mapboxToken) return
@@ -140,6 +143,9 @@ export function EnhancedParkingMap({
     try {
       mapboxgl.accessToken = mapboxToken
 
+      // Note: Mapbox GL may generate console warnings about non-passive touchmove listeners
+      // and requestAnimationFrame performance. These are internal to Mapbox GL and cannot be 
+      // easily resolved at the application level without significant workarounds.
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: "mapbox://styles/mapbox/streets-v12",
@@ -897,7 +903,7 @@ export function EnhancedParkingMap({
   // Show navigation interface if navigating
   if (isNavigating) {
     console.log("🗺️ Rendering NavigationInterface - isNavigating:", isNavigating)
-    return <NavigationInterface onExit={stopNavigation} />
+    return <NavigationInterface onExitAction={stopNavigation} />
   }
 
   if (mapboxError) {
@@ -1132,7 +1138,7 @@ export function EnhancedParkingMap({
           </svg>
         </Button>
 
-        <SpotReportDialog open={showReportDialog} onOpenChange={setShowReportDialog} location={reportLocation} />
+        <SpotReportDialog open={showReportDialog} toggleAction={setShowReportDialog} location={reportLocation} />
 
         {/* Selected Spot Details */}
         {selectedSpot && (

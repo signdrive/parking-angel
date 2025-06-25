@@ -1,121 +1,92 @@
-import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { createClient } from '@supabase/supabase-js';
-import { APIError, handleAPIError } from "@/lib/api-error";
+import { headers } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { getServerClient } from '@/lib/supabase/server-utils';
+import { APIError, handleAPIError } from '@/lib/api-error';
+import type { Database } from '@/lib/types/supabase';
+import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('Missing STRIPE_SECRET_KEY environment variable');
-}
+type SubscriptionTier = Database['public']['Enums']['subscription_tier'];
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-05-28.basil",
-  typescript: true,
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-05-28.basil'
 });
 
-// Use service_role key for admin operations
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('Missing required Supabase environment variables');
-}
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    }
-  }
-);
-
-function getPlanFromPriceId(priceId: string) {
-  if (priceId === process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID) return "Pro";
-  if (priceId === process.env.NEXT_PUBLIC_STRIPE_ELITE_PRICE_ID) return "Elite";
-  return "Free";
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      throw new APIError(
-        'Missing STRIPE_WEBHOOK_SECRET',
-        500,
-        'missing_webhook_secret'
-      );
-    }
-
-    const sig = req.headers.get("stripe-signature");
-    if (!sig) {
-      throw new APIError(
-        'No signature found in request',
-        400,
-        'missing_stripe_signature'
-      );
-    }
-
     const body = await req.text();
-    let event: Stripe.Event;
+    const headerList = await headers();
+    const signature = headerList.get('stripe-signature');
 
-    try {
-      event = stripe.webhooks.constructEvent(
-        body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      throw new APIError(
-        'Invalid signature',
-        400,
-        'invalid_stripe_signature'
-      );
+    if (!signature) {
+      throw new APIError('No Stripe signature found', 400, 'missing_signature');
     }
 
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      let priceId: string | undefined;
-      let amount_paid = 0;
-      
-      const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
-      if (lineItems.data[0]?.price?.id) {
-        priceId = lineItems.data[0].price.id;
-      }
-      
-      if (session.subscription) {
-        const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
-        if (subscription.items.data[0]?.price?.id) {
-          priceId = subscription.items.data[0].price.id;
+    const event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+
+    const supabase = await getServerClient();
+
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const customerId = session.customer as string;
+        const userId = session.metadata?.userId;
+
+        if (!userId) {
+          throw new APIError('No user ID in session metadata', 400, 'missing_user_id');
         }
-        amount_paid = (subscription.items.data[0]?.price?.unit_amount || 0) / 100;
+
+        // Cast subscription tier to valid enum value
+        const subscriptionTier = (session.metadata?.tier || 'premium') as SubscriptionTier;
+
+        // Update user's subscription status
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            stripe_customer_id: customerId,
+            subscription_status: 'active',
+            subscription_tier: subscriptionTier,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+
+        if (updateError) {
+          throw new APIError('Failed to update subscription status', 500, 'update_failed');
+        }
+        break;
       }
 
-      const customerId = session.customer as string;
-      const userId = session.metadata?.userId;
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
 
-      if (!userId) {
-        throw new APIError(
-          'No user ID found in session metadata',
-          400,
-          'missing_user_id'
-        );
-      }
+        const { error: userError, data: userData } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('stripe_customer_id', customerId)
+          .single();
 
-      const { error: updateError } = await supabase
-        .from('user_subscriptions')
-        .upsert({
-          user_id: userId,
-          stripe_customer_id: customerId,
-          subscription_tier: getPlanFromPriceId(priceId || ''),
-          amount_paid,
-          last_payment_date: new Date().toISOString(),
-          is_active: true
-        });
+        if (userError || !userData) {
+          throw new APIError('User not found', 404, 'user_not_found');
+        }
 
-      if (updateError) {
-        throw new APIError(
-          'Failed to update subscription',
-          500,
-          'subscription_update_failed'
-        );
+        // Reset subscription status
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            subscription_status: 'inactive',
+            subscription_tier: 'free',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userData.id);
+
+        if (updateError) {
+          throw new APIError('Failed to update subscription status', 500, 'update_failed');
+        }
+        break;
       }
     }
 

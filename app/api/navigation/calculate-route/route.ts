@@ -22,10 +22,8 @@ export async function POST(request: NextRequest) {
     if (from.length !== 2 || to.length !== 2) {
       console.error("Invalid coordinate format")
       return NextResponse.json({ error: "Invalid coordinate format. Expected [longitude, latitude]." }, { status: 400 })
-    }
-
-    // Calculate realistic distance and duration
-    const distance = calculateDistance(from, to)
+    }    // Calculate realistic distance and duration
+    const distance = calculateDistance(from as [number, number], to as [number, number])
     const baseSpeed = options.routeType === "eco" ? 25 : options.routeType === "shortest" ? 35 : 30 // km/h
     const duration = Math.max(300, (distance / 1000 / baseSpeed) * 3600) // Minimum 5 minutes
     const trafficMultiplier = options.avoidTraffic ? 1.0 : 1.2
@@ -37,8 +35,8 @@ export async function POST(request: NextRequest) {
       distance: Math.round(distance),
       duration: Math.round(duration * trafficMultiplier),
       trafficDelays: Math.round(duration * (trafficMultiplier - 1)),
-      geometry: generateGeometry(from, to),
-      steps: generateSteps(from, to, distance, duration * trafficMultiplier),
+      geometry: generateGeometry(from as [number, number], to as [number, number]),
+      steps: generateSteps(from as [number, number], to as [number, number], distance, duration * trafficMultiplier),
     }
 
     console.log("✅ Route generated successfully")

@@ -140,3 +140,9 @@ export class ValidationMonitor {
 if (typeof window !== "undefined") {
   ValidationMonitor.getInstance().startMonitoring()
 }
+
+declare global {
+  interface Window {
+    gtag?: (...args: any[]) => void;
+  }
+}

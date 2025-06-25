@@ -2,7 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { AuthProvider } from "@/hooks/use-auth"
+import { AuthProvider } from "@/components/auth/auth-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { AnalyticsProvider } from "@/components/firebase/analytics-provider"
@@ -11,8 +11,18 @@ import { SupabaseBoundary } from "@/components/error-boundaries/supabase-boundar
 import { Suspense } from "react"
 import { AIAssistantProvider } from "@/components/ai/ai-assistant-context"
 import { FloatingAIChat } from "@/components/ai/floating-ai-chat"
+import Loading from "./loading"
+import { ConsentProvider } from "@/hooks/use-consent"
+import { ConsentScreen } from "@/components/consent/consent-screen"
 
 const inter = Inter({ subsets: ["latin"] })
+
+// Configure Mapbox on app initialization
+if (typeof window !== 'undefined') {
+  import("@/lib/mapbox-config").then(({ configureMapbox }) => {
+    configureMapbox()
+  })
+}
 
 export const metadata: Metadata = {
   title: "Park Algo - AI-Powered Parking Solutions",
@@ -56,47 +66,33 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Use the dynamic manifest.json */}
-        <link rel="manifest" href="/manifest.json" />
-
-        {/* Primary Touch Icons */}
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-
-        {/* Standard Icons */}
-        <link rel="icon" type="image/svg+xml" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/svg+xml" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="icon" href="/favicon.ico" />
-
-        {/* Apple Web App Meta Tags */}
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Park Algo" />
-
-        {/* Mobile Web App Meta Tags */}
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="mobile-web-app-title" content="Park Algo" />
-
-        {/* Microsoft Tiles */}
-        <meta name="msapplication-TileColor" content="#3b82f6" />
-        <meta name="msapplication-TileImage" content="/icon-192x192.svg" />
-        <meta name="msapplication-tap-highlight" content="no" />
-      </head>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SupabaseBoundary>
-            <AuthProvider>
-              <AnalyticsProvider>
-                <PWAProvider>
-                  <AIAssistantProvider>
-                    <Suspense fallback={null}>{children}</Suspense>
-                    <FloatingAIChat />
-                    <Toaster />
-                  </AIAssistantProvider>
-                </PWAProvider>
-              </AnalyticsProvider>
-            </AuthProvider>
-          </SupabaseBoundary>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Suspense fallback={<Loading />}>
+            <SupabaseBoundary>
+              <AuthProvider>
+                <AnalyticsProvider>
+                  <PWAProvider>
+                    <ConsentProvider>
+                      <AIAssistantProvider>
+                        <main className="min-h-screen bg-background">
+                          {children}
+                          <FloatingAIChat />
+                          <Toaster />
+                        </main>
+                        <ConsentScreen />
+                      </AIAssistantProvider>
+                    </ConsentProvider>
+                  </PWAProvider>
+                </AnalyticsProvider>
+              </AuthProvider>
+            </SupabaseBoundary>
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>

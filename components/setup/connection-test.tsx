@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, XCircle, Loader2, Database } from "lucide-react"
-import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { getBrowserClient } from "@/lib/supabase/browser"
+
+const getSupabase = () => getBrowserClient()
 
 interface ConnectionStatus {
   supabase: "testing" | "connected" | "error" | "not-configured"
@@ -31,9 +33,11 @@ export function ConnectionTest() {
     setStatus({ supabase: "testing", mapbox: "testing" })
 
     // Test Supabase connection
-    if (isSupabaseConfigured()) {
+    const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (hasSupabase) {
       try {
-        const { data, error } = await supabase.from("profiles").select("count").limit(1)
+        const { data, error } = await getSupabase().from("profiles").select("count").limit(1)
         if (error && error.message !== "Supabase not configured") {
           setStatus((prev) => ({
             ...prev,
@@ -105,7 +109,7 @@ export function ConnectionTest() {
   useEffect(() => {
     if (mounted) {
       // Auto-test on mount if both services are configured
-      const hasSupabase = isSupabaseConfigured()
+      const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
       if (hasSupabase) {
         testConnections()

@@ -66,11 +66,10 @@ export class SupabaseBoundary extends Component<SupabaseBoundaryProps, SupabaseB
       this.autoRetry()
     }
   }
-
   componentDidMount() {
     // Listen for connection changes
     if (typeof window !== "undefined") {
-      window.addEventListener("supabase-connection-change", this.handleConnectionChange)
+      window.addEventListener("supabase-connection-change", this.handleConnectionChange as EventListener)
       window.addEventListener("online", this.handleOnline)
       window.addEventListener("offline", this.handleOffline)
     }
@@ -78,7 +77,7 @@ export class SupabaseBoundary extends Component<SupabaseBoundaryProps, SupabaseB
 
   componentWillUnmount() {
     if (typeof window !== "undefined") {
-      window.removeEventListener("supabase-connection-change", this.handleConnectionChange)
+      window.removeEventListener("supabase-connection-change", this.handleConnectionChange as EventListener)
       window.removeEventListener("online", this.handleOnline)
       window.removeEventListener("offline", this.handleOffline)
     }

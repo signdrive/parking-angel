@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
+import { getClientUser } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
+    const { user } = await getClientUser()
     const { event, data } = await request.json()
 
     // Log analytics event to your backend

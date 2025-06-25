@@ -1,16 +1,15 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
-import { getCurrentUser } from "@/lib/auth"
+import { type NextRequest, NextResponse } from "next/server";
+import { getServerClient } from "@/lib/supabase/server-utils";
+import { verifyUser } from "@/lib/server-auth";
+import { APIError, handleAPIError } from "@/lib/api-error";
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const { user } = await verifyUser();
+    const supabase = await getServerClient();
 
-    const body = await request.json()
-    const { is_available, report_type, notes } = body
+    const body = await request.json();
+    const { is_available, report_type, notes } = body;
 
     // Update the parking spot
     const { data: spot, error: updateError } = await supabase
@@ -21,62 +20,76 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       })
       .eq("id", params.id)
       .select()
-      .single()
+      .single();
 
     if (updateError) {
-      console.error("Error updating parking spot:", updateError)
-      return NextResponse.json({ error: "Failed to update parking spot" }, { status: 500 })
+      console.error("Error updating parking spot:", updateError);
+      throw new APIError("Failed to update parking spot", 500, "update_failed");
     }
 
-    // Create a spot report
+    // Create a spot report if report type is provided
     if (report_type) {
-      await supabase.from("spot_reports").insert({
+      const { error: reportError } = await supabase.from("spot_reports").insert({
         spot_id: params.id,
         reporter_id: user.id,
         report_type,
-        notes: notes || null,
-      })
+        notes,
+        status: "pending",
+      });
 
-      // Update user reputation based on report type
-      const reputationChange = report_type === "taken" ? 2 : report_type === "invalid" ? -1 : 1
-      await supabase.rpc("update_user_reputation", {
+      if (reportError) {
+        console.error("Error creating spot report:", reportError);
+        throw new APIError("Failed to create spot report", 500, "report_failed");
+      }
+
+      // Update user reputation
+      const { error: rpcError } = await supabase.rpc("update_user_reputation", {
         user_id: user.id,
-        reputation_change: reputationChange,
-      })
+        action_type: "report_spot",
+        points: 1, // Award 1 point for reporting a spot
+      });
+
+      if (rpcError) {
+        console.warn("Failed to update user reputation:", rpcError);
+      }
     }
 
-    return NextResponse.json({ success: true, spot })
+    return NextResponse.json({ spot });
   } catch (error) {
-    console.error("Error in spot update API:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleAPIError(error);
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const { user } = await verifyUser();
+    const supabase = await getServerClient();
 
-    // Check if user owns the spot or has admin privileges
-    const { data: spot } = await supabase.from("parking_spots").select("reported_by").eq("id", params.id).single()
+    // Verify ownership
+    const { data: spot, error: fetchError } = await supabase
+      .from("parking_spots")
+      .select("reported_by")
+      .eq("id", params.id)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching spot for deletion:", fetchError);
+      throw new APIError("Could not verify spot ownership.", 500, "fetch_failed");
+    }
 
     if (!spot || spot.reported_by !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      throw new APIError("Unauthorized to delete this spot", 403, "forbidden");
     }
 
-    // Delete the parking spot
-    const { error: deleteError } = await supabase.from("parking_spots").delete().eq("id", params.id)
+    const { error: deleteError } = await supabase.from("parking_spots").delete().eq("id", params.id);
 
     if (deleteError) {
-      console.error("Error deleting parking spot:", deleteError)
-      return NextResponse.json({ error: "Failed to delete parking spot" }, { status: 500 })
+      console.error("Error deleting parking spot:", deleteError);
+      throw new APIError("Failed to delete parking spot", 500, "delete_failed");
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error in spot delete API:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleAPIError(error);
   }
 }

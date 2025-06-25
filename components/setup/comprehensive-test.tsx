@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, XCircle, Loader2, Play, Database, Map, Users } from "lucide-react"
-import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { getBrowserClient } from "@/lib/supabase/browser"
 
 interface TestResult {
   name: string
@@ -15,17 +15,20 @@ interface TestResult {
 }
 
 export function ComprehensiveTest() {
-  const [tests, setTests] = useState<TestResult[]>([
-    { name: "Environment Variables", status: "pending" },
-    { name: "Supabase Connection", status: "pending" },
-    { name: "Mapbox API", status: "pending" },
-    { name: "Database Schema", status: "pending" },
-    { name: "Authentication System", status: "pending" },
-  ])
+  const [tests, setTests] = useState<TestResult[]>(
+    [
+      { name: "Environment Variables", status: "pending" },
+      { name: "Supabase Connection", status: "pending" },
+      { name: "Mapbox API", status: "pending" },
+      { name: "Database Schema", status: "pending" },
+      { name: "Authentication System", status: "pending" },
+    ]
+  )
   const [isRunning, setIsRunning] = useState(false)
   const [mounted, setMounted] = useState(false)
   const hasSupabaseUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL
   const hasSupabaseKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabase = getBrowserClient()
 
   useEffect(() => {
     setMounted(true)
@@ -77,34 +80,26 @@ export function ComprehensiveTest() {
     updateTest(1, { status: "running" })
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase.auth.getSession()
-        if (error && error.message !== "Supabase not configured") {
-          updateTest(1, {
-            status: "error",
-            message: "Connection failed",
-            details: error.message,
-          })
-        } else {
-          updateTest(1, {
-            status: "success",
-            message: "Connected successfully",
-            details: "Supabase client initialized and responsive",
-          })
-        }
-      } catch (err) {
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      if (error && error.message !== "Supabase not configured") {
         updateTest(1, {
           status: "error",
-          message: "Connection error",
-          details: err instanceof Error ? err.message : "Unknown error",
+          message: "Connection failed",
+          details: error.message,
+        })
+      } else {
+        updateTest(1, {
+          status: "success",
+          message: "Connected successfully",
+          details: "Supabase client initialized and responsive",
         })
       }
-    } else {
+    } catch (err) {
       updateTest(1, {
         status: "error",
-        message: "Not configured",
-        details: "Supabase environment variables missing",
+        message: "Connection error",
+        details: err instanceof Error ? err.message : "Unknown error",
       })
     }
 
@@ -154,38 +149,30 @@ export function ComprehensiveTest() {
     updateTest(3, { status: "running" })
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    if (isSupabaseConfigured()) {
-      try {
-        // Test if tables exist by trying to query them
-        const { data: profilesData, error: profilesError } = await supabase.from("profiles").select("count").limit(1)
+    try {
+      // Test if tables exist by trying to query them
+      const { data: profilesData, error: profilesError } = await supabase.from("profiles").select("count").limit(1)
 
-        const { data: spotsData, error: spotsError } = await supabase.from("parking_spots").select("count").limit(1)
+      const { data: spotsData, error: spotsError } = await supabase.from("parking_spots").select("count").limit(1)
 
-        if (profilesError || spotsError) {
-          updateTest(3, {
-            status: "error",
-            message: "Tables not found",
-            details: "Database schema needs to be created. Run the setup scripts.",
-          })
-        } else {
-          updateTest(3, {
-            status: "success",
-            message: "Schema ready",
-            details: "All required tables are present and accessible",
-          })
-        }
-      } catch (err) {
+      if (profilesError || spotsError) {
         updateTest(3, {
           status: "error",
-          message: "Schema check failed",
-          details: err instanceof Error ? err.message : "Unknown error",
+          message: "Tables not found",
+          details: "Database schema needs to be created. Run the setup scripts.",
+        })
+      } else {
+        updateTest(3, {
+          status: "success",
+          message: "Schema ready",
+          details: "All required tables are present and accessible",
         })
       }
-    } else {
+    } catch (err) {
       updateTest(3, {
         status: "error",
-        message: "Cannot test",
-        details: "Supabase not configured",
+        message: "Schema check failed",
+        details: err instanceof Error ? err.message : "Unknown error",
       })
     }
 
@@ -193,35 +180,27 @@ export function ComprehensiveTest() {
     updateTest(4, { status: "running" })
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    if (isSupabaseConfigured()) {
-      try {
-        // Test auth system by checking current session
-        const { data, error } = await supabase.auth.getSession()
-        if (error && error.message !== "Supabase not configured") {
-          updateTest(4, {
-            status: "error",
-            message: "Auth system error",
-            details: error.message,
-          })
-        } else {
-          updateTest(4, {
-            status: "success",
-            message: "Auth system ready",
-            details: "Authentication service is operational",
-          })
-        }
-      } catch (err) {
+    try {
+      // Test auth system by checking current session
+      const { data, error } = await supabase.auth.getSession()
+      if (error && error.message !== "Supabase not configured") {
         updateTest(4, {
           status: "error",
-          message: "Auth test failed",
-          details: err instanceof Error ? err.message : "Unknown error",
+          message: "Auth system error",
+          details: error.message,
+        })
+      } else {
+        updateTest(4, {
+          status: "success",
+          message: "Auth system ready",
+          details: "Authentication service is operational",
         })
       }
-    } else {
+    } catch (err) {
       updateTest(4, {
         status: "error",
-        message: "Cannot test",
-        details: "Supabase not configured",
+        message: "Auth test failed",
+        details: err instanceof Error ? err.message : "Unknown error",
       })
     }
 

@@ -36,7 +36,7 @@ export function SignUpForm() {
     setLoading(true)
     setError(null)
 
-    const { error } = await signUpWithEmail(email, password, fullName)
+    const { error } = await signUpWithEmail(email, password)
 
     if (error) {
       setError(error.message)
@@ -52,7 +52,7 @@ export function SignUpForm() {
     setGoogleLoading(true)
     setError(null)
 
-    const { error } = await signInWithGoogle()
+    const { error } = await signInWithGoogle(`${window.location.origin}/dashboard`)
 
     if (error) {
       setError(error.message)

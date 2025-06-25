@@ -1,4 +1,6 @@
-import { supabase } from "./supabase"
+import { getBrowserClient } from './supabase/browser'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from './types/supabase'
 
 export interface ParkingNotification {
   id: string
@@ -7,7 +9,6 @@ export interface ParkingNotification {
   body: string
   icon?: string
   badge?: string
-  image?: string
   tag: string
   requireInteraction?: boolean
   silent?: boolean
@@ -18,21 +19,29 @@ export interface ParkingNotification {
     actionUrl?: string
     [key: string]: any
   }
-  actions?: Array<{
-    action: string
-    title: string
-    icon?: string
-  }>
 }
 
 export class PWANotificationService {
   private static instance: PWANotificationService
+  private supabase: SupabaseClient<Database>
+  private initialized: boolean = false
+
+  private constructor() {
+    this.supabase = getBrowserClient()
+    this.initialized = true
+  }
 
   static getInstance(): PWANotificationService {
     if (!PWANotificationService.instance) {
       PWANotificationService.instance = new PWANotificationService()
     }
     return PWANotificationService.instance
+  }
+
+  private checkInitialized() {
+    if (!this.initialized || !this.supabase) {
+      throw new Error('PWANotificationService not properly initialized')
+    }
   }
 
   async requestPermission(): Promise<NotificationPermission> {
@@ -54,6 +63,7 @@ export class PWANotificationService {
   }
 
   async showNotification(notification: ParkingNotification): Promise<void> {
+    this.checkInitialized()
     const permission = await this.requestPermission()
 
     if (permission !== "granted") {
@@ -70,13 +80,11 @@ export class PWANotificationService {
           body: notification.body,
           icon: notification.icon || "/icon-192x192.png",
           badge: notification.badge || "/icon-96x96.png",
-          image: notification.image,
           tag: notification.tag,
           requireInteraction: notification.requireInteraction || false,
           silent: notification.silent || false,
-          timestamp: notification.timestamp,
           data: notification.data,
-          actions: notification.actions || [],
+          // actions removed: not supported by NotificationOptions type
         })
       }
     } else {
@@ -124,10 +132,7 @@ export class PWANotificationService {
         spotId,
         actionUrl: `/dashboard?spot=${spotId}`,
       },
-      actions: [
-        { action: "navigate", title: "Navigate", icon: "/icon-72x72.png" },
-        { action: "dismiss", title: "Dismiss" },
-      ],
+      // actions property removed
     })
   }
 
@@ -148,10 +153,7 @@ export class PWANotificationService {
         savings,
         actionUrl: `/dashboard?spot=${spotId}`,
       },
-      actions: [
-        { action: "book", title: "Book Now", icon: "/icon-72x72.png" },
-        { action: "dismiss", title: "Later" },
-      ],
+      // actions property removed
     })
   }
 
@@ -169,10 +171,7 @@ export class PWANotificationService {
         minutesLeft,
         actionUrl: `/dashboard?tab=history&session=${sessionId}`,
       },
-      actions: [
-        { action: "extend", title: "Extend Time", icon: "/icon-72x72.png" },
-        { action: "end", title: "End Session" },
-      ],
+      // actions property removed
     })
   }
 
@@ -189,10 +188,7 @@ export class PWANotificationService {
         totalCost,
         actionUrl: `/dashboard?tab=history&session=${sessionId}`,
       },
-      actions: [
-        { action: "receipt", title: "View Receipt", icon: "/icon-72x72.png" },
-        { action: "rate", title: "Rate Spot" },
-      ],
+      // actions property removed
     })
   }
 
@@ -210,22 +206,22 @@ export class PWANotificationService {
         amount,
         actionUrl: `/dashboard?tab=payment&session=${sessionId}`,
       },
-      actions: [
-        { action: "pay", title: "Pay Now", icon: "/icon-72x72.png" },
-        { action: "remind", title: "Remind Later" },
-      ],
+      // actions property removed
     })
   }
 
   private async logNotification(notification: ParkingNotification): Promise<void> {
+    this.checkInitialized()
     try {
-      await supabase.from("notification_log").insert({
-        notification_id: notification.id,
-        type: notification.type,
+      await this.supabase.from("notifications").insert({
+        notification_type: notification.type,
+        message: notification.body,
         title: notification.title,
-        body: notification.body,
         data: notification.data,
-        sent_at: new Date().toISOString(),
+        user_id: null, // Add user_id if available
+        created_at: new Date().toISOString(),
+        read: false,
+        sent_at: new Date().toISOString()
       })
     } catch (error) {
       console.error("Error logging notification:", error)
@@ -234,20 +230,35 @@ export class PWANotificationService {
 
   // Background sync for notifications
   async syncPendingNotifications(): Promise<void> {
+    this.checkInitialized()
     try {
-      const { data: pendingNotifications } = await supabase
-        .from("pending_notifications")
+      const { data: pendingNotifications } = await this.supabase
+        .from("notification_queue")
         .select("*")
         .lte("scheduled_for", new Date().toISOString())
-        .eq("sent", false)
+        .is("user_id", null) // Or use actual user_id
 
       for (const pending of pendingNotifications || []) {
-        await this.showNotification(pending.notification_data)
+        if (!pending.message) continue // Skip if no message
 
-        // Mark as sent
-        await supabase
-          .from("pending_notifications")
-          .update({ sent: true, sent_at: new Date().toISOString() })
+        const notification: ParkingNotification = {
+          id: pending.id,
+          type: pending.type as "spot_available" | "price_drop" | "time_reminder" | "session_end" | "payment_due",
+          title: "Parking Angel", // Default title
+          body: pending.message,
+          tag: pending.id,
+          timestamp: new Date(pending.created_at || Date.now()).getTime(),
+          data: {},
+          requireInteraction: true,
+          silent: false
+        }
+
+        await this.showNotification(notification)
+
+        // Mark as processed by deleting from queue
+        await this.supabase
+          .from("notification_queue")
+          .delete()
           .eq("id", pending.id)
       }
     } catch (error) {

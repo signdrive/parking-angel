@@ -161,9 +161,10 @@ export function PWADebug() {
       setIsInstallable(false)
     } catch (err) {
       console.error("Error during installation:", err)
+      
       setDebugInfo((prev) => ({
         ...prev,
-        installError: err.message,
+        installError: err instanceof Error ? err.message : 'Unknown error',
       }))
     }
   }

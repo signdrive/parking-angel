@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { MapPin, Bookmark, History, Settings, Bot, ChevronLeft, ChevronRight, LogOut, User, Shield } from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/components/auth/auth-provider"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useMemo } from "react"
 
@@ -184,11 +184,12 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
               </div>
             )}
           </div>
-        )}
-
-        <Button
+        )}        <Button
           variant="ghost"
-          onClick={signOut}
+          onClick={() => {
+            console.log('Sign out button clicked');
+            signOut();
+          }}
           className={cn(
             "w-full text-gray-300 hover:text-white hover:bg-gray-800",
             isCollapsed ? "px-2" : "justify-start",

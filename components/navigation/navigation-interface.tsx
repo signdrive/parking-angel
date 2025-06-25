@@ -33,10 +33,10 @@ import {
 import { useToast } from "@/hooks/use-toast"
 
 interface NavigationInterfaceProps {
-  onExit: () => void
+  onExitAction: () => void
 }
 
-export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
+export function NavigationInterface({ onExitAction }: NavigationInterfaceProps) {
   const {
     currentRoute,
     currentStep,
@@ -206,7 +206,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
               <RotateCcw className="w-4 h-4 mr-2" />
               Retry Navigation
             </Button>
-            <Button onClick={onExit} variant="outline" className="w-full">
+            <Button onClick={onExitAction} variant="outline" className="w-full">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Go Back
             </Button>
@@ -283,7 +283,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
         )}
       >
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={onExit} className="rounded-full text-white hover:bg-blue-700">
+          <Button variant="ghost" size="icon" onClick={onExitAction} className="rounded-full text-white hover:bg-blue-700">
             <ArrowLeft className="w-5 h-5" />
           </Button>
 
@@ -461,7 +461,7 @@ export function NavigationInterface({ onExit }: NavigationInterfaceProps) {
 
       {/* Navigation Map - Main Content */}
       <div className="flex-1 relative">
-        <NavigationMap mapboxToken={mapboxToken} />
+        <NavigationMap mapboxToken={mapboxToken || undefined} />
       </div>
 
       {/* Bottom Info Bar - TomTom style */}

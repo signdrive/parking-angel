@@ -4,6 +4,7 @@ import { useState } from "react"
 import MobileFinder from "@/components/parking/mobile-finder"
 import QuickBookingModal from "@/components/parking/quick-booking-modal"
 import ConfirmationScreen from "@/components/parking/confirmation-screen"
+import { SiteFooter } from "@/components/layout/site-footer"
 
 export default function ParkingFinderPage() {
   const [selectedSpot, setSelectedSpot] = useState(null)
@@ -29,10 +30,11 @@ export default function ParkingFinderPage() {
 
   return (
     <>
-      <MobileFinder onSpotSelect={handleSpotSelect} />
+      <MobileFinder />
       {selectedSpot && (
         <QuickBookingModal spot={selectedSpot} onClose={() => setSelectedSpot(null)} onConfirm={handleBookingConfirm} />
       )}
+      <SiteFooter />
     </>
   )
 }

@@ -7,6 +7,41 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+    optimizeCss: true,
+    optimizePackageImports: ['@mui/icons-material']
+  },
+  webpack: (config, { isServer }) => {
+    // Fixes npm packages that depend on `fs` module
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+      };
+    }
+    
+    // Optimize CSS loading
+    config.optimization = {
+      ...config.optimization,
+      splitChunks: {
+        ...config.optimization?.splitChunks,
+        cacheGroups: {
+          ...config.optimization?.splitChunks?.cacheGroups,
+          styles: {
+            name: 'styles',
+            test: /\.(css|scss|sass)$/,
+            chunks: 'all',
+            enforce: true,
+          },
+        },
+      },
+    };
+    
+    return config;
+  },
   images: {
     domains: [
       'parkalgo.com',
@@ -40,6 +75,17 @@ const nextConfig = {
           {
             key: 'X-XSS-Protection',
             value: '1; mode=block',
+          },
+          {            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:",
+              "connect-src 'self' https://api.mapbox.com https://overpass-api.de https://overpass-api.de/api/interpreter https://tile.openstreetmap.org https://supabase.co https://vzhvpecwnjssurxbyzph.supabase.co https://checkout.stripe.com https://maps.googleapis.com https://places.googleapis.com",
+              "worker-src 'self' blob:",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.stripe.com",
+              "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
+              "img-src 'self' data: https: blob:",
+              "font-src 'self' data: https:"
+            ].join('; ')
           },
         ],
       },

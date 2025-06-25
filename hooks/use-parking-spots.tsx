@@ -1,24 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import type { Database } from "@/lib/supabase"
+import { getBrowserClient } from "@/lib/supabase/browser"
+import { Database } from "@/lib/types/supabase"
 
-type ParkingSpot = Database["public"]["Tables"]["parking_spots"]["Row"]
+type ParkingSpot = Database['public']['Tables']['parking_spots']['Row']
 
-interface UseParkingSpotsProps {
-  latitude?: number | null
-  longitude?: number | null
-  radius?: number
-}
-
-interface APIError {
-  error: string
-  error_code: string
-  msg: string
-}
-
-export function useParkingSpots({ latitude, longitude, radius = 500 }: UseParkingSpotsProps) {
+export function useParkingSpots({ latitude, longitude, radius = 500 }: { latitude?: number | null, longitude?: number | null, radius?: number }) {
+  const supabase = getBrowserClient()
   const [spots, setSpots] = useState<ParkingSpot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,60 +19,22 @@ export function useParkingSpots({ latitude, longitude, radius = 500 }: UseParkin
       return
     }
 
-    const fetchSpots = async () => {
-      try {
-        setLoading(true)
-        setError(null)
+    setLoading(true)
+    setError(null)
 
-        const response = await fetch(
-          `/api/spots/nearby?lat=${latitude}&lng=${longitude}&radius=${radius}`
-        )
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          const apiError = data as APIError
-          throw new Error(apiError.msg || 'Failed to fetch spots')
+    supabase
+      .from("parking_spots")
+      .select("*")
+      // Add geolocation filtering if your database supports it
+      // For now, we'll fetch all spots and can filter client-side if needed
+      .then(({ data, error }) => {
+        if (error) {
+          setError(error.message)
+        } else {
+          setSpots(data || [])
         }
-
-        setSpots(data.spots || [])
-      } catch (err) {
-        console.error('Error fetching spots:', err)
-        setError(err instanceof Error ? err.message : "Failed to fetch parking spots")
-        setSpots([])
-      } finally {
         setLoading(false)
-      }
-    }
-
-    fetchSpots()
-
-    if (isSupabaseConfigured()) {
-      const channel = supabase
-        .channel("parking-spots-changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "parking_spots",
-          },
-          (payload) => {
-            if (payload.eventType === "INSERT") {
-              setSpots((prev) => [...prev, payload.new as ParkingSpot])
-            } else if (payload.eventType === "UPDATE") {
-              setSpots((prev) => prev.map((spot) => (spot.id === payload.new.id ? (payload.new as ParkingSpot) : spot)))
-            } else if (payload.eventType === "DELETE") {
-              setSpots((prev) => prev.filter((spot) => spot.id !== payload.old.id))
-            }
-          },
-        )
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
+      })
   }, [latitude, longitude, radius])
 
   return { spots, loading, error }
