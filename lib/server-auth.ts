@@ -11,10 +11,14 @@ export type Profile = Database['public']['Tables']['profiles']['Row']
 export const getUser = cache(async () => {
   const supabase = await getServerClient()
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    console.log('[getUser] user:', user)
+    if (error) {
+      console.error('[getUser] Supabase error:', error)
+    }
     return user
   } catch (error) {
-    console.error('Error getting user:', error)
+    console.error('[getUser] Exception:', error)
     return null
   }
 })
