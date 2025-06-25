@@ -79,11 +79,11 @@ const nextConfig = {
           {            key: 'Content-Security-Policy',
             value: [
               "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:",
-              "connect-src 'self' https://api.mapbox.com https://overpass-api.de https://overpass-api.de/api/interpreter https://tile.openstreetmap.org https://supabase.co https://vzhvpecwnjssurxbyzph.supabase.co https://checkout.stripe.com https://maps.googleapis.com https://places.googleapis.com",
+              "connect-src 'self' https://api.mapbox.com https://overpass-api.de https://overpass-api.de/api/interpreter https://tile.openstreetmap.org https://supabase.co https://vzhvpecwnjssurxbyzph.supabase.co https://checkout.stripe.com https://maps.googleapis.com https://places.googleapis.com https://lh3.googleusercontent.com",
               "worker-src 'self' blob:",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.stripe.com",
               "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
-              "img-src 'self' data: https: blob:",
+              "img-src 'self' data: https: blob: https://lh3.googleusercontent.com",
               "font-src 'self' data: https:"
             ].join('; ')
           },

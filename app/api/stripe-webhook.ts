@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
 });
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // Set this secret in your Stripe dashboard webhook settings
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -30,9 +35,27 @@ export async function POST(req: NextRequest) {
     case 'customer.subscription.deleted':
     case 'invoice.paid':
     case 'invoice.payment_failed':
-    case 'checkout.session.completed':
-      // TODO: Update your database/user access here
+    case 'checkout.session.completed': {
+      const session = event.data.object;
+      const userId = session.metadata?.userId;
+      const tier = session.metadata?.tier || 'navigator';
+      // For checkout.session.completed, subscription ID is session.subscription
+      const subscriptionId = 'subscription' in session ? session.subscription : undefined;
+      if (userId && tier) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ plan: tier, stripe_subscription_id: subscriptionId })
+          .eq('id', userId);
+        if (error) {
+          console.error('Failed to update user plan:', error);
+          return NextResponse.json({ error: 'Failed to update user plan' }, { status: 500 });
+        }
+      } else {
+        console.error('Missing userId or tier in session metadata');
+        return NextResponse.json({ error: 'Missing userId or tier' }, { status: 400 });
+      }
       break;
+    }
     default:
       // Unexpected event type
       break;
