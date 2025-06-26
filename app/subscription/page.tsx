@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from '@/components/auth/auth-provider';
 
 const plans = [
   { id: "basic", name: "Basic", price: 0, description: "Free plan with limited features." },
@@ -12,6 +13,22 @@ export default function SubscriptionPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+
+  // Auto-trigger checkout if plan param is present and user is logged in
+  useEffect(() => {
+    const planId = searchParams.get('plan');
+    if (planId && plans.some(p => p.id === planId)) {
+      if (!user) {
+        // Not logged in, redirect to login with return_to
+        router.replace(`/auth/login?return_to=${encodeURIComponent(`/subscription?plan=${planId}`)}`);
+        return;
+      }
+      // User is logged in, trigger checkout
+      handleSubscribe(planId);
+    }
+  }, [user, searchParams, router]);
 
   const handleSubscribe = async (planId: string) => {
     setLoading(true);
@@ -20,7 +37,7 @@ export default function SubscriptionPage() {
       const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ tier: planId, planId }),
       });
       if (!res.ok) throw new Error("Failed to create checkout session");
       const { url } = await res.json();

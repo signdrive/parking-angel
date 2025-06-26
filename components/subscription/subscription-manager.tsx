@@ -139,7 +139,12 @@ export function SubscriptionManager() {
   }
 
   const handleSubscriptionChange = async (tierId: string) => {
-    if (!user) return
+    if (!user) {
+      // Redirect to login page with return URL
+      const returnUrl = `/subscription?plan=${tierId}`;
+      window.location.href = `/auth/login?return_to=${encodeURIComponent(returnUrl)}`;
+      return;
+    }
 
     setLoading(true)
     setSelectedTier(tierId)
@@ -160,32 +165,59 @@ export function SubscriptionManager() {
     }
   }
   const createCheckoutSession = async (tierId: string) => {
+    // Check if user is authenticated
+    if (!user) {
+      // Redirect to login page with return URL
+      const returnUrl = `/subscription?plan=${tierId}`;
+      window.location.href = `/auth/login?return_to=${encodeURIComponent(returnUrl)}`;
+      return;
+    }
+
     // Track A/B test conversion before checkout
     if (priceTest.variant === 'treatment') {
       await priceTest.trackConversion('checkout_initiated', tiers.find(t => t.id === tierId)?.price)
     }
 
-    const response = await fetch('/api/stripe/create-checkout-session', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        priceId: `price_${tierId}`, // Stripe price IDs
-        tier: tierId,
-        userId: user?.id,
-        abTestVariant: priceTest.variant,
-        abTestExperiment: 'pricing_test_2025'
-      }),
-    })
+    try {
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: `price_${tierId}`, // Stripe price IDs
+          tier: tierId,
+          userId: user?.id,
+          abTestVariant: priceTest.variant,
+          abTestExperiment: 'pricing_test_2025'
+        }),
+      })
 
-    const { url } = await response.json()
-    if (url) {
-      // Track upsell test if applicable
-      if (upsellTest.variant === 'treatment') {
-        await upsellTest.trackConversion('stripe_redirect')
+      const data = await response.json();
+
+      // Handle authentication required
+      if (response.status === 401 || data.requiresAuth) {
+          const returnUrl = `/subscription?plan=${tierId}`;
+          window.location.href = `/auth/login?return_to=${encodeURIComponent(returnUrl)}`;
+          return;
       }
-      window.location.href = url
+
+      if (!response.ok) {
+          throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      const { url } = data;
+      if (url) {
+        // Track upsell test if applicable
+        if (upsellTest.variant === 'treatment') {
+          await upsellTest.trackConversion('stripe_redirect')
+        }
+        window.location.href = url
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      // You could show a toast notification here
+      alert('Failed to start checkout. Please try again.');
     }
   }
 

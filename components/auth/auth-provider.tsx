@@ -130,9 +130,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase, router, toast])
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (returnTo?: string) => {
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`
+      // Compose redirectTo with returnTo if provided
+      let redirectTo = `${window.location.origin}/auth/callback`;
+      if (returnTo) {
+        redirectTo += `?return_to=${encodeURIComponent(returnTo)}`;
+      }
       console.log(`[auth-provider.tsx] Calling signInWithGoogleHandler with redirectTo: '${redirectTo}'`)
       const { error } = await signInWithGoogleHandler(redirectTo)
       if (error) {

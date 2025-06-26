@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
+import { useAuth } from '@/components/auth/auth-provider';
+import { useRouter } from 'next/navigation';
 
 export function PaymentModal({ open, onOpenChange, plan, amount, priceId }: {
   open: boolean;
@@ -12,8 +14,16 @@ export function PaymentModal({ open, onOpenChange, plan, amount, priceId }: {
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { user } = useAuth();
+  const router = useRouter();
 
   async function handleSubscribe() {
+    if (!user) {
+      // Create a return URL that goes to subscription page with the plan selected
+      const returnUrl = `/subscription?plan=${plan.toLowerCase()}`;
+      router.push(`/auth/login?return_to=${encodeURIComponent(returnUrl)}`);
+      return;
+    }
     setLoading(true);
     setError("");
     try {

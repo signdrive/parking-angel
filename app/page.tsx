@@ -9,9 +9,9 @@ import { MapPin, Users, Clock, Star, AlertCircle, CreditCard, CheckCircle2, Crow
 import { EnvironmentCheck } from "@/components/setup/environment-check"
 import { ConnectionTest } from "@/components/setup/connection-test"
 import { ComprehensiveTest } from "@/components/setup/comprehensive-test"
-import { PaymentModal } from "@/components/payment-modal"
 import { useGeolocation } from "@/hooks/use-geolocation"
 import { SiteFooter } from "@/components/layout/site-footer"
+import { useAuth } from "@/components/auth/auth-provider"
 
 const STRIPE_NAVIGATOR_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID || "";
 const STRIPE_PRO_PARKER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID || "";
@@ -81,9 +81,9 @@ const plans = [
 export default function HomePage() {
 	const [mounted, setMounted] = useState(false)
 	const [showSetup, setShowSetup] = useState(false)
-	const [paymentOpen, setPaymentOpen] = useState(false)
 	const [selectedPlan, setSelectedPlan] = useState<{ name: string; price: number } | null>(null)
 	const { latitude, longitude, error, loading, requestGeolocation } = useGeolocation()
+	const { user } = useAuth();
 
 	useEffect(() => {
 		setMounted(true)
@@ -303,10 +303,14 @@ export default function HomePage() {
 									variant={plan.price === 0 ? "outline" : "default"}
 									onClick={() => {
 										if (plan.price === 0) {
-											window.location.href = "/auth/signup"
+											window.location.href = "/auth/signup";
 										} else {
-											setSelectedPlan({ name: plan.name, price: plan.price })
-											setPaymentOpen(true)
+											const planParam = encodeURIComponent(plan.id);
+											if (!user) {
+                                                window.location.href = `/auth/login?return_to=/checkout-redirect?plan=${planParam}`;
+                                            } else {
+                                                window.location.href = `/checkout-redirect?plan=${planParam}`;
+                                            }
 										}
 									}}
 								>
@@ -391,21 +395,7 @@ export default function HomePage() {
 							</Button>
 						</Link>
 					</div>
-				</div>				<PaymentModal
-					open={paymentOpen}
-					onOpenChange={setPaymentOpen}
-					plan={selectedPlan?.name || ""}
-					amount={selectedPlan?.price || 0}
-					priceId={
-						selectedPlan?.name === "Navigator"
-							? STRIPE_NAVIGATOR_PRICE_ID
-							: selectedPlan?.name === "Pro Parker"
-							? STRIPE_PRO_PARKER_PRICE_ID
-							: selectedPlan?.name === "Fleet Manager"
-							? STRIPE_FLEET_MANAGER_PRICE_ID
-							: ""
-					}
-				/>
+				</div>				
 			</main>
 
 			<SiteFooter />

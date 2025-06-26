@@ -18,40 +18,23 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const { tier, priceId } = await req.json();
-    
-    // Support both new tier-based and legacy priceId-based requests
-    const finalPriceId = priceId || PRICE_IDS[tier as keyof typeof PRICE_IDS]
-    
-    if (!finalPriceId) {
-      return NextResponse.json({ error: "Missing priceId or invalid tier" }, { status: 400 });
+    const { tier } = await req.json();
+    const priceId = PRICE_IDS[tier as keyof typeof PRICE_IDS]
+    if (!priceId) {
+      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
-
+   
     const session = await stripe.checkout.sessions.create({
       customer_email: user.email,
       mode: "subscription",
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price: finalPriceId,
-          quantity: 1,
-        },
-      ],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscription?canceled=1`,
-      metadata: {
-        userId: user.id,
-        tier: tier || 'unknown'
-      },
-      subscription_data: {
-        metadata: {
-          userId: user.id,
-          tier: tier || 'unknown'
-        }
-      }
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/failed`,
+      metadata: { userId: user.id, tier },
+      subscription_data: { metadata: { userId: user.id, tier } }
     });
-
+   
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
     console.error('Stripe checkout error:', err)

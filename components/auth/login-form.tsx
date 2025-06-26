@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +21,11 @@ export function LoginForm() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const { signInWithGoogle } = useAuth()
+  const searchParams = useSearchParams()
+  const { signInWithGoogle } = useAuth() as { signInWithGoogle: (returnTo?: string) => Promise<void> }
+
+  // Get return URL from query params
+  const returnTo = searchParams.get('return_to') || '/dashboard'
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,7 +37,8 @@ export function LoginForm() {
     if (error) {
       setError(error.message)
     } else {
-      router.push("/dashboard")
+      // Redirect to return URL or dashboard
+      router.push(returnTo)
     }
 
     setLoading(false)
@@ -43,7 +48,8 @@ export function LoginForm() {
     setGoogleLoading(true)
     setError(null)
     try {
-      await signInWithGoogle()
+      await signInWithGoogle(returnTo)
+      // Note: redirect after successful auth is handled by the auth provider
     } catch (e) {
       setError((e as Error).message || "An unknown error occurred.")
       setGoogleLoading(false)

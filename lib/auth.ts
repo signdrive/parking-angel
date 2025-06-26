@@ -13,9 +13,7 @@ export async function signInWithGoogle(
 ): Promise<AuthResult<{ provider: string; url: string }>> {
   try {
     const supabase = getBrowserClient()
-
     console.log(`[lib/auth.ts] Using redirectTo: '${redirectTo}'`)
-
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -25,7 +23,6 @@ export async function signInWithGoogle(
         },
       },
     })
-
     if (error) throw error
     return { data, error: null }
   } catch (error) {
