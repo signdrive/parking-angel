@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -19,50 +19,52 @@ export default function PaymentSuccessPage() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({ status: 'loading' });
+  const [pollCount, setPollCount] = useState(0);
+  const maxPolls = 15; // 15 x 2s = 30 seconds
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (sessionId) {
-      verifyPayment(sessionId);
-    } else {
-      setPaymentStatus({ 
-        status: 'error', 
-        error: 'No session ID provided' 
-      });
+    if (!sessionId) {
+      setPaymentStatus({ status: 'error', error: 'No session ID provided' });
+      return;
     }
-  }, [sessionId]);
-
-  const verifyPayment = async (sessionId: string) => {
-    try {
-      const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}`);
-      const data = await response.json();        if (response.ok && data.success) {
-          setPaymentStatus({
-            status: 'success',
-            sessionId,
-            customerEmail: data.customerEmail,
-            subscriptionTier: data.subscriptionTier
-          });
-          
-          // Log successful payment for analytics
-          console.log('Payment verification successful:', {
-            sessionId,
-            subscriptionTier: data.subscriptionTier,
-            customerEmail: data.customerEmail
-          });
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}`);
+        const data = await response.json();
+        if (response.ok && data.success) {
+          if (!cancelled) {
+            setPaymentStatus({
+              status: 'success',
+              sessionId,
+              customerEmail: data.customerEmail,
+              subscriptionTier: data.subscriptionTier
+            });
+          }
+        } else if (pollCount < maxPolls) {
+          pollingRef.current = setTimeout(() => setPollCount(c => c + 1), 2000);
         } else {
-          console.error('Payment verification failed:', data);
-          setPaymentStatus({
-            status: 'error',
-            error: data.error || 'Payment verification failed'
-          });
+          if (!cancelled) {
+            setPaymentStatus({
+              status: 'error',
+              error: 'Payment verification is taking longer than expected. Please check your email or contact support.'
+            });
+          }
         }
-    } catch (error) {
-      console.error('Payment verification error:', error);
-      setPaymentStatus({
-        status: 'error',
-        error: 'Failed to verify payment'
-      });
-    }
-  };
+      } catch (error) {
+        if (!cancelled) {
+          setPaymentStatus({ status: 'error', error: 'Failed to verify payment' });
+        }
+      }
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      if (pollingRef.current) clearTimeout(pollingRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, pollCount]);
 
   if (paymentStatus.status === 'loading') {
     return (
@@ -71,7 +73,11 @@ export default function PaymentSuccessPage() {
           <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
             <Loader2 className="w-16 h-16 text-blue-500 mx-auto mb-4 animate-spin" />
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Verifying Payment...</h1>
-            <p className="text-gray-600">Please wait while we confirm your subscription.</p>
+            <p className="text-gray-600">
+              {pollCount < maxPolls
+                ? 'This may take a few seconds while we confirm your subscription. Please do not close this page.'
+                : 'Still waiting for confirmation from Stripe. You may refresh this page or check your email for confirmation.'}
+            </p>
           </div>
         </div>
         <SiteFooter />
