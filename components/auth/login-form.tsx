@@ -48,10 +48,11 @@ export function LoginForm() {
     setGoogleLoading(true)
     setError(null)
     try {
-      await signInWithGoogle(returnTo)
-      // Note: redirect after successful auth is handled by the auth provider
-    } catch (e) {
-      setError((e as Error).message || "An unknown error occurred.")
+      await signInWithGoogle()
+    } catch (err) {
+      setError('Failed to sign in with Google')
+      console.error('Google sign in error:', err)
+    } finally {
       setGoogleLoading(false)
     }
   }

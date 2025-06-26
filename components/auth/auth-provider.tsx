@@ -130,27 +130,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase, router, toast])
 
-  const signInWithGoogle = useCallback(async (returnTo?: string) => {
+  const signInWithGoogle = useCallback(async () => {
+    if (!supabase) return
+    
     try {
-      // Compose redirectTo with returnTo if provided
-      let redirectTo = `${window.location.origin}/auth/callback`;
-      if (returnTo) {
-        redirectTo += `?return_to=${encodeURIComponent(returnTo)}`;
-      }
-      console.log(`[auth-provider.tsx] Calling signInWithGoogleHandler with redirectTo: '${redirectTo}'`)
-      const { error } = await signInWithGoogleHandler(redirectTo)
-      if (error) {
-        throw error
-      }
+      const searchParams = new URLSearchParams(window.location.search)
+      const returnTo = searchParams.get('return_to') || '/dashboard'
+      const redirectTo = `${window.location.origin}${returnTo}`
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            return_to: returnTo // Pass through the return_to parameter
+          },
+        },
+      })
+      
+      if (error) throw error
+      
     } catch (error) {
-      console.error('Google sign in error:', error)
+      console.error('Sign in error:', error)
       toast({
+        title: 'Error signing in',
+        description: 'Please try again',
         variant: 'destructive',
-        title: 'Sign In Error',
-        description: (error as Error).message,
       })
     }
-  }, [toast])
+  }, [supabase, toast])
+
+  // Handle auth state changes
+  useEffect(() => {
+    if (!supabase) return
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN') {
+        setState(current => ({
+          ...current,
+          user: session?.user ?? null,
+          session,
+          isLoading: false,
+        }))
+        
+        // Check for return_to parameter and redirect
+        const searchParams = new URLSearchParams(window.location.search)
+        const returnTo = searchParams.get('return_to')
+        if (returnTo) {
+          router.push(returnTo)
+        } else {
+          router.push('/dashboard')
+        }
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase, router])
 
   const refreshSession = useCallback(async () => {
     if (!supabase) return
