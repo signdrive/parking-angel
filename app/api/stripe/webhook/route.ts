@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { PremiumFeatureService } from '@/lib/premium-features';
+import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
 });
 
-const premiumService = PremiumFeatureService.getInstance();
+// Create a Supabase client with the service role key for admin access
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -36,11 +40,18 @@ export async function POST(req: NextRequest) {
         }
 
         // Update user's subscription in database
-        await premiumService.upgradePlan(
-          session.metadata.userId,
-          session.metadata.tier
-        );
+        const { error } = await supabase
+          .from('user_subscriptions')
+          .upsert({
+            user_id: session.metadata.userId,
+            tier: session.metadata.tier,
+            status: 'active',
+            stripe_customer_id: session.customer as string,
+            stripe_subscription_id: session.subscription as string,
+            current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          });
 
+        if (error) throw error;
         break;
       }
 
@@ -50,7 +61,16 @@ export async function POST(req: NextRequest) {
         const tier = subscription.metadata.tier;
 
         if (userId && tier) {
-          await premiumService.upgradePlan(userId, tier);
+          const { error } = await supabase
+            .from('user_subscriptions')
+            .upsert({
+              user_id: userId,
+              tier: tier,
+              status: subscription.status === 'active' ? 'active' : 'past_due',
+              current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
+            });
+
+          if (error) throw error;
         }
         break;
       }
@@ -60,7 +80,16 @@ export async function POST(req: NextRequest) {
         const userId = subscription.metadata.userId;
 
         if (userId) {
-          await premiumService.upgradePlan(userId, 'basic');
+          const { error } = await supabase
+            .from('user_subscriptions')
+            .update({
+              tier: 'basic',
+              status: 'canceled',
+              cancel_at_period_end: true,
+            })
+            .eq('user_id', userId);
+
+          if (error) throw error;
         }
         break;
       }
