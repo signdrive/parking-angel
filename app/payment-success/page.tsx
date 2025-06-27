@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -9,7 +9,7 @@ import { CheckCircle2, Loader2 } from 'lucide-react'
 import { SiteFooter } from '@/components/layout/site-footer'
 
 interface PaymentStatus {
-  status: 'loading' | 'success' | 'error'
+  status: 'loading' | 'success' | 'error' | 'processing'
   sessionId?: string
   customerEmail?: string
   subscriptionTier?: string
@@ -18,10 +18,13 @@ interface PaymentStatus {
 
 export default function PaymentSuccessPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const sessionId = searchParams.get('session_id')
+  const tier = searchParams.get('tier')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({ status: 'loading' })
   const [retryCount, setRetryCount] = useState(0)
-  const maxRetries = 5
+  const maxRetries = 10 // Increased max retries
+  const retryDelay = 2000 // 2 seconds
 
   useEffect(() => {
     if (!sessionId) {
@@ -31,7 +34,7 @@ export default function PaymentSuccessPage() {
 
     const verifyPayment = async () => {
       try {
-        const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}`)
+        const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}&retry=${retryCount}`)
         const data = await response.json()
 
         if (response.ok && data.success) {
@@ -39,13 +42,27 @@ export default function PaymentSuccessPage() {
             status: 'success',
             sessionId,
             customerEmail: data.customerEmail,
-            subscriptionTier: data.subscriptionTier
+            subscriptionTier: data.subscriptionTier || tier
           })
-        } else if (retryCount < maxRetries) {
-          // Retry after 2 seconds
+          
+          // Redirect to dashboard after 2 seconds of showing success
+          setTimeout(() => {
+            router.push('/dashboard')
+          }, 2000)
+        } else if (response.status === 202 && data.shouldRetry && retryCount < maxRetries) {
+          setPaymentStatus({
+            status: 'processing',
+            sessionId
+          })
+          // Retry after delay
           setTimeout(() => {
             setRetryCount(prev => prev + 1)
-          }, 2000)
+          }, retryDelay)
+        } else if (retryCount < maxRetries) {
+          // For other errors, retry if under max attempts
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1)
+          }, retryDelay)
         } else {
           setPaymentStatus({
             status: 'error',
@@ -54,25 +71,58 @@ export default function PaymentSuccessPage() {
         }
       } catch (error) {
         console.error('Payment verification error:', error)
-        setPaymentStatus({
-          status: 'error',
-          error: 'Failed to verify payment status'
-        })
+        if (retryCount < maxRetries) {
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1)
+          }, retryDelay)
+        } else {
+          setPaymentStatus({
+            status: 'error',
+            error: 'Failed to verify payment status'
+          })
+        }
       }
     }
 
     verifyPayment()
-  }, [sessionId, retryCount])
+  }, [sessionId, retryCount, tier, router])
 
-  if (paymentStatus.status === 'loading') {
+  if (paymentStatus.status === 'loading' || paymentStatus.status === 'processing') {
     return (
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="flex-1 flex items-center justify-center">
           <Card className="p-8 max-w-md w-full text-center">
             <Loader2 className="w-16 h-16 text-blue-500 mx-auto mb-4 animate-spin" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Verifying Payment...</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              {paymentStatus.status === 'processing' ? 'Processing Payment...' : 'Verifying Payment...'}
+            </h1>
             <p className="text-gray-600">
-              Please wait while we confirm your subscription.
+              {paymentStatus.status === 'processing' 
+                ? 'Your payment is being processed. This may take a moment...'
+                : 'Please wait while we confirm your subscription.'}
+            </p>
+          </Card>
+        </div>
+        <SiteFooter />
+      </div>
+    )
+  }
+
+  if (paymentStatus.status === 'success') {
+    return (
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-green-50 to-emerald-100">
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="p-8 max-w-md w-full text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
+            <p className="text-gray-600 mb-6">
+              Thank you for your subscription to {paymentStatus.subscriptionTier}. 
+              You will receive a confirmation email shortly.
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              Redirecting to dashboard...
             </p>
           </Card>
         </div>
@@ -101,31 +151,5 @@ export default function PaymentSuccessPage() {
     )
   }
 
-  return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-green-50 to-emerald-100">
-      <div className="flex-1 flex items-center justify-center">
-        <Card className="p-8 max-w-md w-full text-center">
-          <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to {paymentStatus.subscriptionTier}!</h1>
-          <p className="text-gray-600 mb-4">
-            Your payment was successful and your premium features are now unlocked.
-          </p>
-          {paymentStatus.customerEmail && (
-            <p className="text-sm text-gray-500 mb-6">
-              A confirmation email has been sent to {paymentStatus.customerEmail}
-            </p>
-          )}
-          <div className="space-y-3">
-            <Link href="/dashboard">
-              <Button size="lg" className="w-full">Go to Dashboard</Button>
-            </Link>
-            <Link href="/parking-finder">
-              <Button variant="outline" size="lg" className="w-full">Find Parking</Button>
-            </Link>
-          </div>
-        </Card>
-      </div>
-      <SiteFooter />
-    </div>
-  )
+  return null
 }
