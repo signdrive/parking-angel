@@ -23,18 +23,13 @@ export async function POST(req: NextRequest) {
     if (!priceId) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
-   
-    // Create a unique success URL with all necessary parameters
-    const successUrl = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/payment-success`)
-    successUrl.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}')
-    successUrl.searchParams.set('tier', tier)
-    
+
     const session = await stripe.checkout.sessions.create({
       customer_email: user.email,
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl.toString(),
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/failed`,
       metadata: { 
         userId: user.id, 
