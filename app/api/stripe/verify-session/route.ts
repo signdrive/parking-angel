@@ -6,6 +6,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil'
 });
 
+// Define valid payment status types
+type StripePaymentStatus = Stripe.Checkout.Session.PaymentStatus;
+type StripePaymentIntentStatus = Stripe.PaymentIntent.Status;
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -34,57 +38,69 @@ export async function GET(req: NextRequest) {
     // This helps when the webhook hasn't processed yet
     const retryCount = parseInt(searchParams.get('retry') || '0');
     if (retryCount < 3) {
-      // If payment intent exists and is succeeded, we can consider it successful
-      // even if webhook hasn't processed yet
-      if (session.payment_status === 'paid' || 
-          (session.payment_intent as Stripe.PaymentIntent)?.status === 'succeeded') {
+      // Check payment status
+      const paymentStatus = session.payment_status as StripePaymentStatus;
+      const paymentIntentStatus = (session.payment_intent as Stripe.PaymentIntent)?.status as StripePaymentIntentStatus;
+
+      // If payment is complete
+      if (paymentStatus === 'paid' || 
+          paymentIntentStatus === 'succeeded' ||
+          paymentStatus === 'no_payment_required') {
         return NextResponse.json({
           success: true,
-          customerEmail: session.customer_email,
+          customerEmail: session.customer_email || null,
           subscriptionTier: session.metadata?.tier,
           sessionId: session.id
         });
       }
 
       // If still processing, return a retry status
-      if (session.payment_status === 'processing') {
+      if (paymentStatus === 'processing') {
         return NextResponse.json({ 
-          success: false, 
-          error: 'processing',
-          shouldRetry: true
+          success: false,
+          shouldRetry: true,
+          error: 'Payment is still processing',
+          retryCount
         }, { status: 202 });
       }
     }
 
-    // After retries, do a full verification including user check
+    // After a few retries, verify the user and check the subscription status
     const user = await getUser();
-    if (!user || session.metadata?.userId !== user.id) {
+    if (!user) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Unauthorized' 
-      }, { status: 401 });
+        error: 'User not found' 
+      }, { status: 404 });
     }
 
-    // Final check of payment status
-    if (session.payment_status !== 'paid') {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Payment not completed' 
-      }, { status: 400 });
+    // Check payment status again with proper typing
+    const paymentStatus = session.payment_status as StripePaymentStatus;
+    const paymentIntentStatus = (session.payment_intent as Stripe.PaymentIntent)?.status as StripePaymentIntentStatus;
+
+    // Return success if payment is complete
+    if (paymentStatus === 'paid' || 
+        paymentIntentStatus === 'succeeded' ||
+        paymentStatus === 'no_payment_required') {
+      return NextResponse.json({
+        success: true,
+        customerEmail: session.customer_email || null,
+        subscriptionTier: session.metadata?.tier,
+        sessionId: session.id
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      customerEmail: session.customer_email,
-      subscriptionTier: session.metadata?.tier,
-      sessionId: session.id
-    });
-
-  } catch (error) {
-    console.error('Error verifying session:', error);
+    // Handle other payment statuses
     return NextResponse.json({ 
       success: false, 
-      error: 'Failed to verify session' 
+      error: `Payment status: ${paymentStatus}` 
+    }, { status: 400 });
+
+  } catch (error: any) {
+    console.error('Verify session error:', error);
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Failed to verify session'
     }, { status: 500 });
   }
 }

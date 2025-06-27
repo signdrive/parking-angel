@@ -10,7 +10,11 @@ const PRICE_IDS = {
   navigator: process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID!,
   pro_parker: process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID!,
   fleet_manager: process.env.NEXT_PUBLIC_STRIPE_FLEET_MANAGER_PRICE_ID!
-}
+} as const;
+
+type PlanTier = keyof typeof PRICE_IDS;
+type CheckoutSessionParams = Stripe.Checkout.SessionCreateParams;
+type StripeMetadata = Record<string, string | number | null>;
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,36 +22,42 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const { tier } = await req.json();
-    const priceId = PRICE_IDS[tier as keyof typeof PRICE_IDS]
-    if (!priceId) {
+
+    const { tier } = await req.json() as { tier: PlanTier };
+    if (!tier || !(tier in PRICE_IDS)) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      customer_email: user.email,
+    const priceId = PRICE_IDS[tier];
+    const metadata: StripeMetadata = {
+      userId: user.id,
+      tier,
+      customerEmail: user.email || null
+    };
+
+    const sessionParams: CheckoutSessionParams = {
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/failed`,
-      metadata: { 
-        userId: user.id, 
-        tier,
-        customerEmail: user.email
-      },
-      subscription_data: { 
-        metadata: { 
-          userId: user.id, 
-          tier,
-          customerEmail: user.email 
-        } 
-      }
-    });
+      metadata,
+      subscription_data: { metadata }
+    };
+
+    // Only add customer_email if it exists
+    if (user.email) {
+      sessionParams.customer_email = user.email;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
    
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
-    console.error('Stripe checkout error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Stripe checkout error:', err);
+    return NextResponse.json(
+      { error: err.message || 'Failed to create checkout session' },
+      { status: 500 }
+    );
   }
 }

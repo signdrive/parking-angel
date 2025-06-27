@@ -1,147 +1,209 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerClient } from '@/lib/supabase/server-utils';
+import { Database } from '@/lib/types/supabase';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+
+type SubscriptionPlan = Database['public']['Tables']['user_subscriptions']['Row'];
+type SubscriptionEvent = Database['public']['Tables']['subscription_events']['Row'];
+type StripeCheckoutSession = Stripe.Checkout.Session;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
 });
 
-// Create a Supabase client with the service role key for admin access
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-type StripeSubscription = Stripe.Subscription & {
-  current_period_end: number;
-  status: string;
-};
+// Allow using a test secret in development
+const webhookSecret = process.env.NODE_ENV === 'development'
+  ? (process.env.STRIPE_WEBHOOK_SECRET_TEST || 'whsec_test_secret')
+  : process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
-  const signature = req.headers.get('stripe-signature');
-
-  if (!signature) {
-    console.error('Webhook Error: No signature provided');
-    return NextResponse.json(
-      { error: 'No signature provided' },
-      { status: 400 }
-    );
+  const headersList = headers();
+  if (!(headersList instanceof Headers)) {
+    return NextResponse.json({ error: 'Invalid headers' }, { status: 400 });
   }
 
-  try {
-    console.log('Webhook: Processing incoming event...');
-    const event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
+  const stripeSignature = headersList.get('stripe-signature');
 
-    console.log('Webhook: Event type:', event.type);
+  if (!stripeSignature) {
+    console.error('Webhook Error: No signature provided');
+    return NextResponse.json({ error: 'No signature provided' }, { status: 400 });
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    console.log('Webhook: Verifying Stripe signature...');
+    event = stripe.webhooks.constructEvent(body, stripeSignature, webhookSecret);
+  } catch (err: any) {
+    console.error('Webhook Error: Signature verification failed:', err.message, {
+      signature: stripeSignature.substring(0, 20) + '...',
+      bodyPreview: body.substring(0, 100) + '...'
+    });
+    return NextResponse.json({ error: `Webhook signature verification failed: ${err.message}` }, { status: 400 });
+  }
+    
+  try {
+    console.log('Webhook received:', {
+      eventType: event.type,
+      eventId: event.id,
+      webhookSecret: webhookSecret ? 'Set' : 'Not set',
+      stripeSignature: stripeSignature ? 'Present' : 'Missing',
+      bodyPreview: body.substring(0, 100)
+    });
+    
+    console.log('Webhook: Getting Supabase client...');
+    const supabase = await getServerClient();
+
+    console.log('Webhook: Processing event:', event.type, 'ID:', event.id);
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        console.log('Webhook: Processing checkout completion for user:', session.metadata?.userId);
-        
-        if (!session.metadata?.userId || !session.metadata?.tier) {
-          console.error('Webhook Error: Missing metadata', session.metadata);
-          throw new Error('Missing user ID or tier in session metadata');
+        const session = event.data.object as StripeCheckoutSession;
+        const userId = session.metadata?.userId;
+        const tier = session.metadata?.tier;
+
+        console.log('Webhook: Processing checkout completion for user:', userId);
+
+        if (!userId || !tier) {
+          const error = 'Missing userId or tier in session metadata';
+          console.error('Webhook Error:', error, { userId, tier });
+          return NextResponse.json({ error }, { status: 400 });
         }
 
-        // Fetch the subscription details
-        const subscription = session.subscription 
-          ? await stripe.subscriptions.retrieve(session.subscription as string)
-          : null;
+        let subscription: Stripe.Subscription | null = null;
+
+        try {
+          // Fetch the subscription details if available
+          if (session.subscription) {
+            const response = await stripe.subscriptions.retrieve(session.subscription as string);
+            subscription = response;
+            console.log('Webhook: Retrieved subscription details:', subscription.id);
+          }
+        } catch (err: any) {
+          console.warn('Webhook Warning: Failed to retrieve subscription details:', err.message);
+          // Continue processing even if subscription fetch fails
+        }
 
         console.log('Webhook: Updating subscription in Supabase...');
-        // Update user's subscription in database
-        const { error } = await supabase
-          .from('user_subscriptions')
-          .upsert({
-            user_id: session.metadata.userId,
-            tier: session.metadata.tier,
-            status: 'active',
-            stripe_customer_id: session.customer as string,
-            stripe_subscription_id: session.subscription as string,
-            current_period_end: subscription 
-              ? new Date(((subscription as any).current_period_end || Date.now()/1000) * 1000).toISOString()
-              : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          });
 
-        if (error) {
-          console.error('Webhook Error: Failed to update Supabase:', error);
-          throw error;
+        // Generate a random UUID for the subscription ID
+        const subscriptionId = crypto.randomUUID();
+
+        // Prepare the subscription data according to the schema
+        const subscriptionData: Database['public']['Tables']['user_subscriptions']['Insert'] = {
+          id: subscriptionId,
+          user_id: userId,
+          plan_id: tier,
+          status: 'active',
+          trial_end: subscription?.trial_end 
+            ? new Date((subscription.trial_end as number) * 1000).toISOString() 
+            : null,
+          cancel_at_period_end: Boolean(subscription?.cancel_at_period_end),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        console.log('Webhook: Preparing to upsert subscription data:', {
+          ...subscriptionData,
+          session_id: session.id,
+          customer_email: session.customer_email,
+          payment_status: session.payment_status
+        });
+
+        // First check if subscription exists
+        const { data: existingSub } = await supabase
+          .from('user_subscriptions')
+          .select()
+          .eq('user_id', userId)
+          .single();
+
+        console.log('Webhook: Existing subscription:', existingSub);
+
+        const { error: subscriptionError } = await supabase
+          .from('user_subscriptions')
+          .upsert(subscriptionData);
+
+        if (subscriptionError) {
+          console.error('Webhook Error: Failed to update subscription:', subscriptionError);
+          throw subscriptionError;
         }
-        
+
+        // Log subscription event with proper typing
+        const eventData: Database['public']['Tables']['subscription_events']['Insert'] = {
+          user_id: userId,
+          event_type: 'subscription_created',
+          tier: tier,
+          stripe_event_id: event.id,
+          created_at: new Date().toISOString(),
+          subscription_id: subscription?.id || session.subscription as string || null,
+          event_data: {
+            checkout_session_id: session.id,
+            customer_email: session.customer_email || null,
+            payment_status: session.payment_status
+          }
+        };
+
+        const { error: eventError } = await supabase
+          .from('subscription_events')
+          .insert(eventData);
+
+        if (eventError) {
+          console.warn('Webhook Warning: Failed to log subscription event:', eventError);
+          // Don't throw here, as the main subscription update was successful
+        }
+
         console.log('Webhook: Successfully processed checkout completion');
         break;
       }
 
       case 'customer.subscription.updated': {
-        const subscription = event.data.object as StripeSubscription;
+        const subscription = event.data.object as Stripe.Subscription;
         const userId = subscription.metadata?.userId;
         const tier = subscription.metadata?.tier;
 
+        if (!userId || !tier) {
+          const error = 'Missing userId or tier in subscription metadata';
+          console.error('Webhook Error:', error);
+          return NextResponse.json({ error }, { status: 400 });
+        }
+
         console.log('Webhook: Processing subscription update for user:', userId);
 
-        if (userId && tier) {
-          const { error } = await supabase
-            .from('user_subscriptions')
-            .upsert({
-              user_id: userId,
-              tier: tier,
-              status: subscription.status === 'active' ? 'active' : 'past_due',
-              stripe_subscription_id: subscription.id,
-              current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            });
+        const updateData: Database['public']['Tables']['user_subscriptions']['Update'] = {
+          user_id: userId,
+          plan_id: tier,
+          status: subscription.status,
+          trial_end: subscription.trial_end
+            ? new Date((subscription.trial_end as number) * 1000).toISOString()
+            : null,
+          cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
+          updated_at: new Date().toISOString(),
+        };
 
-          if (error) {
-            console.error('Webhook Error: Failed to update subscription:', error);
-            throw error;
-          }
-          console.log('Webhook: Successfully updated subscription');
-        } else {
-          console.error('Webhook Error: Missing metadata in subscription update', subscription.metadata);
+        const { error } = await supabase
+          .from('user_subscriptions')
+          .update(updateData)
+          .match({ user_id: userId });
+
+        if (error) {
+          console.error('Webhook Error: Failed to update subscription:', error);
+          throw error;
         }
-        break;
-      }
 
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as StripeSubscription;
-        const userId = subscription.metadata?.userId;
-
-        console.log('Webhook: Processing subscription deletion for user:', userId);
-
-        if (userId) {
-          const { error } = await supabase
-            .from('user_subscriptions')
-            .update({
-              tier: 'basic',
-              status: 'canceled',
-              cancel_at_period_end: true,
-            })
-            .eq('user_id', userId);
-
-          if (error) {
-            console.error('Webhook Error: Failed to cancel subscription:', error);
-            throw error;
-          }
-          console.log('Webhook: Successfully processed subscription cancellation');
-        } else {
-          console.error('Webhook Error: Missing user ID in deletion event');
-        }
+        console.log('Webhook: Successfully processed subscription update');
         break;
       }
     }
 
-    return NextResponse.json({ received: true });
-  } catch (err) {
-    console.error('Stripe webhook error:', err);
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('Webhook Error: Processing failed:', err.message, err.stack);
     return NextResponse.json(
-      { error: 'Webhook handler failed' },
-      { status: 400 }
+      { error: `Webhook processing failed: ${err.message}` },
+      { status: 500 }
     );
   }
 }

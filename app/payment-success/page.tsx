@@ -45,10 +45,11 @@ export default function PaymentSuccessPage() {
             subscriptionTier: data.subscriptionTier || tier
           })
           
-          // Redirect to dashboard after 2 seconds of showing success
+          // Redirect to dashboard after 5 seconds of showing success
+          // This gives more time for the webhook to process
           setTimeout(() => {
             router.push('/dashboard')
-          }, 2000)
+          }, 5000)
         } else if (response.status === 202 && data.shouldRetry && retryCount < maxRetries) {
           setPaymentStatus({
             status: 'processing',
