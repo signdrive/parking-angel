@@ -8,7 +8,6 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   experimental: {
-    optimizeCss: true,
     optimizePackageImports: ['@mui/icons-material']
   },
   webpack: (config, { isServer }) => {
