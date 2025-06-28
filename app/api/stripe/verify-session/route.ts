@@ -42,10 +42,18 @@ export async function GET(req: NextRequest) {
       const paymentStatus = session.payment_status as StripePaymentStatus;
       const paymentIntentStatus = (session.payment_intent as Stripe.PaymentIntent)?.status as StripePaymentIntentStatus;
 
-      // If payment is complete
+      // If payment is complete or subscription is active
       if (paymentStatus === 'paid' || 
           paymentIntentStatus === 'succeeded' ||
-          paymentStatus === 'no_payment_required') {
+          paymentStatus === 'no_payment_required' ||
+          (session.subscription as Stripe.Subscription)?.status === 'active') {
+        console.log('Payment verified successfully:', {
+          paymentStatus,
+          paymentIntentStatus,
+          subscriptionStatus: (session.subscription as Stripe.Subscription)?.status,
+          customerEmail: session.customer_email,
+          tier: session.metadata?.tier
+        });
         return NextResponse.json({
           success: true,
           customerEmail: session.customer_email || null,
@@ -55,7 +63,7 @@ export async function GET(req: NextRequest) {
       }
 
       // If still processing, return a retry status
-      if (paymentStatus === 'processing') {
+      if (paymentIntentStatus === 'processing') {
         return NextResponse.json({ 
           success: false,
           shouldRetry: true,

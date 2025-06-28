@@ -23,8 +23,8 @@ export default function PaymentSuccessPage() {
   const tier = searchParams.get('tier')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({ status: 'loading' })
   const [retryCount, setRetryCount] = useState(0)
-  const maxRetries = 10 // Increased max retries
-  const retryDelay = 2000 // 2 seconds
+  const maxRetries = 20 // More retries
+  const retryDelay = 1000 // Check every second
 
   useEffect(() => {
     if (!sessionId) {
@@ -45,11 +45,16 @@ export default function PaymentSuccessPage() {
             subscriptionTier: data.subscriptionTier || tier
           })
           
-          // Redirect to dashboard after 5 seconds of showing success
-          // This gives more time for the webhook to process
+          console.log('Payment verified, redirecting to dashboard:', {
+            customerEmail: data.customerEmail,
+            tier: data.subscriptionTier,
+            sessionId: data.sessionId
+          });
+          
+          // Show success message for 2 seconds then redirect
           setTimeout(() => {
             router.push('/dashboard')
-          }, 5000)
+          }, 2000)
         } else if (response.status === 202 && data.shouldRetry && retryCount < maxRetries) {
           setPaymentStatus({
             status: 'processing',

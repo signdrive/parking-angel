@@ -1,9 +1,20 @@
 import { headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/supabase/server-utils';
 import { Database } from '@/lib/types/supabase';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+
+// Create a Supabase client with the service role key for webhook
+const supabase = createClient<Database>(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role key for webhook
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }
+);
 
 type SubscriptionPlan = Database['public']['Tables']['user_subscriptions']['Row'];
 type SubscriptionEvent = Database['public']['Tables']['subscription_events']['Row'];
@@ -54,9 +65,6 @@ export async function POST(req: NextRequest) {
       bodyPreview: body.substring(0, 100)
     });
     
-    console.log('Webhook: Getting Supabase client...');
-    const supabase = await getServerClient();
-
     console.log('Webhook: Processing event:', event.type, 'ID:', event.id);
 
     switch (event.type) {
@@ -89,15 +97,12 @@ export async function POST(req: NextRequest) {
 
         console.log('Webhook: Updating subscription in Supabase...');
 
-        // Generate a random UUID for the subscription ID
-        const subscriptionId = crypto.randomUUID();
-
         // Prepare the subscription data according to the schema
         const subscriptionData: Database['public']['Tables']['user_subscriptions']['Insert'] = {
-          id: subscriptionId,
+          id: session.subscription as string || crypto.randomUUID(),
           user_id: userId,
           plan_id: tier,
-          status: 'active',
+          status: subscription?.status || 'active',
           trial_end: subscription?.trial_end 
             ? new Date((subscription.trial_end as number) * 1000).toISOString() 
             : null,
