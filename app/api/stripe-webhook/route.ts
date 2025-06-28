@@ -17,6 +17,11 @@ export async function POST(req: Request) {
     const headerList = await headers();
     const signature = headerList.get('stripe-signature');
 
+    console.log('Webhook received at /api/stripe-webhook', {
+      signature: signature ? signature.substring(0, 20) + '...' : 'missing',
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? 'present' : 'missing',
+      bodyPreview: body.substring(0, 100)
+    });
     if (!signature) {
       throw new APIError('No Stripe signature found', 400, 'missing_signature');
     }
@@ -26,6 +31,12 @@ export async function POST(req: Request) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
+
+    console.log('Webhook event constructed:', {
+      type: event.type,
+      id: event.id,
+      object: event.object
+    });
 
     const supabase = await getServerClient();
 
@@ -54,8 +65,20 @@ export async function POST(req: Request) {
           .eq('id', userId);
 
         if (updateError) {
+          console.error('Failed to update subscription status:', {
+            error: updateError,
+            userId,
+            customerId,
+            tier: subscriptionTier
+          });
           throw new APIError('Failed to update subscription status', 500, 'update_failed');
         }
+        
+        console.log('Successfully updated subscription:', {
+          userId,
+          customerId,
+          tier: subscriptionTier
+        });
         break;
       }
 

@@ -81,7 +81,7 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      subscription_tier: 'free' | 'premium' | 'pro' | 'enterprise'
     }
   }
 }
