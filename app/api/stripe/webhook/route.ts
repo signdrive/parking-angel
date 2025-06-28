@@ -31,12 +31,9 @@ const webhookSecret = process.env.NODE_ENV === 'development'
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
-  const headersList = headers();
-  if (!(headersList instanceof Headers)) {
-    return NextResponse.json({ error: 'Invalid headers' }, { status: 400 });
-  }
-
-  const stripeSignature = headersList.get('stripe-signature');
+  
+  // Get the stripe signature from request headers
+  const stripeSignature = req.headers.get('stripe-signature');
 
   if (!stripeSignature) {
     console.error('Webhook Error: No signature provided');

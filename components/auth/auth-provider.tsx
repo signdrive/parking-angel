@@ -15,7 +15,7 @@ type AuthState = {
 
 type AuthContextType = AuthState & {
   signOut: () => Promise<void>
-  signInWithGoogle: () => Promise<void>
+  signInWithGoogle: (returnTo?: string) => Promise<void>
   refreshSession: () => Promise<void>
 }
 
@@ -130,21 +130,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase, router, toast])
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (customReturnTo?: string) => {
     if (!supabase) return
     
     try {
       const searchParams = new URLSearchParams(window.location.search)
-      const returnTo = searchParams.get('return_to') || '/dashboard'
-      const redirectTo = `${window.location.origin}${returnTo}`
+      const returnTo = customReturnTo || searchParams.get('return_to') || '/dashboard'
+      
+      console.log('Google OAuth - return_to:', returnTo);
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo,
+          redirectTo: `${window.location.origin}/auth/callback?return_to=${encodeURIComponent(returnTo)}`,
           queryParams: {
             access_type: 'offline',
-            return_to: returnTo // Pass through the return_to parameter
           },
         },
       })

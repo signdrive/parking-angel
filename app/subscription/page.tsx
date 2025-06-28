@@ -4,9 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from '@/components/auth/auth-provider';
 
 const plans = [
-  { id: "basic", name: "Basic", price: 0, description: "Free plan with limited features." },
-  { id: "pro", name: "Pro", price: 990, description: "Pro plan with advanced features." },
-  { id: "premium", name: "Premium", price: 1990, description: "Premium plan with all features." },
+  { id: "navigator", name: "Navigator", price: 990, description: "Essential parking tools for daily commuters." },
+  { id: "pro_parker", name: "Pro Parker", price: 1990, description: "Advanced features for frequent parkers." },
+  { id: "fleet_manager", name: "Fleet Manager", price: 4990, description: "Complete solution for fleet management." },
 ];
 
 export default function SubscriptionPage() {

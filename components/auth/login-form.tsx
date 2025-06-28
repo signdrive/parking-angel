@@ -48,7 +48,7 @@ export function LoginForm() {
     setGoogleLoading(true)
     setError(null)
     try {
-      await signInWithGoogle()
+      await signInWithGoogle(returnTo)
     } catch (err) {
       setError('Failed to sign in with Google')
       console.error('Google sign in error:', err)

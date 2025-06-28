@@ -18,10 +18,22 @@ export default function AuthCallbackClient() {
       processed.current = true;
       console.log('Found auth code, handling session...');
       const supabase = getBrowserClient();
+      
+      // Get return_to from multiple possible sources
+      const returnToParam = searchParams.get('return_to');
+      const redirectToParam = searchParams.get('redirect_to');
+      let returnTo = returnToParam || redirectToParam || '/dashboard';
+      
+      console.log('Auth callback - returnTo params:', {
+        return_to: returnToParam,
+        redirect_to: redirectToParam,
+        final_returnTo: returnTo,
+        all_params: Object.fromEntries(searchParams.entries())
+      });
+      
       // For PKCE flow, we need to let Supabase handle the session automatically
       // instead of manually calling exchangeCodeForSession
       supabase.auth.getSession().then(({ data: { session }, error }) => {
-        const returnTo = searchParams.get('return_to') || '/dashboard';
         if (error) {
           console.error('Error getting session:', error);
           toast({
@@ -31,7 +43,7 @@ export default function AuthCallbackClient() {
           });
           router.replace('/auth/login');
         } else if (session) {
-          console.log('Session established successfully');
+          console.log('Session established successfully, redirecting to:', returnTo);
           router.replace(returnTo);
         } else {
           // No session yet, try to exchange the code
@@ -45,7 +57,7 @@ export default function AuthCallbackClient() {
               });
               router.replace('/auth/login');
             } else {
-              console.log('Code exchange successful');
+              console.log('Code exchange successful, redirecting to:', returnTo);
               router.replace(returnTo);
             }
           });

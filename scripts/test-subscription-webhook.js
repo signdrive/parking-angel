@@ -35,7 +35,7 @@ const createTestEvent = (type = 'checkout.session.completed') => {
         customer_email: 'test@example.com',
         metadata: {
           userId: testUserId,
-          tier: 'premium',
+          tier: 'navigator',
           customerEmail: 'test@example.com'
         },
         mode: 'subscription',
@@ -65,7 +65,7 @@ const generateStripeSignature = (timestamp, payload) => {
 };
 
 // Send webhook request
-const sendWebhook = (eventType = 'checkout.session.completed', port = 3000) => {
+const sendWebhook = (eventType = 'checkout.session.completed', port = 3001) => {
   const event = createTestEvent(eventType);
   const payload = JSON.stringify(event);
   const timestamp = Math.floor(Date.now() / 1000);
@@ -127,7 +127,7 @@ const sendWebhook = (eventType = 'checkout.session.completed', port = 3000) => {
 // Parse command line arguments
 const args = process.argv.slice(2);
 const eventType = args[0] || 'checkout.session.completed';
-const port = parseInt(args[1], 10) || 3000;
+const port = parseInt(args[1], 10) || 3001;
 
 // Run the test
 sendWebhook(eventType, port);
