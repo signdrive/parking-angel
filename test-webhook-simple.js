@@ -1,25 +1,35 @@
 // Test script for Stripe webhook
 const testWebhook = async () => {
+  // Use a real user ID from your database for testing
+  const userId = process.env.TEST_USER_ID || '0462d759-46bf-4e66-8f4b-43d42d2f30d4';
+  
+  // Create a test event with the correct structure
   const testEvent = {
-    id: 'evt_test_webhook',
+    id: `evt_test_${Date.now()}`,
     type: 'checkout.session.completed',
     data: {
       object: {
-        id: 'cs_test_session',
+        id: `cs_test_${Date.now()}`,
         mode: 'subscription',
         payment_status: 'paid',
-        subscription: 'sub_test_subscription',
+        customer: `cus_test_${Date.now()}`,
+        subscription: `sub_test_${Date.now()}`,
         customer_email: 'test@example.com',
         metadata: {
-          userId: 'test-user-id',
-          tier: 'navigator'
+          userId: userId,
+          tier: 'navigator'  // Use one of: navigator, pro_parker, fleet_manager
         }
       }
     }
   };
 
+  console.log(`Sending checkout event to webhook endpoint...`);
+  console.log(`User ID: ${userId}`);
+  console.log(`Plan: ${testEvent.data.object.metadata.tier}`);
+
   try {
-    const response = await fetch('http://localhost:3000/api/stripe/webhook', {
+    // Note: Use the correct webhook endpoint
+    const response = await fetch('http://localhost:3000/api/stripe-webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
