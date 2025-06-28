@@ -17,22 +17,29 @@ export async function POST(req: Request) {
     const headerList = await headers();
     const signature = headerList.get('stripe-signature');
 
-    console.log('Webhook received at /api/stripe-webhook', {
+    console.log('[Webhook] Received at /api/stripe-webhook', {
       signature: signature ? signature.substring(0, 20) + '...' : 'missing',
       webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? 'present' : 'missing',
       bodyPreview: body.substring(0, 100)
     });
     if (!signature) {
+      console.error('[Webhook] No Stripe signature found');
       throw new APIError('No Stripe signature found', 400, 'missing_signature');
     }
 
-    const event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+    } catch (err) {
+      console.error('[Webhook] Signature verification failed:', err);
+      throw new APIError('Signature verification failed', 400, 'invalid_signature');
+    }
 
-    console.log('Webhook event constructed:', {
+    console.log('[Webhook] Event constructed:', {
       type: event.type,
       id: event.id,
       object: event.object
@@ -45,13 +52,22 @@ export async function POST(req: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
         const customerId = session.customer as string;
         const userId = session.metadata?.userId;
+        const tier = session.metadata?.tier;
+
+        console.log('[Webhook] checkout.session.completed', {
+          customerId,
+          userId,
+          tier,
+          sessionId: session.id,
+          metadata: session.metadata
+        });
 
         if (!userId) {
+          console.error('[Webhook] No user ID in session metadata', { metadata: session.metadata });
           throw new APIError('No user ID in session metadata', 400, 'missing_user_id');
         }
 
-        // Cast subscription tier to valid enum value
-        const subscriptionTier = (session.metadata?.tier || 'premium') as SubscriptionTier;
+        const subscriptionTier = (tier || 'premium') as SubscriptionTier;
 
         // Update user's subscription status
         const { error: updateError } = await supabase
@@ -65,7 +81,7 @@ export async function POST(req: Request) {
           .eq('id', userId);
 
         if (updateError) {
-          console.error('Failed to update subscription status:', {
+          console.error('[Webhook] Failed to update subscription status:', {
             error: updateError,
             userId,
             customerId,
@@ -73,8 +89,8 @@ export async function POST(req: Request) {
           });
           throw new APIError('Failed to update subscription status', 500, 'update_failed');
         }
-        
-        console.log('Successfully updated subscription:', {
+
+        console.log('[Webhook] Successfully updated subscription:', {
           userId,
           customerId,
           tier: subscriptionTier
@@ -93,6 +109,7 @@ export async function POST(req: Request) {
           .single();
 
         if (userError || !userData) {
+          console.error('[Webhook] User not found for customer:', customerId);
           throw new APIError('User not found', 404, 'user_not_found');
         }
 
@@ -107,14 +124,19 @@ export async function POST(req: Request) {
           .eq('id', userData.id);
 
         if (updateError) {
+          console.error('[Webhook] Failed to reset subscription status:', updateError);
           throw new APIError('Failed to update subscription status', 500, 'update_failed');
         }
+        console.log('[Webhook] Successfully reset subscription for user:', userData.id);
         break;
       }
+      default:
+        console.log('[Webhook] Ignored event type:', event.type);
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
+    console.error('[Webhook] Handler error:', error);
     return handleAPIError(error);
   }
 }
