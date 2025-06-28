@@ -35,12 +35,27 @@ export async function POST(req: NextRequest) {
       customerEmail: user.email || null
     };
 
+    // Get the base URL dynamically based on the request host
+    const host = req.headers.get('host');
+    const protocol = req.headers.get('x-forwarded-proto') || 'https';
+    const baseUrl = host?.includes('localhost') 
+      ? 'http://localhost:3000'
+      : `${protocol}://${host}`;
+
+    console.log('Checkout session URL configuration:', {
+      host,
+      protocol,
+      baseUrl,
+      successUrl: `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`,
+      cancelUrl: `${baseUrl}/failed`
+    });
+
     const sessionParams: CheckoutSessionParams = {
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/failed`,
+      success_url: `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`,
+      cancel_url: `${baseUrl}/failed`,
       metadata,
       subscription_data: { metadata },
       allow_promotion_codes: true // Allow users to enter promo codes
@@ -56,7 +71,10 @@ export async function POST(req: NextRequest) {
       priceId,
       customerId: user.id,
       email: user.email,
-      tier
+      tier,
+      baseUrl,
+      successUrl: sessionParams.success_url,
+      cancelUrl: sessionParams.cancel_url
     });
 
     const session = await stripe.checkout.sessions.create(sessionParams);
