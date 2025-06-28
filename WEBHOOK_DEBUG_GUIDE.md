@@ -2,6 +2,23 @@
 
 This guide explains how to set up and troubleshoot the Stripe webhook for subscription management in ParkAlgo.
 
+## Issue Identified
+
+After investigation, we've found an issue with the subscription tier mapping between Stripe and the database:
+
+1. Stripe uses these tiers:
+   - `navigator`
+   - `pro_parker`
+   - `fleet_manager`
+
+2. But the database enum uses these values:
+   - `free`
+   - `premium`
+   - `pro`
+   - `enterprise`
+
+The webhook handler includes code that maps between these values, but we found there were inconsistencies with the database constraints.
+
 ## Setup Steps
 
 1. **Set up environment variables**
@@ -14,8 +31,12 @@ This guide explains how to set up and troubleshoot the Stripe webhook for subscr
 3. **Deploy the latest migrations**
    - Make sure to apply all pending migrations, especially for subscription tiers:
    ```bash
-   npx supabase db push
+   npx supabase migration up
    ```
+   
+   - The most important migration is `20250629_fix_subscription_mapping.sql` which:
+     * Fixes the database constraint to only allow valid enum values
+     * Converts any existing mismatched values to the correct ones
 
 ## Troubleshooting
 
@@ -45,8 +66,17 @@ This guide explains how to set up and troubleshoot the Stripe webhook for subscr
 You can simulate webhook events using the provided test script:
 
 ```bash
-# Run the test script to simulate a checkout.session.completed event
+# Make sure your local server is running first
+npm run dev
+
+# In another terminal, run the test script to simulate a checkout.session.completed event
 node test-webhook-debug.js
+```
+
+Check the server logs for `[Webhook]` messages, especially the tier mapping logs:
+
+```
+[Webhook] Mapping tier: { originalTier: 'navigator', mappedTier: 'premium' }
 ```
 
 ## Stripe Events We Handle

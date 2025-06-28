@@ -11,8 +11,11 @@ const crypto = require('crypto');
 require('dotenv').config({ path: '.env.local' });
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test';
-const ENDPOINT_URL = 'http://localhost:3000/api/stripe-webhook';
-const userId = process.env.TEST_USER_ID || 'your-user-id-here';
+// Set the endpoint URL - use production URL if needed for live testing
+const ENDPOINT_URL = process.env.WEBHOOK_TEST_URL || 'http://localhost:3000/api/stripe-webhook';
+// Use a real user ID from your database for testing
+// Try to get it from env first, then fall back to a recent test user
+const userId = process.env.TEST_USER_ID || '0462d759-46bf-4e66-8f4b-43d42d2f30d4';
 
 // Sample event object similar to what Stripe would send
 const createEvent = (type) => {
@@ -73,6 +76,7 @@ async function sendWebhookEvent() {
     console.log(`Event ID: ${event.id}`);
     console.log(`User ID: ${userId}`);
     console.log(`Plan: ${event.data.object.metadata.tier}`);
+    console.log(`Webhook Secret: ${WEBHOOK_SECRET?.substring(0, 5)}...`);
     
     // Send the request
     const response = await fetch(ENDPOINT_URL, {
@@ -84,10 +88,14 @@ async function sendWebhookEvent() {
       body: payload
     });
     
-    const result = await response.json();
-    
-    console.log(`Status: ${response.status}`);
-    console.log('Response:', result);
+    try {
+      const result = await response.json();
+      console.log(`Status: ${response.status}`);
+      console.log('Response:', result);
+    } catch (e) {
+      console.log(`Status: ${response.status}`);
+      console.log('Response text:', await response.text());
+    }
     
   } catch (error) {
     console.error('Error sending webhook event:', error);
