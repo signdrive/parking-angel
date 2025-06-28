@@ -29,7 +29,19 @@ const webhookSecret = process.env.NODE_ENV === 'development'
   ? (process.env.STRIPE_WEBHOOK_SECRET_TEST || 'whsec_test_secret')
   : process.env.STRIPE_WEBHOOK_SECRET!;
 
+// IMPORTANT: This handler is deprecated. Please use /api/stripe-webhook instead.
+// This is kept for historical reference only.
 export async function POST(req: NextRequest) {
+  console.warn('[DEPRECATED WEBHOOK] This webhook handler is deprecated. Please use /api/stripe-webhook instead.');
+  
+  // Return 410 Gone to indicate this endpoint is no longer in use
+  return NextResponse.json(
+    { error: 'This endpoint is deprecated. Please use /api/stripe-webhook instead.' },
+    { status: 410 }
+  );
+
+  /* Original implementation (disabled):
+  */
   const body = await req.text();
   
   // Get the stripe signature from request headers

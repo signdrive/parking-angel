@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getUser } from '@/lib/server-auth';
+import { getServerClient } from '@/lib/supabase/server-utils';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil'
@@ -47,17 +48,43 @@ export async function GET(req: NextRequest) {
           paymentIntentStatus === 'succeeded' ||
           paymentStatus === 'no_payment_required' ||
           (session.subscription as Stripe.Subscription)?.status === 'active') {
+        
+        let profileData = null;
+        let profileError = null;
+        
+        // Only check the database if we have a userId
+        if (session.metadata?.userId) {
+          // Get the Supabase client
+          const supabaseClient = await getServerClient();
+          
+          // Get user's subscription status from the database
+          const result = await supabaseClient
+            .from('profiles')
+            .select('subscription_tier, subscription_status, updated_at')
+            .eq('id', session.metadata.userId)
+            .single();
+            
+          profileData = result.data;
+          profileError = result.error;
+        }
+        
         console.log('Payment verified successfully:', {
           paymentStatus,
           paymentIntentStatus,
           subscriptionStatus: (session.subscription as Stripe.Subscription)?.status,
           customerEmail: session.customer_email,
-          tier: session.metadata?.tier
+          tier: session.metadata?.tier,
+          // Include the actual database state for debugging
+          databaseState: profileError ? 'Error fetching profile' : profileData,
+          userId: session.metadata?.userId
         });
+        
+        // Return success with the subscription info from the database if available
         return NextResponse.json({
           success: true,
           customerEmail: session.customer_email || null,
-          subscriptionTier: session.metadata?.tier,
+          subscriptionTier: profileData?.subscription_tier || session.metadata?.tier,
+          databaseUpdated: !!profileData?.subscription_tier,
           sessionId: session.id
         });
       }

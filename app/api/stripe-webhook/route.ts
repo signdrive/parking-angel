@@ -44,8 +44,27 @@ export async function POST(req: Request) {
       id: event.id,
       object: event.object
     });
+    
+    // Add request details to the logs
+    console.log('[Webhook] Request details:', {
+      method: req.method,
+      url: req.url,
+      headers: Object.fromEntries(headerList.entries())
+    });
 
     const supabase = await getServerClient();
+    
+    // Test the database connection
+    try {
+      const { error: connectionError } = await supabase.from('profiles').select('count').limit(1);
+      if (connectionError) {
+        console.error('[Webhook] Database connection test failed:', connectionError);
+      } else {
+        console.log('[Webhook] Database connection test successful');
+      }
+    } catch (dbError) {
+      console.error('[Webhook] Database connection test exception:', dbError);
+    }
 
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -67,7 +86,26 @@ export async function POST(req: Request) {
           throw new APIError('No user ID in session metadata', 400, 'missing_user_id');
         }
 
-        const subscriptionTier = (tier || 'premium') as SubscriptionTier;
+        // Map the tier from Stripe to the subscription_tier enum in the database
+        let subscriptionTier: SubscriptionTier;
+        switch (tier) {
+          case 'navigator':
+            subscriptionTier = 'premium';
+            break;
+          case 'pro_parker':
+            subscriptionTier = 'pro';
+            break;
+          case 'fleet_manager':
+            subscriptionTier = 'enterprise';
+            break;
+          default:
+            subscriptionTier = 'premium';
+        }
+
+        console.log('[Webhook] Mapping tier:', {
+          originalTier: tier,
+          mappedTier: subscriptionTier
+        });
 
         // Update user's subscription status
         const { error: updateError } = await supabase
@@ -135,8 +173,37 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ received: true });
-  } catch (error) {
-    console.error('[Webhook] Handler error:', error);
+  } catch (error: any) {
+    // Enhanced error logging with more context
+    console.error('[Webhook] Handler error:', {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack,
+      details: error.details || 'No additional details'
+    });
+    
+    // Log an event to subscription_events table to track failures
+    try {
+      const supabase = await getServerClient();
+      await supabase.from('subscription_events').insert({
+        user_id: 'system', // Use a special ID for system events
+        event_type: 'webhook_error',
+        tier: 'system',
+        stripe_event_id: `error_${Date.now()}`,
+        event_data: {
+          error: error.message,
+          timestamp: new Date().toISOString(),
+          errorDetails: {
+            code: error.code,
+            name: error.name
+          }
+        }
+      });
+    } catch (logError) {
+      console.error('[Webhook] Failed to log error to database:', logError);
+    }
+    
     return handleAPIError(error);
   }
 }

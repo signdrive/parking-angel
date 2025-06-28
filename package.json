@@ -79,6 +79,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "critters": "^0.0.23",
+    "dotenv": "^17.0.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
