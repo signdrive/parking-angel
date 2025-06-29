@@ -1,17 +1,23 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import type { User, SupabaseClient } from "@supabase/supabase-js"
 import { getBrowserClient } from "@/lib/supabase/browser"
 import { Database } from "@/lib/types/supabase"
 
+// Define a more detailed user type that includes subscription data
+type Subscription = Database['public']['Tables']['user_subscriptions']['Row'];
+// We will alias plan_id to plan for easier use in the app
+export type AuthUser = User & Omit<Subscription, 'id' | 'user_id'> & { plan: string };
+
 interface AuthContextType {
-  user: User | null
+  user: AuthUser | null
   loading: boolean
   signOut: () => Promise<void>
   error: string | null
   initialized: boolean
+  forceRefresh: () => Promise<void> // Add forceRefresh to the context
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -19,57 +25,113 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   signOut: async () => {},
   error: null,
-  initialized: false
+  initialized: false,
+  forceRefresh: async () => {} // Add a default empty function
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [supabase, setSupabase] = useState<SupabaseClient<Database> | null>(null)
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
 
-  // Initialize Supabase client only in the browser
+  const fetchUserSubscription = useCallback(async (supabaseClient: SupabaseClient<Database>, user: User | null): Promise<AuthUser | null> => {
+    if (!user) return null;
+    
+    try {
+      const { data: subscription, error } = await supabaseClient
+        .from('user_subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.warn("Warning: could not fetch user subscription. User may not have one.", error.message);
+        // Return the basic user object with a default 'free' plan
+        return { ...user, plan: 'free' } as AuthUser; 
+      }
+      
+      // Combine user and subscription data, aliasing plan_id to plan
+      const authUser: AuthUser = {
+        ...user,
+        ...subscription,
+        plan: subscription.plan_id
+      };
+      return authUser;
+
+    } catch (e) {
+      console.error("Exception while fetching subscription:", e);
+      return { ...user, plan: 'free' } as AuthUser;
+    }
+  }, []);
+
+  const forceRefresh = useCallback(async () => {
+    if (!supabase) return;
+    console.log("Forcing user session and subscription refresh...");
+    setLoading(true);
+    const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+    if (sessionError) {
+      console.error("Error refreshing session:", sessionError);
+      setError("Failed to refresh session.");
+      setUser(null);
+    } else if (session) {
+      const refreshedUser = await fetchUserSubscription(supabase, session.user);
+      setUser(refreshedUser);
+    } else {
+      setUser(null);
+    }
+    setLoading(false);
+  }, [supabase, fetchUserSubscription]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    try {
-      const client = getBrowserClient()
-      setSupabase(client)
-      
-      // Immediate session check
-      client.auth.getSession().then(({ data: { session } }) => {
-        setUser(session?.user ?? null)
-        setLoading(false)
-        setInitialized(true)
-      }).catch((e) => {
-        console.error('Failed to get auth session:', e)
-        setError("Failed to initialize auth")
-        setLoading(false)
-        setInitialized(true)
-      })
+    const client = getBrowserClient()
+    setSupabase(client)
 
-      // Subscribe to auth changes
-      const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user ?? null)
-        setLoading(false)
-      })
+    const updateUserAndSubscription = async (session: any) => {
+      setLoading(true);
+      if (session?.user) {
+        const fullUser = await fetchUserSubscription(client, session.user);
+        setUser(fullUser);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    };
 
-      return () => subscription.unsubscribe()
-    } catch (e) {
-      console.error('Failed to initialize Supabase client:', e)
-      setError('Failed to initialize auth')
+    // Initial session fetch
+    client.auth.getSession().then(({ data: { session } }) => {
+      updateUserAndSubscription(session).finally(() => {
+        setInitialized(true);
+      });
+    }).catch((e) => {
+      console.error('Failed to get auth session:', e)
+      setError("Failed to initialize auth")
       setLoading(false)
       setInitialized(true)
-      return
-    }
-  }, [])
+    })
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      // On SIGNED_IN or TOKEN_REFRESHED, update the user profile
+      if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED' || _event === 'USER_UPDATED') {
+        updateUserAndSubscription(session);
+      } else if (_event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [fetchUserSubscription])
 
   const signOut = async () => {
     if (!supabase) return
     setLoading(true)
     try {
       await supabase.auth.signOut()
+      setUser(null); // Clear user on sign out
     } catch (e) {
       console.error('Error signing out:', e)
       setError('Failed to sign out')
@@ -96,7 +158,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signOut,
         error,
-        initialized
+        initialized,
+        forceRefresh // Provide the new function
       }}
     >
       {children}

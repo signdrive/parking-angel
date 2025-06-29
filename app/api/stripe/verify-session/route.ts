@@ -98,168 +98,74 @@ export async function GET(req: NextRequest) {
         profileError = result.error;
         
         console.log('[verify-session] Database check:', {
-          userId: session.metadata.userId,
-          profileData,
-          error: profileError,
-          elapsed: Date.now() - startTime + 'ms'
+          profile: profileData,
+          error: profileError
         });
-        
-        // Check if the subscription status needs to be updated - handle multiple scenarios
-        const needsUpdate = !profileData?.subscription_tier || 
-                            profileData.subscription_tier === 'free' ||
-                            profileData.subscription_status !== 'active';
-                            
-        // Update if needed and we have tier information
-        if (needsUpdate && session.metadata?.tier) {
-          console.log('[verify-session] Database needs update, performing immediate update');
+
+        const targetTier = TIER_MAPPING[session.metadata.tier as keyof typeof TIER_MAPPING] || session.metadata.tier;
+
+        // If the profile exists but the plan is not yet updated, update it manually
+        if (profileData && (profileData.subscription_tier !== targetTier || profileData.subscription_status !== 'active')) {
+          console.log(`[verify-session] Webhook hasn't updated the plan yet. Manually updating for user ${session.metadata.userId}.`);
           
-          const subscriptionTier = TIER_MAPPING[session.metadata.tier] || 'premium';
-          const stripeCustomerId = session.customer as string;
-          
-          // Prepare update data
-          const updateData = {
-            subscription_status: 'active',
-            subscription_tier: subscriptionTier,
-            stripe_customer_id: stripeCustomerId,
-            updated_at: new Date().toISOString()
-          };
-          
-          // Try the update with multiple retries
-          let updateResult = null;
-          
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              // Add slight delay between retries
-              if (attempt > 0) {
-                await new Promise(r => setTimeout(r, 300));
-              }
-              
-              updateResult = await supabaseClient
-                .from('profiles')
-                .update(updateData)
-                .eq('id', session.metadata.userId)
-                .select('subscription_tier, subscription_status')
-                .single();
-                
-              if (!updateResult.error) {
-                break; // Success - exit retry loop
-              }
-              
-              console.log(`[verify-session] Update attempt ${attempt + 1} failed:`, updateResult.error);
-            } catch (e) {
-              console.error(`[verify-session] Update attempt ${attempt + 1} exception:`, e);
-            }
-          }
-          
-          // Check if any attempt was successful
-          if (updateResult && !updateResult.error) {
-            profileData = updateResult.data;
-            updatedManually = true;
-            
-            console.log('[verify-session] Update successful:', {
-              subscriptionTier,
-              userId: session.metadata.userId,
-              elapsed: Date.now() - startTime + 'ms'
-            });
+          const { error: updateError } = await supabaseClient
+            .from('profiles')
+            .update({
+              subscription_tier: targetTier,
+              subscription_status: 'active',
+              stripe_customer_id: session.customer as string,
+              stripe_subscription_id: session.subscription as string,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', session.metadata.userId);
+
+          if (updateError) {
+            console.error(`[verify-session] Manual update failed for user ${session.metadata.userId}:`, updateError);
+            // Don't block success, but log the error. The webhook should eventually fix it.
           } else {
-            // If all attempts failed, try a simpler update with just the essential fields
-            console.log('[verify-session] All update attempts failed, trying minimal update');
-            
-            const minimalUpdate = await supabaseClient
-              .from('profiles')
-              .update({
-                subscription_status: 'active',
-                subscription_tier: subscriptionTier
-              })
-              .eq('id', session.metadata.userId)
-              .select('subscription_tier, subscription_status')
-              .single();
-              
-            if (!minimalUpdate.error) {
-              profileData = minimalUpdate.data;
-              updatedManually = true;
-              console.log('[verify-session] Minimal update successful');
-            } else {
-              console.error('[verify-session] Even minimal update failed:', minimalUpdate.error);
-            }
+            console.log(`[verify-session] Manual update successful for user ${session.metadata.userId}.`);
+            updatedManually = true;
           }
-          
-          // Log this verification event
-          await supabaseClient.from('subscription_events').insert({
-            user_id: session.metadata.userId,
-            event_type: 'verify_session_update',
-            tier: session.metadata.tier,
-            stripe_event_id: session.id,
-            event_data: {
-              timestamp: new Date().toISOString(),
-              retryCount,
-              updatedTier: TIER_MAPPING[session.metadata.tier] || 'premium',
-              success: updatedManually,
-              elapsedMs: Date.now() - startTime
-            }
-          });
         }
       }
       
-      console.log('[verify-session] Payment verified successfully:', {
-        paymentStatus,
-        paymentIntentStatus,
-        subscriptionStatus,
-        customerEmail: session.customer_email,
-        tier: session.metadata?.tier,
-        databaseState: profileError ? 'Error fetching profile' : profileData,
-        userId: session.metadata?.userId,
-        updatedManually,
-        elapsed: Date.now() - startTime + 'ms'
-      });
-      
-      // Return success with the subscription info
-      return NextResponse.json({
-        success: true,
-        customerEmail: session.customer_email || null,
-        subscriptionTier: profileData?.subscription_tier || 
-                          (session.metadata?.tier ? TIER_MAPPING[session.metadata.tier] : null) || 
-                          session.metadata?.tier,
-        databaseUpdated: !!profileData?.subscription_tier || updatedManually,
-        sessionId: session.id,
-        manuallyUpdated: updatedManually,
-        elapsedMs: Date.now() - startTime
-      });
-    }
-
-    // If still processing, return a retry status
-    if (paymentStatus === 'unpaid' || 
-        paymentIntentStatus === 'processing' || 
-        retryCount < 10) {
+      const duration = Date.now() - startTime;
+      console.log(`[verify-session] Verification successful in ${duration}ms for session: ${sessionId}`);
       
       return NextResponse.json({ 
-        success: false,
-        shouldRetry: true,
-        error: 'Payment is still processing',
-        retryCount,
-        paymentStatus,
-        paymentIntentStatus,
-        elapsedMs: Date.now() - startTime
-      }, { status: 202 });
+        success: true,
+        updated: updatedManually,
+        tier: session.metadata?.tier 
+      });
     }
 
-    // Handle other payment statuses
+    // If payment is still pending after some time, it might be a slow process
+    if (paymentStatus === 'unpaid' && retryCount > 2) {
+      console.log(`[verify-session] Session is still unpaid after ${retryCount} retries: ${sessionId}`);
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Payment is still processing. Please wait a few more moments.' 
+      }, { status: 202 }); // Accepted
+    }
+
+    // Otherwise, the payment is not yet confirmed
+    const duration = Date.now() - startTime;
+    console.log(`[verify-session] Payment not confirmed after ${duration}ms for session: ${sessionId}. Status: ${paymentStatus}`);
     return NextResponse.json({ 
       success: false, 
-      error: `Payment status: ${paymentStatus}, Intent status: ${paymentIntentStatus}`,
-      elapsedMs: Date.now() - startTime
-    }, { status: 400 });
+      error: 'Payment not confirmed yet.' 
+    }, { status: 202 }); // Accepted, client should retry
 
-  } catch (error: any) {
+  } catch (err: any) {
     const elapsed = Date.now() - startTime;
     console.error(`[verify-session] Error after ${elapsed}ms:`, {
-      message: error.message,
-      stack: error.stack?.substring(0, 200),
+      message: err.message,
+      stack: err.stack?.substring(0, 200),
     });
     
     return NextResponse.json({
       success: false,
-      error: error.message || 'Failed to verify session',
+      error: err.message || 'Failed to verify session',
       elapsedMs: elapsed
     }, { status: 500 });
   }
