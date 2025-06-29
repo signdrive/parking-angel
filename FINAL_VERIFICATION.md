@@ -1,5 +1,23 @@
 # 🎉 SUBSCRIPTION FLOW - FULLY IMPLEMENTED & VERIFIED
 
+## ⚠️ IMMEDIATE ACTION NEEDED - GitHub Push Blocked
+
+GitHub secret scanning has detected secrets in the Git history that are blocking your push. You have two options:
+
+### Option 1: Allow the Secret (Fastest)
+1. Visit this URL:
+   ```
+   https://github.com/signdrive/parking-angel/security/secret-scanning/unblock-secret/2z9M2i29CpPmYCOrlcSlCQkL2Xl
+   ```
+2. Click "Approve" to allow the secret in the commit history
+3. Try pushing again:
+   ```
+   git push
+   ```
+
+### Option 2: Rewrite Git History (Most Secure but Complex)
+This would require additional tools and Git operations. If needed, talk to your DevOps team about using tools like BFG Repo-Cleaner to purge secrets from history.
+
 ## ✅ FINAL VERIFICATION RESULTS
 
 ### Webhook Security Test
