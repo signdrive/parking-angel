@@ -11,6 +11,7 @@ type AuthState = {
   session: Session | null
   isLoading: boolean
   error: AuthError | null
+  isCachedAuthBeingUsed: boolean
 }
 
 type AuthContextType = AuthState & {
@@ -21,18 +22,60 @@ type AuthContextType = AuthState & {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Cache keys
+const USER_CACHE_KEY = 'parking_angel_cached_user';
+const SESSION_CACHE_KEY = 'parking_angel_cached_session';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
   const [state, setState] = useState<AuthState>({
     user: null,
     session: null,
     isLoading: true,
-    error: null
+    error: null,
+    isCachedAuthBeingUsed: false
   })
   const [supabase, setSupabase] = useState<any>(null)
   const router = useRouter()
+  
+  // Try to load cached user data immediately to speed up auth-dependent operations
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedUserData = localStorage.getItem(USER_CACHE_KEY);
+        const cachedSessionData = localStorage.getItem(SESSION_CACHE_KEY);
+        
+        if (cachedUserData && cachedSessionData) {
+          const cachedUser = JSON.parse(cachedUserData);
+          const cachedSession = JSON.parse(cachedSessionData);
+          const cacheTime = cachedUser._cacheTime || 0;
+          
+          // Only use cache if it's less than 1 hour old
+          const isCacheFresh = Date.now() - cacheTime < 60 * 60 * 1000;
+          
+          if (isCacheFresh) {
+            console.log('Using cached auth data while verifying session');
+            setState(current => ({
+              ...current,
+              user: cachedUser,
+              session: cachedSession,
+              isLoading: false,
+              isCachedAuthBeingUsed: true
+            }));
+          }
+        }
+      } catch (e) {
+        console.error('Error loading cached auth data:', e);
+        // Clear potentially corrupted cache
+        localStorage.removeItem(USER_CACHE_KEY);
+        localStorage.removeItem(SESSION_CACHE_KEY);
+      }
+    }
+  }, [])
+
   useEffect(() => {
     let mounted = true
+    const authStartTime = performance.now();
 
     const initializeSupabase = async () => {
       try {
@@ -47,22 +90,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mounted) return
 
         if (error) throw error
+        
+        const user = session?.user ?? null;
+        
+        // Cache authenticated user data for faster load times
+        if (user && typeof window !== 'undefined') {
+          // Add a timestamp to track cache freshness
+          const userToCache = { ...user, _cacheTime: Date.now() };
+          try {
+            localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
+            localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+          } catch (e) {
+            console.error('Error caching user data:', e);
+          }
+        }
+        
         setState(current => ({
           ...current,
           session,
-          user: session?.user ?? null,
-          isLoading: false
+          user,
+          isLoading: false,
+          isCachedAuthBeingUsed: false
         }))
+        
+        console.log(`Auth initialization completed in ${performance.now() - authStartTime}ms`);
 
         // Listen for auth changes
         const { data: { subscription } } = client.auth.onAuthStateChange(
           async (_event, session) => {
             if (!mounted) return
+            
+            const user = session?.user ?? null;
+            
+            // Update cache when auth state changes
+            if (user && typeof window !== 'undefined') {
+              const userToCache = { ...user, _cacheTime: Date.now() };
+              try {
+                localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
+                localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+              } catch (e) {
+                console.error('Error updating cached user data:', e);
+              }
+            }
+            
             setState(current => ({
               ...current,
               session,
-              user: session?.user ?? null,
-              isLoading: false
+              user,
+              isLoading: false,
+              isCachedAuthBeingUsed: false
             }))
             router.refresh()
           }
@@ -77,7 +153,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setState(current => ({
           ...current,
           error: error as AuthError,
-          isLoading: false
+          isLoading: false,
+          isCachedAuthBeingUsed: false
         }))
       }
     }
@@ -104,11 +181,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...current,
         user: null,
         session: null,
-        error: null
+        error: null,
+        isCachedAuthBeingUsed: false
       }))
       
-      // Clear any localStorage keys that might be set by Supabase
+      // Clear auth cache and any localStorage keys set by Supabase
       if (typeof window !== 'undefined') {
+        localStorage.removeItem(USER_CACHE_KEY);
+        localStorage.removeItem(SESSION_CACHE_KEY);
+        
         const keysToRemove = Object.keys(localStorage).filter(key => 
           key.startsWith('supabase.auth.token') || 
           key.startsWith('sb-') ||
@@ -137,7 +218,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const searchParams = new URLSearchParams(window.location.search)
       const returnTo = customReturnTo || searchParams.get('return_to') || '/dashboard'
       
+      // Store returnTo in localStorage to persist through OAuth redirects
+      localStorage.setItem('auth_return_to', returnTo);
+      
       console.log('Google OAuth - return_to:', returnTo);
+      
+      // Performance optimization: begin pre-auth setup while OAuth flow is happening
+      if (returnTo.includes('/checkout-redirect')) {
+        const plan = new URLSearchParams(returnTo.split('?')[1]).get('plan');
+        if (plan) {
+          console.log('Caching checkout intent for plan:', plan);
+          localStorage.setItem('checkout_intent', JSON.stringify({ 
+            plan,
+            timestamp: Date.now()
+          }));
+        }
+      }
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -145,6 +241,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           redirectTo: `${window.location.origin}/auth/callback?return_to=${encodeURIComponent(returnTo)}`,
           queryParams: {
             access_type: 'offline',
+            prompt: 'select_account',
           },
         },
       })
@@ -169,20 +266,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
       if (event === 'SIGNED_IN') {
+        const user = session?.user ?? null;
+        
+        // Cache user data for faster loading
+        if (user && typeof window !== 'undefined') {
+          const userToCache = { ...user, _cacheTime: Date.now() };
+          try {
+            localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
+            localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+          } catch (e) {
+            console.error('Error caching user data on sign in:', e);
+          }
+        }
+        
         setState(current => ({
           ...current,
-          user: session?.user ?? null,
+          user,
           session,
           isLoading: false,
+          isCachedAuthBeingUsed: false
         }))
         
-        // Check for return_to parameter and redirect
-        const searchParams = new URLSearchParams(window.location.search)
-        const returnTo = searchParams.get('return_to')
+        // Check for persisted return_to parameter from localStorage
+        let returnTo = null;
+        try {
+          const searchParams = new URLSearchParams(window.location.search);
+          returnTo = searchParams.get('return_to') || localStorage.getItem('auth_return_to');
+          
+          // Clear the stored return_to
+          localStorage.removeItem('auth_return_to');
+        } catch (e) {
+          console.error('Error retrieving stored return_to:', e);
+        }
+        
         if (returnTo) {
-          router.push(returnTo)
+          console.log('Auth flow completed, redirecting to:', returnTo);
+          router.push(returnTo);
         } else {
-          router.push('/dashboard')
+          router.push('/dashboard');
         }
       }
     })
@@ -198,11 +319,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data: { session }, error } = await supabase.auth.getSession()
       if (error) throw error
       
+      const user = session?.user ?? null;
+      
+      // Update cache with refreshed session data
+      if (user && typeof window !== 'undefined') {
+        const userToCache = { ...user, _cacheTime: Date.now() };
+        try {
+          localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
+          localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+        } catch (e) {
+          console.error('Error updating cached user data on refresh:', e);
+        }
+      }
+      
       setState(current => ({
         ...current,
         session,
-        user: session?.user ?? null,
-        error: null
+        user,
+        error: null,
+        isCachedAuthBeingUsed: false
       }))
     } catch (error) {
       console.error('Session refresh error:', error)
@@ -212,7 +347,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: (error as Error).message
       })
     }
-  }, [supabase])
+  }, [supabase, toast])
 
   const value = {
     ...state,
@@ -222,7 +357,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   // Only render children when not in initial loading state
-  if (state.isLoading) {
+  if (state.isLoading && !state.isCachedAuthBeingUsed) {
+    return null // or a loading spinner
+  } (state.isLoading && !state.isCachedAuthBeingUsed) {
     return null // or a loading spinner
   }
 
@@ -235,22 +372,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
-}
-
-// Hook for protected routes
-export function useRequireAuth() {
-  const { user, isLoading } = useAuth()
-  const router = useRouter()
-
-  useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/auth/login')
-    }
-  }, [user, isLoading, router])
-
-  return { user, isLoading }
-}
+  if
