@@ -10,7 +10,7 @@ const crypto = require('crypto');
 
 // Configuration
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:3000/api/stripe-webhook';
-const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_12345678901234567890123456789012';
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_your_actual_secret_here';
 
 // Test payload
 const testPayload = JSON.stringify({
