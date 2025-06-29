@@ -34,7 +34,7 @@ Your current `.env.local` has a placeholder. Replace it with the real secret fro
 
 ```bash
 # In your .env.local file, replace this line:
-STRIPE_WEBHOOK_SECRET="whsec_12345678901234567890123456789012"
+STRIPE_WEBHOOK_SECRET="whsec_your_real_secret_from_stripe_here"
 
 # With your actual webhook secret from Stripe Dashboard:
 STRIPE_WEBHOOK_SECRET="whsec_your_real_secret_from_stripe_here"

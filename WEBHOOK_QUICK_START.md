@@ -13,7 +13,7 @@
 #### 1. Get Real Stripe Webhook Secret
 ```bash
 # Current (placeholder):
-STRIPE_WEBHOOK_SECRET="whsec_12345678901234567890123456789012"
+STRIPE_WEBHOOK_SECRET="whsec_your_actual_secret_here"
 
 # Needs to be (from Stripe Dashboard):
 STRIPE_WEBHOOK_SECRET="whsec_your_actual_secret_here"
