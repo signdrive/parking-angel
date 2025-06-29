@@ -12,6 +12,7 @@ An intelligent parking management system with real-time spot detection, AI-power
 - **Progressive Web App** - Install on mobile devices
 - **Voice Assistant** - AI-powered parking assistant
 - **Analytics Dashboard** - Usage insights and trends
+- **Premium Subscription** - Tiered subscription plans via Stripe
 
 ## 🔧 Quick Setup
 
@@ -23,6 +24,7 @@ An intelligent parking management system with real-time spot detection, AI-power
 
 - **Supabase** - Database and authentication
 - **Vercel Blob** - File storage
+- **Stripe** - Payment processing for subscriptions
 
 ### 3. Configure Environment Variables
 
@@ -36,6 +38,11 @@ GROQ_API_KEY=your_groq_key
 # OAuth
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# Stripe (Server-side only)
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 \`\`\`
 
 #### Public (Client-side - safe to expose)
@@ -46,6 +53,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 # App URLs
 NEXT_PUBLIC_APP_URL=https://your-domain.com
+
+# Stripe (Public)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 \`\`\`
 
 ### 4. Run Database Scripts
@@ -166,6 +176,53 @@ docker-compose up --build
 docker-compose -f docker-compose.prod.yml up
 \`\`\`
 
+## 📝 Subscription Management
+
+### Testing Subscriptions
+
+We provide several scripts to help test and manage the subscription flow:
+
+#### 1. Update User Subscription
+
+\`\`\`bash
+# Check and update a user's subscription (defaults to premium tier)
+node test-subscription-update.js USER_ID
+
+# Specify a different tier (free, premium, pro, enterprise)
+node test-subscription-update.js USER_ID pro
+\`\`\`
+
+#### 2. Verify Webhook Configuration
+
+\`\`\`bash
+# Check Stripe webhook configuration and recent events
+node test-live-webhook.js
+\`\`\`
+
+#### 3. System Health Check
+
+\`\`\`bash
+# Perform a complete subscription system health check
+node verify-subscription-health.js
+\`\`\`
+
+#### 4. Full Documentation
+
+For complete testing procedures, see:
+- [Live Testing Guide](LIVE_TESTING_GUIDE.md)
+- [Webhook Debug Guide](WEBHOOK_DEBUG_GUIDE.md)
+- [Final Verification](FINAL_VERIFICATION.md)
+
+### Stripe Product Configuration
+
+The subscription system expects the following products in your Stripe account:
+
+| Plan Name      | Stripe Product ID | Metadata: plan_id  | Tier in Database |
+|----------------|-------------------|-------------------|------------------|
+| Navigator      | prod_xxx          | navigator         | premium          |
+| Pro Parker     | prod_xxx          | pro_parker        | pro              |
+| Fleet Manager  | prod_xxx          | fleet_manager     | enterprise       |
+
 ## 📚 API Documentation
 
 ### Parking Spots
@@ -194,6 +251,23 @@ POST /api/navigation/calculate-route
   "destination": [lng, lat],
   "options": { "avoidTraffic": true }
 }
+\`\`\`
+
+### Subscription
+
+\`\`\`typescript
+// Create checkout session
+POST /api/stripe/create-checkout-session
+{
+  "tier": "navigator" // Or "pro_parker", "fleet_manager"
+}
+
+// Verify payment
+GET /api/stripe/verify-session?session_id=cs_test_xxx
+
+// Webhook (Stripe POST callback)
+POST /api/stripe-webhook
+// Stripe signature required in headers
 \`\`\`
 
 ## 🤝 Contributing

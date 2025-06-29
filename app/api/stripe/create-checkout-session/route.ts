@@ -17,17 +17,24 @@ type CheckoutSessionParams = Stripe.Checkout.SessionCreateParams;
 type StripeMetadata = Record<string, string | number | null>;
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+  
   try {
+    // Get user info (auth)
     const user = await getUser()
     if (!user) {
+      console.error('Create checkout session failed: User not authenticated');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Parse request body
     const { tier } = await req.json() as { tier: PlanTier };
     if (!tier || !(tier in PRICE_IDS)) {
+      console.error(`Create checkout session failed: Invalid plan "${tier}"`);
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 
+    // Get price ID and prepare metadata
     const priceId = PRICE_IDS[tier];
     const metadata: StripeMetadata = {
       userId: user.id,
@@ -42,14 +49,7 @@ export async function POST(req: NextRequest) {
       ? 'http://localhost:3000'
       : `${protocol}://${host}`;
 
-    console.log('Checkout session URL configuration:', {
-      host,
-      protocol,
-      baseUrl,
-      successUrl: `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`,
-      cancelUrl: `${baseUrl}/failed`
-    });
-
+    // Prepare session parameters
     const sessionParams: CheckoutSessionParams = {
       mode: "subscription",
       payment_method_types: ["card"],
@@ -66,29 +66,28 @@ export async function POST(req: NextRequest) {
       sessionParams.customer_email = user.email;
     }
 
-    console.log('Creating checkout session with params:', {
-      mode: sessionParams.mode,
-      priceId,
-      customerId: user.id,
+    console.log('Creating checkout session for user:', {
+      userId: user.id,
       email: user.email,
       tier,
-      baseUrl,
-      successUrl: sessionParams.success_url,
-      cancelUrl: sessionParams.cancel_url
+      priceId
     });
 
+    // Create the session with Stripe
     const session = await stripe.checkout.sessions.create(sessionParams);
    
-    console.log('Checkout session created:', {
+    const duration = Date.now() - startTime;
+    console.log('Checkout session created in ' + duration + 'ms:', {
       sessionId: session.id,
-      url: session.url,
-      paymentStatus: session.payment_status,
-      customerId: session.customer
+      url: session.url ? session.url.substring(0, 50) + '...' : null,
+      userId: user.id,
+      tier
     });
    
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
-    console.error('Stripe checkout error:', {
+    const duration = Date.now() - startTime;
+    console.error(`Stripe checkout error after ${duration}ms:`, {
       error: err.message,
       code: err.code,
       type: err.type,

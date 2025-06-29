@@ -34,8 +34,12 @@ export default function PaymentSuccessPage() {
 
     const verifyPayment = async () => {
       try {
+        console.log(`Verifying payment (attempt ${retryCount + 1}/${maxRetries})...`);
+        
         const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}&retry=${retryCount}`)
         const data = await response.json()
+
+        console.log(`Payment verification response:`, data);
 
         if (response.ok && data.success) {
           setPaymentStatus({
@@ -45,10 +49,11 @@ export default function PaymentSuccessPage() {
             subscriptionTier: data.subscriptionTier || tier
           })
           
-          console.log('Payment verified, redirecting to dashboard:', {
+          console.log('Payment verified successfully:', {
             customerEmail: data.customerEmail,
             tier: data.subscriptionTier,
-            sessionId: data.sessionId
+            sessionId: data.sessionId,
+            databaseUpdated: data.databaseUpdated
           });
           
           // Show success message for 2 seconds then redirect
@@ -66,10 +71,14 @@ export default function PaymentSuccessPage() {
           }, retryDelay)
         } else if (retryCount < maxRetries) {
           // For other errors, retry if under max attempts
+          console.log(`Payment verification failed, retrying (${retryCount + 1}/${maxRetries})...`, data);
+          
           setTimeout(() => {
             setRetryCount(prev => prev + 1)
           }, retryDelay)
         } else {
+          console.error('Payment verification failed after max retries:', data);
+          
           setPaymentStatus({
             status: 'error',
             error: data.error || 'Failed to verify payment'
@@ -84,7 +93,7 @@ export default function PaymentSuccessPage() {
         } else {
           setPaymentStatus({
             status: 'error',
-            error: 'Failed to verify payment status'
+            error: 'Failed to verify payment status after multiple attempts'
           })
         }
       }
@@ -92,6 +101,23 @@ export default function PaymentSuccessPage() {
 
     verifyPayment()
   }, [sessionId, retryCount, tier, router])
+
+  // Map tier code to readable name
+  const getTierName = (tierCode?: string) => {
+    switch(tierCode) {
+      case 'navigator': 
+      case 'premium': 
+        return 'Navigator';
+      case 'pro_parker': 
+      case 'pro': 
+        return 'Pro Parker';
+      case 'fleet_manager': 
+      case 'enterprise': 
+        return 'Fleet Manager';
+      default: 
+        return tierCode || 'Premium';
+    }
+  };
 
   if (paymentStatus.status === 'loading' || paymentStatus.status === 'processing') {
     return (
@@ -107,6 +133,11 @@ export default function PaymentSuccessPage() {
                 ? 'Your payment is being processed. This may take a moment...'
                 : 'Please wait while we confirm your subscription.'}
             </p>
+            {retryCount > 5 && (
+              <p className="text-sm text-gray-500 mt-4">
+                This is taking longer than expected. Please wait...
+              </p>
+            )}
           </Card>
         </div>
         <SiteFooter />
@@ -124,8 +155,10 @@ export default function PaymentSuccessPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
             <p className="text-gray-600 mb-6">
-              Thank you for your subscription to {paymentStatus.subscriptionTier}. 
-              You will receive a confirmation email shortly.
+              Thank you for your subscription to the {getTierName(paymentStatus.subscriptionTier)} plan.
+              {paymentStatus.customerEmail && (
+                <span> A confirmation email has been sent to {paymentStatus.customerEmail}.</span>
+              )}
             </p>
             <p className="text-sm text-gray-500 mb-4">
               Redirecting to dashboard...
@@ -145,11 +178,19 @@ export default function PaymentSuccessPage() {
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl">❌</span>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Error</h1>
-            <p className="text-gray-600 mb-6">{paymentStatus.error}</p>
-            <Link href="/subscription">
-              <Button variant="secondary" size="lg" className="w-full">Try Again</Button>
-            </Link>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Verification Error</h1>
+            <p className="text-gray-600 mb-6">{paymentStatus.error || 'An error occurred while verifying your payment.'}</p>
+            <p className="text-sm text-gray-500 mb-4">
+              Your payment may have still been successful. Please check your email for a receipt from Stripe.
+            </p>
+            <div className="flex flex-col space-y-3">
+              <Link href="/dashboard">
+                <Button variant="default" size="lg" className="w-full">Go to Dashboard</Button>
+              </Link>
+              <Link href="/subscription">
+                <Button variant="secondary" size="lg" className="w-full">Return to Subscription Page</Button>
+              </Link>
+            </div>
           </Card>
         </div>
         <SiteFooter />
