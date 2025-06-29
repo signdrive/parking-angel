@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from '@/lib/server-auth'
 import Stripe from "stripe";
 
+// Initialize Stripe with optimized settings
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-05-28.basil",
+  httpClient: Stripe.createFetchHttpClient(),
+  timeout: 5000, // Add timeout to prevent long-hanging requests
 });
 
 const PRICE_IDS = {
@@ -20,36 +23,41 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
   
   try {
-    // Get user info (auth)
-    const user = await getUser()
-    if (!user) {
-      console.error('Create checkout session failed: User not authenticated');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Parse request body
-    const { tier } = await req.json() as { tier: PlanTier };
+    // Parse request body first (faster than auth check)
+    const body = await req.json();
+    const { tier } = body as { tier: PlanTier };
+    
     if (!tier || !(tier in PRICE_IDS)) {
       console.error(`Create checkout session failed: Invalid plan "${tier}"`);
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
-
-    // Get price ID and prepare metadata
+    
+    // Get user info (auth) - perform in parallel with other preparations
+    const userPromise = getUser();
+    
+    // Get price ID
     const priceId = PRICE_IDS[tier];
+    
+    // Get the base URL dynamically based on the request host
+    const host = req.headers.get('host') || '';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+    
+    // Wait for user authentication
+    const user = await userPromise;
+    if (!user) {
+      console.error('Create checkout session failed: User not authenticated');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Prepare metadata
     const metadata: StripeMetadata = {
       userId: user.id,
       tier,
       customerEmail: user.email || null
     };
 
-    // Get the base URL dynamically based on the request host
-    const host = req.headers.get('host');
-    const protocol = req.headers.get('x-forwarded-proto') || 'https';
-    const baseUrl = host?.includes('localhost') 
-      ? 'http://localhost:3000'
-      : `${protocol}://${host}`;
-
-    // Prepare session parameters
+    // Prepare minimal session parameters for faster creation
     const sessionParams: CheckoutSessionParams = {
       mode: "subscription",
       payment_method_types: ["card"],
@@ -58,7 +66,7 @@ export async function POST(req: NextRequest) {
       cancel_url: `${baseUrl}/failed`,
       metadata,
       subscription_data: { metadata },
-      allow_promotion_codes: true // Allow users to enter promo codes
+      allow_promotion_codes: true
     };
 
     // Only add customer_email if it exists
@@ -84,6 +92,7 @@ export async function POST(req: NextRequest) {
       tier
     });
    
+    // Return immediately without unnecessary processing
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
     const duration = Date.now() - startTime;

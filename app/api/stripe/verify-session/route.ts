@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { getUser } from '@/lib/server-auth';
 import { getServerClient } from '@/lib/supabase/server-utils';
 
+// Initialize Stripe with optimized settings
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-05-28.basil'
+  apiVersion: '2025-05-28.basil',
+  timeout: 5000 // Add timeout to prevent long-hanging requests
 });
 
 // Define valid payment status types
@@ -19,6 +20,8 @@ const TIER_MAPPING: Record<string, string> = {
 };
 
 export async function GET(req: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get('session_id');
@@ -32,10 +35,19 @@ export async function GET(req: NextRequest) {
 
     console.log(`[verify-session] Verifying session: ${sessionId}`);
     
-    // Retrieve the session from Stripe
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    // Retrieve the session from Stripe - use Promise.all to parallelize operations
+    const sessionPromise = stripe.checkout.sessions.retrieve(sessionId, {
       expand: ['subscription', 'customer', 'payment_intent']
     });
+    
+    // Get the Supabase client in parallel
+    const supabaseClientPromise = getServerClient();
+    
+    // Await both promises together
+    const [session, supabaseClient] = await Promise.all([
+      sessionPromise,
+      supabaseClientPromise
+    ]);
 
     if (!session) {
       return NextResponse.json({ 
@@ -71,13 +83,11 @@ export async function GET(req: NextRequest) {
       
       let profileData = null;
       let profileError = null;
+      let updatedManually = false;
       
       // Only check the database if we have a userId
       if (session.metadata?.userId) {
-        // Get the Supabase client
-        const supabaseClient = await getServerClient();
-        
-        // Get user's subscription status from the database
+        // First try to query the current subscription status
         const result = await supabaseClient
           .from('profiles')
           .select('subscription_tier, subscription_status, updated_at')
@@ -90,49 +100,102 @@ export async function GET(req: NextRequest) {
         console.log('[verify-session] Database check:', {
           userId: session.metadata.userId,
           profileData,
-          error: profileError
+          error: profileError,
+          elapsed: Date.now() - startTime + 'ms'
         });
         
-        // If the webhook hasn't updated the database yet but the payment is successful,
-        // let's update the profile here as a fallback
-        if ((!profileData?.subscription_tier || profileData.subscription_tier === 'free') && 
-            retryCount > 5 && session.metadata?.tier) {
-          
-          console.log('[verify-session] Webhook may have failed, updating profile as fallback');
+        // Check if the subscription status needs to be updated - handle multiple scenarios
+        const needsUpdate = !profileData?.subscription_tier || 
+                            profileData.subscription_tier === 'free' ||
+                            profileData.subscription_status !== 'active';
+                            
+        // Update if needed and we have tier information
+        if (needsUpdate && session.metadata?.tier) {
+          console.log('[verify-session] Database needs update, performing immediate update');
           
           const subscriptionTier = TIER_MAPPING[session.metadata.tier] || 'premium';
+          const stripeCustomerId = session.customer as string;
           
-          const updateResult = await supabaseClient
-            .from('profiles')
-            .update({
-              subscription_status: 'active',
-              subscription_tier: subscriptionTier,
-              stripe_customer_id: session.customer as string,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', session.metadata.userId)
-            .select('subscription_tier, subscription_status')
-            .single();
+          // Prepare update data
+          const updateData = {
+            subscription_status: 'active',
+            subscription_tier: subscriptionTier,
+            stripe_customer_id: stripeCustomerId,
+            updated_at: new Date().toISOString()
+          };
           
-          console.log('[verify-session] Fallback update result:', {
-            data: updateResult.data,
-            error: updateResult.error
-          });
+          // Try the update with multiple retries
+          let updateResult = null;
           
-          if (!updateResult.error) {
-            profileData = updateResult.data;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              // Add slight delay between retries
+              if (attempt > 0) {
+                await new Promise(r => setTimeout(r, 300));
+              }
+              
+              updateResult = await supabaseClient
+                .from('profiles')
+                .update(updateData)
+                .eq('id', session.metadata.userId)
+                .select('subscription_tier, subscription_status')
+                .single();
+                
+              if (!updateResult.error) {
+                break; // Success - exit retry loop
+              }
+              
+              console.log(`[verify-session] Update attempt ${attempt + 1} failed:`, updateResult.error);
+            } catch (e) {
+              console.error(`[verify-session] Update attempt ${attempt + 1} exception:`, e);
+            }
           }
           
-          // Also log this event
+          // Check if any attempt was successful
+          if (updateResult && !updateResult.error) {
+            profileData = updateResult.data;
+            updatedManually = true;
+            
+            console.log('[verify-session] Update successful:', {
+              subscriptionTier,
+              userId: session.metadata.userId,
+              elapsed: Date.now() - startTime + 'ms'
+            });
+          } else {
+            // If all attempts failed, try a simpler update with just the essential fields
+            console.log('[verify-session] All update attempts failed, trying minimal update');
+            
+            const minimalUpdate = await supabaseClient
+              .from('profiles')
+              .update({
+                subscription_status: 'active',
+                subscription_tier: subscriptionTier
+              })
+              .eq('id', session.metadata.userId)
+              .select('subscription_tier, subscription_status')
+              .single();
+              
+            if (!minimalUpdate.error) {
+              profileData = minimalUpdate.data;
+              updatedManually = true;
+              console.log('[verify-session] Minimal update successful');
+            } else {
+              console.error('[verify-session] Even minimal update failed:', minimalUpdate.error);
+            }
+          }
+          
+          // Log this verification event
           await supabaseClient.from('subscription_events').insert({
             user_id: session.metadata.userId,
-            event_type: 'verify_session_fallback_update',
+            event_type: 'verify_session_update',
             tier: session.metadata.tier,
             stripe_event_id: session.id,
             event_data: {
               timestamp: new Date().toISOString(),
               retryCount,
-              updatedTier: subscriptionTier
+              updatedTier: TIER_MAPPING[session.metadata.tier] || 'premium',
+              success: updatedManually,
+              elapsedMs: Date.now() - startTime
             }
           });
         }
@@ -144,9 +207,10 @@ export async function GET(req: NextRequest) {
         subscriptionStatus,
         customerEmail: session.customer_email,
         tier: session.metadata?.tier,
-        // Include the actual database state for debugging
         databaseState: profileError ? 'Error fetching profile' : profileData,
-        userId: session.metadata?.userId
+        userId: session.metadata?.userId,
+        updatedManually,
+        elapsed: Date.now() - startTime + 'ms'
       });
       
       // Return success with the subscription info
@@ -156,8 +220,10 @@ export async function GET(req: NextRequest) {
         subscriptionTier: profileData?.subscription_tier || 
                           (session.metadata?.tier ? TIER_MAPPING[session.metadata.tier] : null) || 
                           session.metadata?.tier,
-        databaseUpdated: !!profileData?.subscription_tier,
-        sessionId: session.id
+        databaseUpdated: !!profileData?.subscription_tier || updatedManually,
+        sessionId: session.id,
+        manuallyUpdated: updatedManually,
+        elapsedMs: Date.now() - startTime
       });
     }
 
@@ -172,21 +238,29 @@ export async function GET(req: NextRequest) {
         error: 'Payment is still processing',
         retryCount,
         paymentStatus,
-        paymentIntentStatus
+        paymentIntentStatus,
+        elapsedMs: Date.now() - startTime
       }, { status: 202 });
     }
 
     // Handle other payment statuses
     return NextResponse.json({ 
       success: false, 
-      error: `Payment status: ${paymentStatus}, Intent status: ${paymentIntentStatus}` 
+      error: `Payment status: ${paymentStatus}, Intent status: ${paymentIntentStatus}`,
+      elapsedMs: Date.now() - startTime
     }, { status: 400 });
 
   } catch (error: any) {
-    console.error('Verify session error:', error);
+    const elapsed = Date.now() - startTime;
+    console.error(`[verify-session] Error after ${elapsed}ms:`, {
+      message: error.message,
+      stack: error.stack?.substring(0, 200),
+    });
+    
     return NextResponse.json({
       success: false,
-      error: error.message || 'Failed to verify session'
+      error: error.message || 'Failed to verify session',
+      elapsedMs: elapsed
     }, { status: 500 });
   }
 }

@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { CheckCircle2, Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2, RefreshCw } from 'lucide-react'
 import { SiteFooter } from '@/components/layout/site-footer'
 
 interface PaymentStatus {
@@ -14,6 +14,8 @@ interface PaymentStatus {
   customerEmail?: string
   subscriptionTier?: string
   error?: string
+  databaseUpdated?: boolean
+  manuallyUpdated?: boolean
 }
 
 export default function PaymentSuccessPage() {
@@ -23,84 +25,120 @@ export default function PaymentSuccessPage() {
   const tier = searchParams.get('tier')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({ status: 'loading' })
   const [retryCount, setRetryCount] = useState(0)
+  const [redirectCountdown, setRedirectCountdown] = useState(3)
   const maxRetries = 20 // More retries
-  const retryDelay = 1000 // Check every second
+  const initialRetryDelay = 800 // Start with a bit less delay to feel more responsive
 
-  useEffect(() => {
+  const verifyPayment = useCallback(async () => {
     if (!sessionId) {
       setPaymentStatus({ status: 'error', error: 'No session ID provided' })
       return
     }
+    
+    try {
+      console.log(`Verifying payment (attempt ${retryCount + 1}/${maxRetries})...`);
+      
+      // Indicate processing status while making the request
+      if (paymentStatus.status !== 'processing') {
+        setPaymentStatus(prev => ({ ...prev, status: 'processing' }))
+      }
+      
+      // Add cache busting parameter to avoid browser caching
+      const cacheBuster = new Date().getTime();
+      const response = await fetch(
+        `/api/stripe/verify-session?session_id=${sessionId}&retry=${retryCount}&_=${cacheBuster}`
+      )
+      const data = await response.json()
 
-    const verifyPayment = async () => {
-      try {
-        console.log(`Verifying payment (attempt ${retryCount + 1}/${maxRetries})...`);
+      console.log(`Payment verification response:`, data);
+
+      if (response.ok && data.success) {
+        setPaymentStatus({
+          status: 'success',
+          sessionId,
+          customerEmail: data.customerEmail,
+          subscriptionTier: data.subscriptionTier || tier,
+          databaseUpdated: data.databaseUpdated,
+          manuallyUpdated: data.manuallyUpdated
+        })
         
-        const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}&retry=${retryCount}`)
-        const data = await response.json()
-
-        console.log(`Payment verification response:`, data);
-
-        if (response.ok && data.success) {
-          setPaymentStatus({
-            status: 'success',
-            sessionId,
-            customerEmail: data.customerEmail,
-            subscriptionTier: data.subscriptionTier || tier
+        console.log('Payment verified successfully:', {
+          customerEmail: data.customerEmail,
+          tier: data.subscriptionTier,
+          sessionId: data.sessionId,
+          databaseUpdated: data.databaseUpdated,
+          manuallyUpdated: data.manuallyUpdated,
+          elapsedMs: data.elapsedMs
+        });
+        
+        // Start redirect countdown
+        const countdownInterval = setInterval(() => {
+          setRedirectCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval)
+              router.push('/dashboard')
+              return 0
+            }
+            return prev - 1
           })
-          
-          console.log('Payment verified successfully:', {
-            customerEmail: data.customerEmail,
-            tier: data.subscriptionTier,
-            sessionId: data.sessionId,
-            databaseUpdated: data.databaseUpdated
-          });
-          
-          // Show success message for 2 seconds then redirect
-          setTimeout(() => {
-            router.push('/dashboard')
-          }, 2000)
-        } else if (response.status === 202 && data.shouldRetry && retryCount < maxRetries) {
-          setPaymentStatus({
-            status: 'processing',
-            sessionId
-          })
-          // Retry after delay
-          setTimeout(() => {
-            setRetryCount(prev => prev + 1)
-          }, retryDelay)
-        } else if (retryCount < maxRetries) {
-          // For other errors, retry if under max attempts
-          console.log(`Payment verification failed, retrying (${retryCount + 1}/${maxRetries})...`, data);
-          
-          setTimeout(() => {
-            setRetryCount(prev => prev + 1)
-          }, retryDelay)
-        } else {
-          console.error('Payment verification failed after max retries:', data);
-          
-          setPaymentStatus({
-            status: 'error',
-            error: data.error || 'Failed to verify payment'
-          })
-        }
-      } catch (error) {
-        console.error('Payment verification error:', error)
-        if (retryCount < maxRetries) {
-          setTimeout(() => {
-            setRetryCount(prev => prev + 1)
-          }, retryDelay)
-        } else {
-          setPaymentStatus({
-            status: 'error',
-            error: 'Failed to verify payment status after multiple attempts'
-          })
-        }
+        }, 1000)
+        
+        return () => clearInterval(countdownInterval)
+      } else if (response.status === 202 && data.shouldRetry && retryCount < maxRetries) {
+        setPaymentStatus({
+          status: 'processing',
+          sessionId
+        })
+        // Progressive retry delay (gets slightly longer with each retry)
+        const adjustedDelay = initialRetryDelay + Math.min(retryCount * 150, 3000);
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1)
+        }, adjustedDelay)
+      } else if (retryCount < maxRetries) {
+        // For other errors, retry if under max attempts
+        console.log(`Payment verification failed, retrying (${retryCount + 1}/${maxRetries})...`, data);
+        
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1)
+        }, initialRetryDelay)
+      } else {
+        console.error('Payment verification failed after max retries:', data);
+        
+        setPaymentStatus({
+          status: 'error',
+          error: data.error || 'Failed to verify payment'
+        })
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error)
+      if (retryCount < maxRetries) {
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1)
+        }, initialRetryDelay)
+      } else {
+        setPaymentStatus({
+          status: 'error',
+          error: 'Failed to verify payment status after multiple attempts'
+        })
       }
     }
+  }, [sessionId, retryCount, tier, router, paymentStatus.status, maxRetries, initialRetryDelay])
 
+  useEffect(() => {
+    // Call verification function immediately on mount or when retryCount changes
     verifyPayment()
-  }, [sessionId, retryCount, tier, router])
+    
+    // Clear any existing timers on unmount
+    return () => {
+      // Any cleanup needed
+    }
+  }, [verifyPayment])
+
+  // Manually retry verification
+  const handleManualRetry = () => {
+    setPaymentStatus({ status: 'loading' })
+    setRetryCount(0)
+  }
 
   // Map tier code to readable name
   const getTierName = (tierCode?: string) => {
@@ -134,9 +172,20 @@ export default function PaymentSuccessPage() {
                 : 'Please wait while we confirm your subscription.'}
             </p>
             {retryCount > 5 && (
-              <p className="text-sm text-gray-500 mt-4">
-                This is taking longer than expected. Please wait...
-              </p>
+              <div className="mt-4">
+                <p className="text-sm text-gray-500 mb-2">
+                  This is taking longer than expected.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleManualRetry}
+                  className="flex items-center gap-2 mx-auto"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Retry Verification
+                </Button>
+              </div>
             )}
           </Card>
         </div>
@@ -161,8 +210,13 @@ export default function PaymentSuccessPage() {
               )}
             </p>
             <p className="text-sm text-gray-500 mb-4">
-              Redirecting to dashboard...
+              Redirecting to dashboard in {redirectCountdown} seconds...
             </p>
+            <Link href="/dashboard">
+              <Button variant="default" size="sm" className="mx-auto">
+                Go to Dashboard Now
+              </Button>
+            </Link>
           </Card>
         </div>
         <SiteFooter />
@@ -184,6 +238,16 @@ export default function PaymentSuccessPage() {
               Your payment may have still been successful. Please check your email for a receipt from Stripe.
             </p>
             <div className="flex flex-col space-y-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleManualRetry}
+                className="flex items-center gap-2 mx-auto mb-4"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Retry Verification
+              </Button>
+              
               <Link href="/dashboard">
                 <Button variant="default" size="lg" className="w-full">Go to Dashboard</Button>
               </Link>
