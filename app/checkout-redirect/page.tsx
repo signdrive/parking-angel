@@ -7,7 +7,8 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 export default function CheckoutRedirectPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoading } = useAuth();
+  const auth = useAuth(); // Get the full auth object
+  const { user, isLoading } = auth; // Destructure from the auth object
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [performanceMetrics, setPerformanceMetrics] = useState<{
@@ -25,17 +26,35 @@ export default function CheckoutRedirectPage() {
       ...prev,
       pageLoadTime: performance.now()
     }));
-  }, []);
+    
+    // Pre-fetch the checkout API to reduce latency
+    if (planId && user) {
+      const controller = new AbortController();
+      const signal = controller.signal;
+      
+      // Prefetch the API route
+      fetch("/api/stripe/create-checkout-session", {
+        method: "HEAD",
+        signal
+      }).catch(() => {
+        // Ignore errors from prefetch
+      });
+      
+      return () => {
+        controller.abort();
+      };
+    }
+  }, [planId, user]);
 
   // Track when auth is ready
   useEffect(() => {
-    if (!isLoading && (user || !user)) {
+    if (!isLoading) {
       setPerformanceMetrics(prev => ({
         ...prev,
         authReadyTime: performance.now()
       }));
     }
-  }, [isLoading, user]);
+  }, [isLoading]);
 
   const startCheckout = useCallback(async (planIdentifier: string) => {
     if (checkoutAttempted.current) return; // Prevent double-execution
@@ -93,7 +112,7 @@ export default function CheckoutRedirectPage() {
       
       console.log('Checkout flow performance metrics (ms):', metrics);
       
-      // Redirect to Stripe
+      // Redirect to Stripe - using window.location for faster redirect
       window.location.href = url;
     } catch (err: any) {
       console.error('Checkout error:', err);
@@ -104,29 +123,7 @@ export default function CheckoutRedirectPage() {
     }
   }, [performanceMetrics]);
 
-  // Try to recover from localStorage if needed
-  useEffect(() => {
-    const cachedIntent = localStorage.getItem('checkout_intent');
-    if (cachedIntent) {
-      try {
-        const { plan, timestamp } = JSON.parse(cachedIntent);
-        // Only use cache if it's fresh (less than 5 minutes old)
-        const isFresh = Date.now() - timestamp < 5 * 60 * 1000;
-        
-        if (isFresh && !planId && plan) {
-          console.log('Recovering from cached checkout intent:', plan);
-          router.replace(`/checkout-redirect?plan=${plan}`);
-        } else if (!isFresh) {
-          // Clean up old cache
-          localStorage.removeItem('checkout_intent');
-        }
-      } catch (e) {
-        localStorage.removeItem('checkout_intent');
-      }
-    }
-  }, [planId, router]);
-
-  // Main checkout flow
+  // Main checkout flow - optimized for performance
   useEffect(() => {
     if (!planId) {
       setError("No plan selected. Please select a subscription plan.");

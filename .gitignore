@@ -23,6 +23,9 @@ yarn-error.log*
 # Test files that might contain secrets
 test-*-subscription.js
 **/stripe-*-test.js
+secrets_to_replace.txt
+*secrets*.txt
+*_secrets_*.txt
 
 # Log files with potential sensitive data
 *.log

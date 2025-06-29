@@ -17,7 +17,8 @@ export default function SubscriptionPage() {
   const [globalLoading, setGlobalLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const auth = useAuth();
+  const user = auth.user;
 
   // Prevent double-clicks/race
   const [lock, setLock] = useState(false);

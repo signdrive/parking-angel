@@ -24,6 +24,34 @@ export default function AuthCallbackClient() {
     redirectStartTime?: number;
   }>({ startTime: performance.now() });
 
+  // Fast path optimization - we prefetch potential redirect destinations
+  // to speed up navigation after authentication
+  useEffect(() => {
+    if (code && typeof window !== 'undefined') {
+      try {
+        // Prefetch the dashboard as that's a common destination
+        const linkPrefetch = document.createElement('link');
+        linkPrefetch.rel = 'prefetch';
+        linkPrefetch.href = '/dashboard';
+        document.head.appendChild(linkPrefetch);
+        
+        // Check if we have a checkout intent and prefetch checkout page
+        const cachedCheckoutIntent = localStorage.getItem(CHECKOUT_INTENT_KEY);
+        if (cachedCheckoutIntent) {
+          const { plan } = JSON.parse(cachedCheckoutIntent);
+          if (plan) {
+            const checkoutPrefetch = document.createElement('link');
+            checkoutPrefetch.rel = 'prefetch';
+            checkoutPrefetch.href = `/checkout-redirect?plan=${plan}`;
+            document.head.appendChild(checkoutPrefetch);
+          }
+        }
+      } catch (e) {
+        // Ignore prefetch errors
+      }
+    }
+  }, [code]);
+
   useEffect(() => {
     if (code && !processed.current) {
       processed.current = true;
@@ -58,7 +86,6 @@ export default function AuthCallbackClient() {
       console.log('Auth callback - returnTo params:', {
         return_to: returnToParam,
         redirect_to: redirectToParam,
-        stored_return_to: storedReturnTo,
         final_returnTo: returnTo,
         all_params: Object.fromEntries(searchParams.entries())
       });
@@ -106,7 +133,12 @@ export default function AuthCallbackClient() {
             redirectingTo: returnTo
           });
           
-          router.replace(returnTo);
+          // For faster redirects, especially on checkout flows, use direct navigation
+          if (returnTo.includes('/checkout-redirect')) {
+            window.location.href = returnTo;
+          } else {
+            router.replace(returnTo);
+          }
         } else {
           // No session yet, try to exchange the code
           supabase.auth.exchangeCodeForSession(code).then(({ data, error: exchangeError }) => {
@@ -119,34 +151,27 @@ export default function AuthCallbackClient() {
               });
               router.replace('/auth/login');
             } else {
-              console.log('Code exchange successful, redirecting to:', returnTo);
+              // Success - redirect to intended destination
+              console.log('Code exchanged successfully, redirecting to:', returnTo);
               
-              // Cache session data if available
-              if (typeof window !== 'undefined' && data?.session?.user) {
-                try {
-                  const userToCache = { ...data.session.user, _cacheTime: Date.now() };
-                  localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
-                  localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(data.session));
-                } catch (e) {
-                  console.error('Error caching session data after code exchange:', e);
-                }
+              if (returnTo.includes('/checkout-redirect')) {
+                window.location.href = returnTo;
+              } else {
+                router.replace(returnTo);
               }
-              
-              router.replace(returnTo);
             }
           });
         }
       });
     }
-  }, [code, router, toast, searchParams, metrics]);
+  }, [code, searchParams, router, toast, metrics.startTime, metrics.sessionCheckTime]);
 
-  if (!code) {
-    // This can happen if the user navigates to the callback URL directly
-    // or if the code is missing for some reason. Redirect to login.
-    console.log("No auth code found - redirecting to login (likely direct visit)");
-    router.replace("/auth/login");
-    return <LoadingSpinner text="Redirecting to login..." />;
-  }
-
-  return <LoadingSpinner text="Finalizing login..." />;
+  return (
+    <div className="w-full max-w-md mx-auto flex flex-col items-center justify-center p-4">
+      <LoadingSpinner text="Completing authentication..." />
+      <p className="text-center mt-4 text-sm text-gray-500">
+        Please wait while we sign you in...
+      </p>
+    </div>
+  );
 }

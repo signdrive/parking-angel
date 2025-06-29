@@ -22,7 +22,8 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { signInWithGoogle } = useAuth() as { signInWithGoogle: (returnTo?: string) => Promise<void> }
+  const auth = useAuth()
+  const signInWithGoogle = auth.signInWithGoogle
 
   // Get return URL from query params
   const returnTo = searchParams.get('return_to') || '/dashboard'

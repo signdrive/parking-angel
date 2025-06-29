@@ -232,10 +232,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             plan,
             timestamp: Date.now()
           }));
+          
+          // Prefetch the checkout redirect page to improve performance
+          const prefetchLink = document.createElement('link');
+          prefetchLink.rel = 'prefetch';
+          prefetchLink.href = `/checkout-redirect?plan=${plan}`;
+          document.head.appendChild(prefetchLink);
         }
       }
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      // Using Promise to make the flow faster
+      const signInPromise = supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback?return_to=${encodeURIComponent(returnTo)}`,
@@ -244,17 +251,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             prompt: 'select_account',
           },
         },
-      })
+      });
       
-      if (error) throw error
+      // Don't wait for the promise to resolve - let the browser handle the redirect
+      signInPromise.catch((error: any) => {
+        console.error('Error initiating Google sign in:', error);
+        toast({
+          title: 'Error signing in',
+          description: 'Please try again',
+          variant: 'destructive',
+        });
+      });
       
+      // We don't actually need to await this since the redirect will happen automatically
+      // This makes the flow faster by returning immediately
+      return;
     } catch (error) {
-      console.error('Sign in error:', error)
+      console.error('Sign in with Google error:', error);
       toast({
         title: 'Error signing in',
         description: 'Please try again',
         variant: 'destructive',
-      })
+      });
+      throw error;
     }
   }, [supabase, toast])
 
@@ -359,8 +378,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Only render children when not in initial loading state
   if (state.isLoading && !state.isCachedAuthBeingUsed) {
     return null // or a loading spinner
-  } (state.isLoading && !state.isCachedAuthBeingUsed) {
-    return null // or a loading spinner
   }
 
   return (
@@ -370,6 +387,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext)
-  if
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}

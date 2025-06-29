@@ -23,7 +23,8 @@ interface SubscriptionTier {
 }
 
 export function SubscriptionManager() {
-  const { user } = useAuth()
+  const auth = useAuth()
+  const user = auth.user
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null)
   const [loading, setLoading] = useState(false)
   const [selectedTier, setSelectedTier] = useState<string | null>(null)
