@@ -19,6 +19,16 @@ type PlanTier = keyof typeof PRICE_IDS;
 type CheckoutSessionParams = Stripe.Checkout.SessionCreateParams;
 type StripeMetadata = Record<string, string | number | null>;
 
+export async function HEAD(req: NextRequest) {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Allow': 'POST'
+    }
+  });
+}
+
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   
