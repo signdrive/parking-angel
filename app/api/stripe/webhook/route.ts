@@ -40,8 +40,7 @@ export async function POST(req: NextRequest) {
     { status: 410 }
   );
 
-  /* Original implementation (disabled):
-  */
+  /* Original implementation (disabled, kept for reference):
   const body = await req.text();
   
   // Get the stripe signature from request headers
@@ -56,10 +55,11 @@ export async function POST(req: NextRequest) {
 
   try {
     console.log('Webhook: Verifying Stripe signature...');
-    event = stripe.webhooks.constructEvent(body, stripeSignature, webhookSecret);
+    // Use the non-null assertion operator since we've checked that stripeSignature is not null
+    event = stripe.webhooks.constructEvent(body, stripeSignature!, webhookSecret);
   } catch (err: any) {
     console.error('Webhook Error: Signature verification failed:', err.message, {
-      signature: stripeSignature.substring(0, 20) + '...',
+      signature: stripeSignature?.substring(0, 20) + '...' || 'null',
       bodyPreview: body.substring(0, 100) + '...'
     });
     return NextResponse.json({ error: `Webhook signature verification failed: ${err.message}` }, { status: 400 });
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
           if (session.subscription) {
             const response = await stripe.subscriptions.retrieve(session.subscription as string);
             subscription = response;
-            console.log('Webhook: Retrieved subscription details:', subscription.id);
+            console.log('Webhook: Retrieved subscription details:', subscription?.id || 'No ID');
           }
         } catch (err: any) {
           console.warn('Webhook Warning: Failed to retrieve subscription details:', err.message);
@@ -107,13 +107,14 @@ export async function POST(req: NextRequest) {
         console.log('Webhook: Updating subscription in Supabase...');
 
         // Prepare the subscription data according to the schema
+        // Use type assertion to tell TypeScript that these values are strings
         const subscriptionData: Database['public']['Tables']['user_subscriptions']['Insert'] = {
           id: session.subscription as string || crypto.randomUUID(),
-          user_id: userId,
-          plan_id: tier,
+          user_id: userId as string,
+          plan_id: tier as string,
           status: subscription?.status || 'active',
           trial_end: subscription?.trial_end 
-            ? new Date((subscription.trial_end as number) * 1000).toISOString() 
+            ? new Date((subscription?.trial_end as number) * 1000).toISOString() 
             : null,
           cancel_at_period_end: Boolean(subscription?.cancel_at_period_end),
           created_at: new Date().toISOString(),
@@ -147,9 +148,9 @@ export async function POST(req: NextRequest) {
 
         // Log subscription event with proper typing
         const eventData: Database['public']['Tables']['subscription_events']['Insert'] = {
-          user_id: userId,
+          user_id: userId as string,
           event_type: 'subscription_created',
-          tier: tier,
+          tier: tier as string,
           stripe_event_id: event.id,
           created_at: new Date().toISOString(),
           subscription_id: subscription?.id || session.subscription as string || null,
@@ -187,8 +188,8 @@ export async function POST(req: NextRequest) {
         console.log('Webhook: Processing subscription update for user:', userId);
 
         const updateData: Database['public']['Tables']['user_subscriptions']['Update'] = {
-          user_id: userId,
-          plan_id: tier,
+          user_id: userId as string,
+          plan_id: tier as string,
           status: subscription.status,
           trial_end: subscription.trial_end
             ? new Date((subscription.trial_end as number) * 1000).toISOString()
@@ -220,4 +221,5 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+  */
 }

@@ -10,9 +10,11 @@ const fetch = require('node-fetch');
 const crypto = require('crypto');
 require('dotenv').config({ path: '.env.local' });
 
-const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test';
+// Use the webhook secret from .env only - never hardcode this
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'test_secret_key_placeholder';
 // Set the endpoint URL - use production URL if needed for live testing
-const ENDPOINT_URL = process.env.WEBHOOK_TEST_URL || 'http://localhost:3000/api/stripe-webhook';
+// Make sure this matches the URL of your webhook handler API route
+const ENDPOINT_URL = process.env.WEBHOOK_TEST_URL || 'http://localhost:3001/api/stripe-webhook';
 // Use a real user ID from your database for testing
 // Try to get it from env first, then fall back to a recent test user
 const userId = process.env.TEST_USER_ID || '0462d759-46bf-4e66-8f4b-43d42d2f30d4';
@@ -76,7 +78,6 @@ async function sendWebhookEvent() {
     console.log(`Event ID: ${event.id}`);
     console.log(`User ID: ${userId}`);
     console.log(`Plan: ${event.data.object.metadata.tier}`);
-    console.log(`Webhook Secret: ${WEBHOOK_SECRET?.substring(0, 5)}...`);
     
     // Send the request
     const response = await fetch(ENDPOINT_URL, {

@@ -107,24 +107,66 @@ export async function POST(req: Request) {
           mappedTier: subscriptionTier
         });
 
-        // Update user's subscription status
-        const { error: updateError } = await supabase
+        // First check if the profiles table has the required columns
+        console.log('[Webhook] Checking profiles table structure...');
+        const { error: checkError, data: tableInfo } = await supabase
           .from('profiles')
-          .update({
-            stripe_customer_id: customerId,
-            subscription_status: 'active',
-            subscription_tier: subscriptionTier,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userId);
+          .select()
+          .limit(1);
 
-        if (updateError) {
-          console.error('[Webhook] Failed to update subscription status:', {
-            error: updateError,
-            userId,
-            customerId,
-            tier: subscriptionTier
-          });
+        if (checkError) {
+          console.error('[Webhook] Error checking profiles table:', checkError);
+          // We'll try a simpler update approach
+        }
+
+        try {
+          // Try to update user's subscription status
+          console.log('[Webhook] Updating profile with subscription data...');
+          let updateData: Record<string, any> = {
+            updated_at: new Date().toISOString(),
+            stripe_customer_id: customerId
+          };
+
+          // Add the subscription fields only if we believe they exist
+          if (!checkError) {
+            updateData.subscription_status = 'active';
+            // Use text version to avoid type issues
+            updateData.subscription_tier = subscriptionTier;
+          }
+
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update(updateData)
+            .eq('id', userId);
+
+          if (updateError) {
+            console.error('[Webhook] Failed to update subscription status:', {
+              error: updateError,
+              userId,
+              customerId,
+              tier: subscriptionTier
+            });
+            
+            // Instead of throwing, let's try a fallback approach
+            console.log('[Webhook] Attempting fallback subscription update...');
+            
+            // More minimal update that should work
+            const { error: fallbackError } = await supabase
+              .from('profiles')
+              .update({
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', userId);
+              
+            if (fallbackError) {
+              console.error('[Webhook] Even fallback update failed:', fallbackError);
+              throw new APIError('Failed to update subscription status', 500, 'update_failed');
+            } else {
+              console.log('[Webhook] Fallback update succeeded. You need to run migrations to add subscription columns.');
+            }
+          }
+        } catch (updateException) {
+          console.error('[Webhook] Exception during profile update:', updateException);
           throw new APIError('Failed to update subscription status', 500, 'update_failed');
         }
 

@@ -18,6 +18,15 @@ yarn-error.log*
 
 # env files
 .env*
+!.env.example
+
+# Test files that might contain secrets
+test-*-subscription.js
+**/stripe-*-test.js
+
+# Log files with potential sensitive data
+*.log
+logs/
 
 # vercel
 .vercel

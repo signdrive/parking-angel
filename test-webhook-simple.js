@@ -1,7 +1,8 @@
 // Test script for Stripe webhook
 const testWebhook = async () => {
   // Use a real user ID from your database for testing
-  const userId = process.env.TEST_USER_ID || '0462d759-46bf-4e66-8f4b-43d42d2f30d4';
+  // Replace this with your test user ID when running
+  const userId = process.env.TEST_USER_ID || 'replace_with_your_test_user_id';
   
   // Create a test event with the correct structure
   const testEvent = {

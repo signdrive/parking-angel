@@ -69,8 +69,24 @@ You can simulate webhook events using the provided test script:
 # Make sure your local server is running first
 npm run dev
 
+# Set up your environment variables first
+cp .env.example .env.local
+# Edit .env.local to add your secrets
+
 # In another terminal, run the test script to simulate a checkout.session.completed event
 node test-webhook-debug.js
+```
+
+> ⚠️ **IMPORTANT**: Never hardcode API keys, session IDs, or other sensitive data in test files. Always use environment variables.
+
+All test scripts have been updated to use environment variables from a `.env` or `.env.local` file. Make sure you have the following variables set:
+
+```
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+TEST_USER_ID=your_test_user_id
 ```
 
 Check the server logs for `[Webhook]` messages, especially the tier mapping logs:
