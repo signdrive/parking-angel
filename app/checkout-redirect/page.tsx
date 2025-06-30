@@ -61,6 +61,12 @@ export default function CheckoutRedirectPage() {
       }, 3000);
       return;
     }
+
+    // Wait until the auth state is fully initialized
+    if (!initialized) {
+      setLoadingMessage("Verifying authentication...");
+      return;
+    }
     
     if (user) {
       // User is logged in, proceed with checkout
