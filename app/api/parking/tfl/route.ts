@@ -8,14 +8,14 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.TFL_API_KEY
 
     if (!apiKey) {
-      console.log("TfL API key not configured")
+
       return NextResponse.json({ spots: [] })
     }
 
     // Use the geographic search endpoint to find car parks near the location
     const url = `${TFL_BASE_URL}?lat=${lat}&lon=${lng}&radius=${radius}&type=CarPark&app_key=${apiKey}`
 
-    console.log("Fetching TfL data from:", url.replace(apiKey, "***"))
+
 
     const response = await fetch(url, {
       headers: {

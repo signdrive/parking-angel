@@ -96,7 +96,7 @@ export function SubscriptionManager() {
       const subscription = await premiumService.getUserSubscription(user.id)
       setCurrentSubscription(subscription)
     } catch (error) {
-      console.error('Error loading subscription:', error)
+
     }
   }
 
@@ -117,7 +117,7 @@ export function SubscriptionManager() {
         await createCheckoutSession(tierId)
       }
     } catch (error) {
-      console.error('Error changing subscription:', error)
+
       alert('Failed to process subscription change. Please try again.')
     } finally {
       setLoading(false)
@@ -158,7 +158,7 @@ export function SubscriptionManager() {
         window.location.href = url
       }
     } catch (error) {
-      console.error('Checkout error:', error)
+
       throw error
     }
   }
@@ -181,7 +181,7 @@ export function SubscriptionManager() {
         throw new Error('Failed to cancel subscription')
       }
     } catch (error) {
-      console.error('Cancel error:', error)
+
       throw error
     }
   }

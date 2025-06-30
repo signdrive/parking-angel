@@ -54,10 +54,7 @@ export default function CheckoutRedirectPage() {
 
   // Main checkout flow - optimized for performance
   useEffect(() => {
-    console.log('Checkout flow triggered:', { planId, initialized, user: !!user });
-    
     if (!planId) {
-      console.log('No plan ID found, redirecting to pricing');
       setError("No plan selected. Redirecting to pricing page...");
       setTimeout(() => {
         router.replace('/#pricing');
@@ -67,18 +64,15 @@ export default function CheckoutRedirectPage() {
 
     // Wait until the auth state is fully initialized
     if (!initialized) {
-      console.log('Auth not initialized yet, waiting...');
       setLoadingMessage("Verifying authentication...");
       return;
     }
     
     if (user) {
       // User is logged in, proceed with checkout
-      console.log('User is logged in, starting checkout for plan:', planId);
       startCheckout(planId);
     } else {
       // If not logged in, store intent and redirect to login
-      console.log('User not logged in, redirecting to login');
       setLoadingMessage("Redirecting to login...");
       localStorage.setItem('checkout_intent', JSON.stringify({ 
         plan: planId,

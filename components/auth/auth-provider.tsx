@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const isCacheFresh = Date.now() - cacheTime < 60 * 60 * 1000;
           
           if (isCacheFresh) {
-            console.log('Using cached auth data while verifying session');
+
             setState(current => ({
               ...current,
               user: cachedUser,
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (e) {
-        console.error('Error loading cached auth data:', e);
+
         // Clear potentially corrupted cache
         localStorage.removeItem(USER_CACHE_KEY);
         localStorage.removeItem(SESSION_CACHE_KEY);
@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
             localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
           } catch (e) {
-            console.error('Error caching user data:', e);
+
           }
         }
         
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isCachedAuthBeingUsed: false
         }))
         
-        console.log(`Auth initialization completed in ${performance.now() - authStartTime}ms`);
+
 
         // Listen for auth changes
         const { data: { subscription } } = client.auth.onAuthStateChange(
@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
                 localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
               } catch (e) {
-                console.error('Error updating cached user data:', e);
+
               }
             }
             
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           subscription.unsubscribe()
         }
       } catch (error) {
-        console.error('Auth initialization error:', error)
+
         if (!mounted) return
         setState(current => ({
           ...current,
@@ -166,17 +166,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router])
 
   const signOut = useCallback(async () => {
-    console.log('SignOut function called');
+
     if (!supabase) {
-      console.log('No supabase client available');
+
       return;
     }
     try {
-      console.log('Attempting to sign out...');
+
       const { error } = await supabase.auth.signOut()
       if (error) throw error
 
-      console.log('Sign out successful, updating state...');
+
       setState(current => ({
         ...current,
         user: null,
@@ -198,11 +198,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         keysToRemove.forEach(key => localStorage.removeItem(key));
       }
       
-      console.log('Redirecting to login...');
+
       router.push('/auth/login')
       router.refresh()
     } catch (error) {
-      console.error('Sign out error:', error)
+
       toast({
         variant: 'destructive',
         title: 'Sign Out Error',
@@ -221,13 +221,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Store returnTo in localStorage to persist through OAuth redirects
       localStorage.setItem('auth_return_to', returnTo);
       
-      console.log('Google OAuth - return_to:', returnTo);
+
       
       // Performance optimization: begin pre-auth setup while OAuth flow is happening
       if (returnTo.includes('/checkout-redirect')) {
         const plan = new URLSearchParams(returnTo.split('?')[1]).get('plan');
         if (plan) {
-          console.log('Caching checkout intent for plan:', plan);
+
           localStorage.setItem('checkout_intent', JSON.stringify({ 
             plan,
             timestamp: Date.now()
@@ -255,7 +255,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Don't wait for the promise to resolve - let the browser handle the redirect
       signInPromise.catch((error: any) => {
-        console.error('Error initiating Google sign in:', error);
+
         toast({
           title: 'Error signing in',
           description: 'Please try again',
@@ -267,7 +267,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // This makes the flow faster by returning immediately
       return;
     } catch (error) {
-      console.error('Sign in with Google error:', error);
+
       toast({
         title: 'Error signing in',
         description: 'Please try again',
@@ -294,7 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
             localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
           } catch (e) {
-            console.error('Error caching user data on sign in:', e);
+
           }
         }
         
@@ -315,11 +315,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Clear the stored return_to
           localStorage.removeItem('auth_return_to');
         } catch (e) {
-          console.error('Error retrieving stored return_to:', e);
+
         }
         
         if (returnTo) {
-          console.log('Auth flow completed, redirecting to:', returnTo);
+
           router.push(returnTo);
         } else {
           router.push('/dashboard');
@@ -347,7 +347,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userToCache));
           localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
         } catch (e) {
-          console.error('Error updating cached user data on refresh:', e);
+
         }
       }
       
@@ -359,7 +359,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isCachedAuthBeingUsed: false
       }))
     } catch (error) {
-      console.error('Session refresh error:', error)
+
       toast({
         variant: 'destructive',
         title: 'Session Error',

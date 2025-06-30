@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found"
-      console.error('Error checking for existing token:', fetchError);
+
       throw new APIError("Failed to check existing token", 500, "notifications/fetch_failed");
     }
 
@@ -46,12 +46,12 @@ export async function POST(request: NextRequest) {
           device_type: deviceType || null,
           device_name: deviceName || null,
           updated_at: now,
-          is_active: true
+          active: true
         } satisfies Partial<NotificationToken>)
         .match({ user_id: user.id, device_id: deviceId });
 
       if (updateError) {
-        console.error('Error updating notification token:', updateError);
+
         throw new APIError("Failed to update notification token", 500, "notifications/update_failed");
       }
     } else {
@@ -60,17 +60,18 @@ export async function POST(request: NextRequest) {
         .from('notification_tokens')
         .insert({
           user_id: user.id,
+          token: fcmToken || deviceId, // Use fcmToken as the primary token
           device_id: deviceId,
           fcm_token: fcmToken,
           device_type: deviceType || null,
           device_name: deviceName || null,
           created_at: now,
           updated_at: now,
-          is_active: true
+          active: true
         } satisfies NotificationToken);
 
       if (insertError) {
-        console.error('Error inserting notification token:', insertError);
+
         throw new APIError("Failed to store notification token", 500, "notifications/insert_failed");
       }
     }
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     if (profileError) {
       // This is not a critical error, so just log it
-      console.warn("Non-critical error updating notification preferences:", profileError);
+
     }
 
     return NextResponse.json({

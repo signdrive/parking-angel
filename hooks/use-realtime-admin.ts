@@ -21,7 +21,7 @@ export function useRealtimeAdmin() {
     try {
       supabaseClientRef.current = getAdminSupabaseOrThrow();
     } catch (error) {
-      console.error("Failed to initialize Supabase client in useRealtimeAdmin:", error);
+
       toast({
         title: "Realtime Error",
         description: "Failed to connect for real-time updates.",
@@ -69,7 +69,7 @@ export function useRealtimeAdmin() {
         calculateStats(typedSpotsData)
       }
     } catch (error) {
-      console.error('Error fetching admin data:', error)
+
       toast({
         title: "Error",
         description: `Failed to fetch admin data. ${error instanceof Error ? error.message : ''}`,
@@ -97,17 +97,17 @@ export function useRealtimeAdmin() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },
         (payload) => {
-          console.log('Profiles change received!', payload)
+
           // Refetch all profiles for simplicity, or implement more granular updates
           fetchInitialData(); 
         }
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to admin profiles changes!')
+
         }
         if (status === 'CHANNEL_ERROR' || err) {
-          console.error('Admin profiles subscription error:', err)
+
           toast({ title: "Realtime Error", description: "Profile updates might be delayed.", variant: "destructive"})
         }
       });
@@ -119,17 +119,17 @@ export function useRealtimeAdmin() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'parking_spots' },
         (payload) => {
-          console.log('Parking spots change received!', payload)
+
           // Refetch all spots for simplicity
           fetchInitialData();
         }
       )
       .subscribe((status, err) => {
          if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to admin parking spots changes!')
+
         }
         if (status === 'CHANNEL_ERROR' || err) {
-          console.error('Admin parking spots subscription error:', err)
+
           toast({ title: "Realtime Error", description: "Parking spot updates might be delayed.", variant: "destructive"})
         }
       });
@@ -144,7 +144,7 @@ export function useRealtimeAdmin() {
     if (supabaseClientRef.current) { // Ensure client is available before refreshing
         fetchInitialData();
     } else {
-        console.warn("Attempted to refresh admin data before Supabase client was initialized.");
+
         toast({
             title: "Info",
             description: "Real-time connection not yet established. Please wait.",

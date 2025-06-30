@@ -16,7 +16,7 @@ export function usePersistentState<T>(key: string, defaultValue: T): [T, (value:
         setState(parsedValue)
       }
     } catch (error) {
-      console.warn(`Error reading localStorage key "${key}":`, error)
+
     } finally {
       setIsInitialized(true)
     }
@@ -33,7 +33,7 @@ export function usePersistentState<T>(key: string, defaultValue: T): [T, (value:
         window.localStorage.setItem(key, JSON.stringify(valueToStore))
       }
     } catch (error) {
-      console.warn(`Error setting localStorage key "${key}":`, error)
+
     }
   }
 

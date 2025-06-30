@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`[verify-session] Verifying session: ${sessionId}`);
+
     
     // Retrieve the session from Stripe - use Promise.all to parallelize operations
     const sessionPromise = stripe.checkout.sessions.retrieve(sessionId, {
@@ -57,14 +57,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Log session details for debugging
-    console.log('[verify-session] Session details:', {
-      id: session.id,
-      paymentStatus: session.payment_status,
-      customerId: session.customer,
-      userIdInMetadata: session.metadata?.userId,
-      tierInMetadata: session.metadata?.tier,
-      subscriptionStatus: (session.subscription as Stripe.Subscription)?.status
-    });
+
 
     // For the first few retries, we don't need to verify the user
     // This helps when the webhook hasn't processed yet
@@ -97,16 +90,13 @@ export async function GET(req: NextRequest) {
         profileData = result.data;
         profileError = result.error;
         
-        console.log('[verify-session] Database check:', {
-          profile: profileData,
-          error: profileError
-        });
+
 
         const targetTier = TIER_MAPPING[session.metadata.tier as keyof typeof TIER_MAPPING] || session.metadata.tier;
 
         // If the profile exists but the plan is not yet updated, update it manually
         if (profileData && (profileData.subscription_tier !== targetTier || profileData.subscription_status !== 'active')) {
-          console.log(`[verify-session] Webhook hasn't updated the plan yet. Manually updating for user ${session.metadata.userId}.`);
+
           
           const { error: updateError } = await supabaseClient
             .from('profiles')
@@ -120,17 +110,17 @@ export async function GET(req: NextRequest) {
             .eq('id', session.metadata.userId);
 
           if (updateError) {
-            console.error(`[verify-session] Manual update failed for user ${session.metadata.userId}:`, updateError);
+
             // Don't block success, but log the error. The webhook should eventually fix it.
           } else {
-            console.log(`[verify-session] Manual update successful for user ${session.metadata.userId}.`);
+
             updatedManually = true;
           }
         }
       }
       
       const duration = Date.now() - startTime;
-      console.log(`[verify-session] Verification successful in ${duration}ms for session: ${sessionId}`);
+
       
       return NextResponse.json({ 
         success: true,
@@ -141,7 +131,7 @@ export async function GET(req: NextRequest) {
 
     // If payment is still pending after some time, it might be a slow process
     if (paymentStatus === 'unpaid' && retryCount > 2) {
-      console.log(`[verify-session] Session is still unpaid after ${retryCount} retries: ${sessionId}`);
+
       return NextResponse.json({ 
         success: false, 
         error: 'Payment is still processing. Please wait a few more moments.' 
@@ -150,7 +140,7 @@ export async function GET(req: NextRequest) {
 
     // Otherwise, the payment is not yet confirmed
     const duration = Date.now() - startTime;
-    console.log(`[verify-session] Payment not confirmed after ${duration}ms for session: ${sessionId}. Status: ${paymentStatus}`);
+
     return NextResponse.json({ 
       success: false, 
       error: 'Payment not confirmed yet.' 
@@ -158,10 +148,6 @@ export async function GET(req: NextRequest) {
 
   } catch (err: any) {
     const elapsed = Date.now() - startTime;
-    console.error(`[verify-session] Error after ${elapsed}ms:`, {
-      message: err.message,
-      stack: err.stack?.substring(0, 200),
-    });
     
     return NextResponse.json({
       success: false,

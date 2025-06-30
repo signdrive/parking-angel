@@ -52,7 +52,7 @@ export function LoginForm() {
       await signInWithGoogle(returnTo)
     } catch (err) {
       setError('Failed to sign in with Google')
-      console.error('Google sign in error:', err)
+
     } finally {
       setGoogleLoading(false)
     }

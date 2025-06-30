@@ -41,7 +41,7 @@ export async function DELETE(
     });
 
   } catch (error) {
-    console.error("Error releasing spot hold:", error);
+
     return handleAPIError(error);
   }
 }
@@ -79,7 +79,7 @@ export async function GET(
     return NextResponse.json({ hold });
 
   } catch (error) {
-    console.error("Error fetching spot hold:", error);
+
     return handleAPIError(error);
   }
 }

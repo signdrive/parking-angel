@@ -7,11 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function ErrorPage() {
   useEffect(() => {
-    // Log client-side error details
-    console.error('Error page loaded', {
-      url: window.location.href,
-      referrer: document.referrer,
-    });
+    // Error boundary handles logging
   }, []);
 
   return (

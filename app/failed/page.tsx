@@ -13,14 +13,7 @@ export default function PaymentFailedPage() {
   const sessionId = searchParams.get('session_id');
 
   useEffect(() => {
-    // Log failed payment for debugging
-    if (sessionId || error) {
-      console.error('Payment failed:', {
-        sessionId,
-        error,
-        timestamp: new Date().toISOString()
-      });
-    }
+    // Payment failure already handled by redirect
   }, [sessionId, error]);
 
   return (

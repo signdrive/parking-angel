@@ -81,7 +81,7 @@ export default function AdminDashboard() {
         if (!isMounted) return
 
         if (profileError) {
-          console.error('Error fetching user role:', profileError)
+
           setRoleError(profileError.message)
           setRoleLoading(false)
           return
@@ -100,7 +100,7 @@ export default function AdminDashboard() {
         setRoleLoading(false)
       } catch (error) {
         if (!isMounted) return
-        console.error('Error in fetchUserRole:', error)
+
         setRoleError(error instanceof Error ? error.message : 'Unexpected error while fetching role')
         setRoleLoading(false)
       }
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
     } else {
       // The hook's handleError should have already shown a toast
       // You might add additional logging or UI feedback here if needed
-      console.error("Failed to suspend user from page component.")
+
       // toast({
       //   title: "Error",
       //   description: "Failed to suspend user. Check console for details.", // Generic message as hook handles specifics
@@ -227,7 +227,7 @@ export default function AdminDashboard() {
       // Optionally, trigger a re-fetch or update local state if parkingSpots aren't auto-updating
     } else {
       // The hook's handleError should have already shown a toast
-      console.error("Failed to remove parking spot from page component.")
+
       // toast({
       //   title: "Error",
       //   description: "Failed to remove parking spot. Check console for details.",
@@ -252,7 +252,7 @@ export default function AdminDashboard() {
         description: `Parking spot ${editingSpot ? 'updated' : 'added'} successfully.`,
       });
     } catch (error) {
-      console.error('Error handling spot submit:', error)
+
       toast({
         title: "Error",
         description: "Failed to save parking spot. Please try again.",

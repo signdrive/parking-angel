@@ -47,11 +47,11 @@ export async function POST(req: NextRequest) {
           .update({ plan: tier, stripe_subscription_id: subscriptionId })
           .eq('id', userId);
         if (error) {
-          console.error('Failed to update user plan:', error);
+
           return NextResponse.json({ error: 'Failed to update user plan' }, { status: 500 });
         }
       } else {
-        console.error('Missing userId or tier in session metadata');
+
         return NextResponse.json({ error: 'Missing userId or tier' }, { status: 400 });
       }
       break;

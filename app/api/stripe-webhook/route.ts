@@ -235,16 +235,6 @@ export async function POST(req: Request) {
   } catch (error: any) {
     const totalTime = Date.now() - startTime;
     
-    // Enhanced error logging with more context
-    console.error('[Webhook] Handler error:', {
-      message: error.message,
-      code: error.code,
-      name: error.name,
-      stack: error.stack,
-      details: error.details || 'No additional details',
-      processedIn: totalTime
-    });
-    
     // Log an event to subscription_events table to track failures
     try {
       const supabase = await getServerClient();
@@ -264,7 +254,7 @@ export async function POST(req: Request) {
         }
       });
     } catch (logError) {
-      console.error('[Webhook] Failed to log error to database:', logError);
+
     }
     
     return handleAPIError(error);

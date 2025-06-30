@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (spotError) {
-      console.error("Error creating parking spot:", spotError);
+
       throw new APIError("Failed to create parking spot", 500, "spot_creation_failed");
     }
 
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (reportError) {
-      console.error("Error creating spot report:", reportError);
+
       // If report creation fails, we should probably delete the spot to avoid orphans
       await supabase.from("parking_spots").delete().eq("id", spot.id);
 

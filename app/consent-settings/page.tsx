@@ -60,7 +60,7 @@ export default function ConsentSettingsPage() {
         setIsSaving(false)
       }, 500)
     } catch (error) {
-      console.error('Error saving consent preferences:', error)
+
       setIsSaving(false)
     }
   }

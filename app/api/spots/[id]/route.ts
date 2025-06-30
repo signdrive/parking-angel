@@ -23,7 +23,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single();
 
     if (updateError) {
-      console.error("Error updating parking spot:", updateError);
+
       throw new APIError("Failed to update parking spot", 500, "update_failed");
     }
 
@@ -38,7 +38,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       });
 
       if (reportError) {
-        console.error("Error creating spot report:", reportError);
+
         throw new APIError("Failed to create spot report", 500, "report_failed");
       }
 
@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       });
 
       if (rpcError) {
-        console.warn("Failed to update user reputation:", rpcError);
+
       }
     }
 
@@ -73,7 +73,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       .single();
 
     if (fetchError) {
-      console.error("Error fetching spot for deletion:", fetchError);
+
       throw new APIError("Could not verify spot ownership.", 500, "fetch_failed");
     }
 
@@ -84,7 +84,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const { error: deleteError } = await supabase.from("parking_spots").delete().eq("id", params.id);
 
     if (deleteError) {
-      console.error("Error deleting parking spot:", deleteError);
+
       throw new APIError("Failed to delete parking spot", 500, "delete_failed");
     }
 

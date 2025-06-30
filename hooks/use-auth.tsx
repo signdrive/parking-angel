@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setInitialized(true);
       });
     }).catch((e) => {
-      console.error('Failed to get auth session:', e)
+
       setError("Failed to initialize auth")
       setLoading(false)
       setInitialized(true)
@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut()
       setUser(null); // Clear user on sign out
     } catch (e) {
-      console.error('Error signing out:', e)
+
       setError('Failed to sign out')
     }
     setLoading(false)

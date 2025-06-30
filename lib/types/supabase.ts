@@ -134,6 +134,76 @@ export interface Database {
           confidence_score?: number | null
         }
       }
+      spot_reports: {
+        Row: {
+          id: string
+          user_id: string
+          spot_id: string
+          report_type: string
+          description: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          spot_id: string
+          report_type: string
+          description?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          spot_id?: string
+          report_type?: string
+          description?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      notification_tokens: {
+        Row: {
+          id: string
+          user_id: string
+          token: string
+          device_type: string
+          device_id: string | null
+          device_name: string | null
+          fcm_token: string | null
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          token: string
+          device_type: string
+          device_id?: string | null
+          device_name?: string | null
+          fcm_token?: string | null
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          token?: string
+          device_type?: string
+          device_id?: string | null
+          device_name?: string | null
+          fcm_token?: string | null
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

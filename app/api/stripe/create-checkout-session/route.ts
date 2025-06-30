@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const { tier } = body as { tier: PlanTier };
     
     if (!tier || !(tier in PRICE_IDS)) {
-      console.error(`Create checkout session failed: Invalid plan "${tier}"`);
+
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
     
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     // Wait for user authentication
     const user = await userPromise;
     if (!user) {
-      console.error('Create checkout session failed: User not authenticated');
+
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -84,36 +84,15 @@ export async function POST(req: NextRequest) {
       sessionParams.customer_email = user.email;
     }
 
-    console.log('Creating checkout session for user:', {
-      userId: user.id,
-      email: user.email,
-      tier,
-      priceId
-    });
-
     // Create the session with Stripe
     const session = await stripe.checkout.sessions.create(sessionParams);
    
     const duration = Date.now() - startTime;
-    console.log('Checkout session created in ' + duration + 'ms:', {
-      sessionId: session.id,
-      url: session.url ? session.url.substring(0, 50) + '...' : null,
-      userId: user.id,
-      tier
-    });
    
     // Return immediately without unnecessary processing
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
     const duration = Date.now() - startTime;
-    console.error(`Stripe checkout error after ${duration}ms:`, {
-      error: err.message,
-      code: err.code,
-      type: err.type,
-      param: err.param,
-      paymentIntent: err.payment_intent,
-      docUrl: err.doc_url
-    });
     
     // Handle specific Stripe errors
     if (err.type === 'StripeCardError') {

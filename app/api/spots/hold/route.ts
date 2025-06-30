@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Error creating spot hold:", error);
+
     return handleAPIError(error);
   }
 }
@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
     }
 
   } catch (error) {
-    console.error("Error fetching spot holds:", error);
+
     return handleAPIError(error);
   }
 }

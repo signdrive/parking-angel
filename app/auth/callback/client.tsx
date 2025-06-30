@@ -69,7 +69,6 @@ export default function AuthCallbackClient() {
             
             if (isFresh && plan) {
               returnTo = `/checkout-redirect?plan=${plan}`;
-              console.log('Auth flow completed, redirecting to:', returnTo);
             }
           }
         } catch (e) {
@@ -109,7 +108,7 @@ export default function AuthCallbackClient() {
               // Clean up auth return to after successful use
               localStorage.removeItem(AUTH_RETURN_TO_KEY);
             } catch (e) {
-              console.error('Error caching session data:', e);
+
             }
           }
           
@@ -121,14 +120,10 @@ export default function AuthCallbackClient() {
             : 'unknown';
           const totalDuration = performance.now() - metrics.startTime;
           
-          console.log('Auth flow completed, redirecting to:', returnTo);
-          
           // For faster redirects, especially on checkout flows, use direct navigation
           if (returnTo.includes('/checkout-redirect')) {
-            console.log('Using window.location.href for checkout redirect');
             window.location.href = returnTo;
           } else {
-            console.log('Using router.replace for standard redirect');
             router.replace(returnTo);
           }
         } else {
@@ -143,12 +138,9 @@ export default function AuthCallbackClient() {
               router.replace('/auth/login');
             } else {
               // Success - redirect to intended destination
-              console.log('Auth flow completed, redirecting to:', returnTo);
               if (returnTo.includes('/checkout-redirect')) {
-                console.log('Using window.location.href for checkout redirect');
                 window.location.href = returnTo;
               } else {
-                console.log('Using router.replace for standard redirect');
                 router.replace(returnTo);
               }
             }

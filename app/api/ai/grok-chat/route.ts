@@ -4,11 +4,10 @@ export async function POST(request: NextRequest) {
   try {
     const { message, context, location } = await request.json()
 
-    console.log("Grok API Request:", { message, context, location })
-    console.log("XAI_API_KEY available:", !!process.env.XAI_API_KEY)
+
 
     if (!process.env.XAI_API_KEY) {
-      console.error("XAI_API_KEY not configured")
+
       return getIntelligentFallback(message)
     }
 
@@ -20,7 +19,7 @@ User Location: ${location || "unknown"}
 
 Be concise, helpful, and friendly. Focus on practical parking advice. If you don't have specific real-time data, provide general guidance and suggest checking current conditions.`
 
-    console.log("Making request to Grok API...")
+
 
     const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
@@ -45,16 +44,16 @@ Be concise, helpful, and friendly. Focus on practical parking advice. If you don
       }),
     })
 
-    console.log("Grok API Response Status:", response.status)
+
 
     if (!response.ok) {
       const errorData = await response.text()
-      console.error("Grok API error:", errorData)
+
       return getIntelligentFallback(message)
     }
 
     const data = await response.json()
-    console.log("Grok API Success:", data)
+
 
     const aiResponse = data.choices?.[0]?.message?.content || "I'm sorry, I couldn't process that request."
 
@@ -65,7 +64,7 @@ Be concise, helpful, and friendly. Focus on practical parking advice. If you don
       success: true,
     })
   } catch (error) {
-    console.error("Error in Grok chat API:", error)
+
     const message = "Error processing request" // Declare message variable here
     return getIntelligentFallback(message)
   }

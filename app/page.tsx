@@ -18,7 +18,7 @@ const STRIPE_PRO_PARKER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRI
 const STRIPE_FLEET_MANAGER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_FLEET_MANAGER_PRICE_ID || "";
 
 if (!STRIPE_NAVIGATOR_PRICE_ID || !STRIPE_PRO_PARKER_PRICE_ID || !STRIPE_FLEET_MANAGER_PRICE_ID) {
-  console.warn("Some Stripe price IDs are missing. Check your .env.local and restart the dev server.");
+
 }
 
 const plans = [

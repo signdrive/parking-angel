@@ -49,7 +49,7 @@ SELECT 'Real-time setup completed successfully!' as status;`
       setCopied(key)
       setTimeout(() => setCopied(null), 2000)
     } catch (err) {
-      console.error("Failed to copy:", err)
+
     }
   }
 

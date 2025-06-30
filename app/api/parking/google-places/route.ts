@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ spots: allSpots })
   } catch (error) {
-    console.error("Google Places API error:", error)
+
     return NextResponse.json({ spots: [] })
   }
 }

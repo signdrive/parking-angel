@@ -11,25 +11,25 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
         .then((registration) => {
-          console.log("Service Worker registered successfully:", registration)
+
           
           // Check for updates
           registration.addEventListener("updatefound", () => {
-            console.log("Service Worker update found")
+
           })
         })
         .catch((error) => {
-          console.error("Service Worker registration failed:", error)
+
         })
     } else if ("serviceWorker" in navigator && process.env.NODE_ENV === "development") {
       // In development, register but with minimal interference
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
         .then((registration) => {
-          console.log("Service Worker registered (dev mode):", registration)
+
         })
         .catch((error) => {
-          console.warn("Service Worker registration failed (dev mode):", error)
+
         })
     }
 
@@ -37,7 +37,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     let deferredPrompt: any
 
     const handleBeforeInstallPrompt = (e: Event) => {
-      console.log("PWA install prompt available")
+
       e.preventDefault()
       deferredPrompt = e
 
@@ -46,7 +46,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     }
 
     const handleAppInstalled = () => {
-      console.log("PWA was installed")
+
       deferredPrompt = null
       window.dispatchEvent(new CustomEvent("pwa-installed"))
     }

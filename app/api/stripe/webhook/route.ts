@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
           .upsert(subscriptionData);
 
         if (subscriptionError) {
-          console.error('Webhook Error: Failed to update subscription:', subscriptionError);
+
           throw subscriptionError;
         }
 
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
           .insert(eventData);
 
         if (eventError) {
-          console.warn('Webhook Warning: Failed to log subscription event:', eventError);
+
           // Don't throw here, as the main subscription update was successful
         }
 
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
 
         if (!userId || !tier) {
           const error = 'Missing userId or tier in subscription metadata';
-          console.error('Webhook Error:', error);
+
           return NextResponse.json({ error }, { status: 400 });
         }
 
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
           .match({ user_id: userId });
 
         if (error) {
-          console.error('Webhook Error: Failed to update subscription:', error);
+
           throw error;
         }
 
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error('Webhook Error: Processing failed:', err.message, err.stack);
+
     return NextResponse.json(
       { error: `Webhook processing failed: ${err.message}` },
       { status: 500 }

@@ -67,7 +67,7 @@ export function PWAStatus() {
         })
       }
     } catch (error) {
-      console.error("Error enabling notifications:", error)
+
     }
   }
 
