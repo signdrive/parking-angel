@@ -57,14 +57,9 @@ export default function AuthCallbackClient() {
       processed.current = true;
       const supabase = getBrowserClient();
       
-      // Get return_to from multiple possible sources
-      const returnToParam = searchParams.get('return_to');
-      const redirectToParam = searchParams.get('redirect_to');
-      const storedReturnTo = typeof window !== 'undefined' ? localStorage.getItem(AUTH_RETURN_TO_KEY) : null;
+      // PRIORITY 1: Check for checkout intent first - this takes absolute priority
+      let returnTo = '/dashboard'; // Default fallback
       
-      let returnTo = returnToParam || redirectToParam || storedReturnTo || '/dashboard';
-      
-      // Check if this is a checkout flow - prioritize checkout intent if found
       if (typeof window !== 'undefined') {
         try {
           const cachedCheckoutIntent = localStorage.getItem(CHECKOUT_INTENT_KEY);
@@ -74,11 +69,21 @@ export default function AuthCallbackClient() {
             
             if (isFresh && plan) {
               returnTo = `/checkout-redirect?plan=${plan}`;
+              console.log('Auth flow completed, redirecting to:', returnTo);
             }
           }
         } catch (e) {
           // Silently ignore parsing errors
         }
+      }
+      
+      // PRIORITY 2: If no checkout intent, use return_to from URL params or localStorage
+      if (returnTo === '/dashboard') {
+        const returnToParam = searchParams.get('return_to');
+        const redirectToParam = searchParams.get('redirect_to');
+        const storedReturnTo = typeof window !== 'undefined' ? localStorage.getItem(AUTH_RETURN_TO_KEY) : null;
+        
+        returnTo = returnToParam || redirectToParam || storedReturnTo || '/dashboard';
       }
       
       // For PKCE flow, we need to let Supabase handle the session automatically
@@ -116,10 +121,14 @@ export default function AuthCallbackClient() {
             : 'unknown';
           const totalDuration = performance.now() - metrics.startTime;
           
+          console.log('Auth flow completed, redirecting to:', returnTo);
+          
           // For faster redirects, especially on checkout flows, use direct navigation
           if (returnTo.includes('/checkout-redirect')) {
+            console.log('Using window.location.href for checkout redirect');
             window.location.href = returnTo;
           } else {
+            console.log('Using router.replace for standard redirect');
             router.replace(returnTo);
           }
         } else {
@@ -134,9 +143,12 @@ export default function AuthCallbackClient() {
               router.replace('/auth/login');
             } else {
               // Success - redirect to intended destination
+              console.log('Auth flow completed, redirecting to:', returnTo);
               if (returnTo.includes('/checkout-redirect')) {
+                console.log('Using window.location.href for checkout redirect');
                 window.location.href = returnTo;
               } else {
+                console.log('Using router.replace for standard redirect');
                 router.replace(returnTo);
               }
             }
