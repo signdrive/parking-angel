@@ -32,8 +32,6 @@ const webhookSecret = process.env.NODE_ENV === 'development'
 // IMPORTANT: This handler is deprecated. Please use /api/stripe-webhook instead.
 // This is kept for historical reference only.
 export async function POST(req: NextRequest) {
-  console.warn('[DEPRECATED WEBHOOK] This webhook handler is deprecated. Please use /api/stripe-webhook instead.');
-  
   // Return 410 Gone to indicate this endpoint is no longer in use
   return NextResponse.json(
     { error: 'This endpoint is deprecated. Please use /api/stripe-webhook instead.' },
@@ -47,7 +45,6 @@ export async function POST(req: NextRequest) {
   const stripeSignature = req.headers.get('stripe-signature');
 
   if (!stripeSignature) {
-    console.error('Webhook Error: No signature provided');
     return NextResponse.json({ error: 'No signature provided' }, { status: 400 });
   }
 
@@ -57,10 +54,6 @@ export async function POST(req: NextRequest) {
     // Use the non-null assertion operator since we've checked that stripeSignature is not null
     event = stripe.webhooks.constructEvent(body, stripeSignature!, webhookSecret);
   } catch (err: any) {
-    console.error('Webhook Error: Signature verification failed:', err.message, {
-      signature: stripeSignature?.substring(0, 20) + '...' || 'null',
-      bodyPreview: body.substring(0, 100) + '...'
-    });
     return NextResponse.json({ error: `Webhook signature verification failed: ${err.message}` }, { status: 400 });
   }
     
@@ -73,7 +66,6 @@ export async function POST(req: NextRequest) {
 
         if (!userId || !tier) {
           const error = 'Missing userId or tier in session metadata';
-          console.error('Webhook Error:', error, { userId, tier });
           return NextResponse.json({ error }, { status: 400 });
         }
 
@@ -86,7 +78,6 @@ export async function POST(req: NextRequest) {
             subscription = response;
           }
         } catch (err: any) {
-          console.warn('Webhook Warning: Failed to retrieve subscription details:', err.message);
           // Continue processing even if subscription fetch fails
         }
 

@@ -1,72 +1,25 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from '@/components/auth/auth-provider';
+import { useAuth } from '@/hooks/use-auth';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 export default function CheckoutRedirectPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const auth = useAuth(); // Get the full auth object
-  const { user, isLoading } = auth; // Destructure from the auth object
+  const { user, initialized } = useAuth();
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [performanceMetrics, setPerformanceMetrics] = useState<{
-    pageLoadTime?: number;
-    authReadyTime?: number;
-    checkoutStartTime?: number;
-    checkoutCompleteTime?: number;
-  }>({});
+  const [loadingMessage, setLoadingMessage] = useState("Initializing...");
   const planId = searchParams.get('plan');
-  const checkoutAttempted = useRef(false);
-  
-  // Start timing as soon as component mounts
-  useEffect(() => {
-    setPerformanceMetrics(prev => ({
-      ...prev,
-      pageLoadTime: performance.now()
-    }));
-    
-    // Pre-fetch the checkout API to reduce latency
-    if (planId && user) {
-      const controller = new AbortController();
-      const signal = controller.signal;
-      
-      // Prefetch the API route
-      fetch("/api/stripe/create-checkout-session", {
-        method: "HEAD",
-        signal
-      }).catch(() => {
-        // Ignore errors from prefetch
-      });
-      
-      return () => {
-        controller.abort();
-      };
-    }
-  }, [planId, user]);
-
-  // Track when auth is ready
-  useEffect(() => {
-    if (!isLoading) {
-      setPerformanceMetrics(prev => ({
-        ...prev,
-        authReadyTime: performance.now()
-      }));
-    }
-  }, [isLoading]);
+ 
+ const checkoutAttempted = useRef(false);
 
   const startCheckout = useCallback(async (planIdentifier: string) => {
-    if (checkoutAttempted.current) return; // Prevent double-execution
+    if (checkoutAttempted.current) return;
     checkoutAttempted.current = true;
-    
+    setLoadingMessage("Preparing your checkout experience...");
+
     try {
-      setLoading(true);
-      setPerformanceMetrics(prev => ({
-        ...prev,
-        checkoutStartTime: performance.now()
-      }));
-      
       // Cache intent in localStorage in case we need to recover
       localStorage.setItem('checkout_intent', JSON.stringify({ 
         plan: planIdentifier,
@@ -75,8 +28,8 @@ export default function CheckoutRedirectPage() {
 
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+       
+       headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tier: planIdentifier }),
       });
 
@@ -91,58 +44,39 @@ export default function CheckoutRedirectPage() {
         throw new Error("No Stripe URL returned");
       }
       
-      setPerformanceMetrics(prev => ({
-        ...prev,
-        checkoutCompleteTime: performance.now()
-      }));
-
-      // Log performance metrics before redirecting
-      const metrics = {
-        pageLoadToAuthReady: performanceMetrics.authReadyTime ? 
-          (performanceMetrics.authReadyTime - performanceMetrics.pageLoadTime!) : 'N/A',
-        authReadyToCheckoutStart: performanceMetrics.checkoutStartTime && performanceMetrics.authReadyTime ? 
-          (performanceMetrics.checkoutStartTime - performanceMetrics.authReadyTime) : 'N/A',
-        checkoutStartToComplete: performanceMetrics.checkoutCompleteTime && performanceMetrics.checkoutStartTime ? 
-          (performanceMetrics.checkoutCompleteTime - performanceMetrics.checkoutStartTime) : 'N/A',
-        totalTime: performanceMetrics.checkoutCompleteTime && performanceMetrics.pageLoadTime ? 
-          (performanceMetrics.checkoutCompleteTime - performanceMetrics.pageLoadTime!) : 'N/A'
-      };
-      
-      // Redirect to Stripe - using window.location for faster redirect
+      setLoadingMessage("Redirecting to secure payment...");
       window.location.href = url;
-    } catch (err: any) {
-      console.error('Checkout error:', err);
+   } catch (err: any) {
       setError(err.message || "Something went wrong during checkout");
-      checkoutAttempted.current = false; // Allow retry on error
-    } finally {
-      setLoading(false);
+     checkoutAttempted.current = false; // Allow retry on error
     }
-  }, [performanceMetrics]);
+  }, []);
 
   // Main checkout flow - optimized for performance
   useEffect(() => {
     if (!planId) {
-      setError("No plan selected. Please select a subscription plan.");
+      setError("No plan selected. Redirecting to pricing page...");
+      setTimeout(() => {
+        router.replace('/#pricing');
+      }, 3000);
       return;
     }
     
-    if (isLoading) return; // Wait for auth to initialize
-    
-    if (!user) {
+    if (user) {
+      // User is logged in, proceed with checkout
+      startCheckout(planId);
+    } else {
       // If not logged in, store intent and redirect to login
+      setLoadingMessage("Redirecting to login...");
       localStorage.setItem('checkout_intent', JSON.stringify({ 
         plan: planId,
         timestamp: Date.now()
       }));
       
-      router.replace(`/auth/login?return_to=${encodeURIComponent(`/checkout-redirect?plan=${planId}`)}`);
-      return;
+     router.replace(`/auth/login?return_to=${encodeURIComponent(`/checkout-redirect?plan=${planId}`)}`);
     }
     
-    // User is logged in and plan is selected, proceed with checkout
-    startCheckout(planId);
-    
-  }, [user, isLoading, planId, router, startCheckout]);
+  }, [user, initialized, planId, router, startCheckout]);
 
   if (error) {
     return (
@@ -152,7 +86,13 @@ export default function CheckoutRedirectPage() {
           onClick={() => {
             checkoutAttempted.current = false;
             setError("");
-            if (planId) startCheckout(planId);
+            if (planId && user) {
+              startCheckout(planId);
+            } else if (planId) {
+              router.replace(`/auth/login?return_to=${encodeURIComponent(`/checkout-redirect?plan=${planId}`)}`);
+            } else {
+              router.replace('/#pricing');
+            }
           }}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
         >
@@ -164,9 +104,9 @@ export default function CheckoutRedirectPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] p-4">
-      <LoadingSpinner text={loading ? "Preparing your checkout experience..." : "Redirecting to Stripe..."} />
+      <LoadingSpinner text={loadingMessage} />
       <p className="text-center mt-2 text-sm text-gray-500">
-        You'll be redirected to our secure payment provider in a moment.
+        Please wait, we're preparing your secure checkout.
       </p>
     </div>
   );

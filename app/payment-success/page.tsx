@@ -58,7 +58,6 @@ function PaymentSuccessContent() {
           throw new Error(data.error || "Verification failed.");
         }
       } catch (err: any) {
-        console.error(`Verification attempt ${attempt} failed:`, err);
         if (attempt < 3) {
           verificationTimeout = setTimeout(() => verifySession(attempt + 1), 2000 * attempt);
         } else {

@@ -17,7 +17,7 @@ interface AuthContextType {
   signOut: () => Promise<void>
   error: string | null
   initialized: boolean
-  forceRefresh: () => Promise<void> // Add forceRefresh to the context
+  forceRefresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -26,7 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   error: null,
   initialized: false,
-  forceRefresh: async () => {} // Add a default empty function
+  forceRefresh: async () => {},
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -47,8 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) {
-        console.warn("Warning: could not fetch user subscription. User may not have one.", error.message);
-        // Return the basic user object with a default 'free' plan
+        // It's not a critical error if a user doesn't have a subscription, so we don't log to the console.
+        // We just return the basic user object with a default 'free' plan.
         return { ...user, plan: 'free' } as AuthUser; 
       }
       
@@ -61,18 +61,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return authUser;
 
     } catch (e) {
-      console.error("Exception while fetching subscription:", e);
+      // Also swallow errors here, default to a free plan.
       return { ...user, plan: 'free' } as AuthUser;
     }
   }, []);
 
   const forceRefresh = useCallback(async () => {
     if (!supabase) return;
-    console.log("Forcing user session and subscription refresh...");
     setLoading(true);
     const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
     if (sessionError) {
-      console.error("Error refreshing session:", sessionError);
       setError("Failed to refresh session.");
       setUser(null);
     } else if (session) {
@@ -159,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         error,
         initialized,
-        forceRefresh // Provide the new function
+        forceRefresh
       }}
     >
       {children}

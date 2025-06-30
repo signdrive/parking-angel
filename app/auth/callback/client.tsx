@@ -77,7 +77,7 @@ export default function AuthCallbackClient() {
             }
           }
         } catch (e) {
-          console.error('Error parsing checkout intent:', e);
+          // Silently ignore parsing errors
         }
       }
       
@@ -86,7 +86,6 @@ export default function AuthCallbackClient() {
         setMetrics(prev => ({ ...prev, sessionCheckTime: performance.now() }));
         
         if (error) {
-          console.error('Error getting session:', error);
           toast({
             title: "Authentication Error",
             description: error.message || "There was a problem signing you in. Please try again.",
@@ -127,7 +126,6 @@ export default function AuthCallbackClient() {
           // No session yet, try to exchange the code
           supabase.auth.exchangeCodeForSession(code).then(({ data, error: exchangeError }) => {
             if (exchangeError) {
-              console.error('Error exchanging code:', exchangeError);
               toast({
                 title: "Authentication Error",
                 description: exchangeError.message || "There was a problem signing you in. Please try again.",

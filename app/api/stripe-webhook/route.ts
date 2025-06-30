@@ -35,7 +35,6 @@ export async function POST(req: Request) {
     let eventType: string | undefined;
     
     if (!signature) {
-      console.error('[Webhook] No Stripe signature found');
       throw new APIError('No Stripe signature found', 400, 'missing_signature');
     }
 
@@ -52,7 +51,6 @@ export async function POST(req: Request) {
       eventId = event.id;
       eventType = event.type;
     } catch (err) {
-      console.error('[Webhook] Signature verification failed:', err);
       throw new APIError('Signature verification failed', 400, 'invalid_signature');
     }
 
@@ -68,7 +66,6 @@ export async function POST(req: Request) {
         const tier = session.metadata?.tier;
 
         if (!userId) {
-          console.error('[Webhook] No user ID in session metadata', { metadata: session.metadata });
           throw new APIError('No user ID in session metadata', 400, 'missing_user_id');
         }
 
@@ -85,8 +82,8 @@ export async function POST(req: Request) {
             .single();
             
           if (profileCheckError) {
-            console.error('[Webhook] Failed to check profile existence:', profileCheckError);
-            // Continue anyway - it might be a new user
+            // This is not a fatal error, as the user might be new.
+            // We can proceed with the upsert.
           }
 
           // Prepare update data
@@ -117,21 +114,11 @@ export async function POST(req: Request) {
               break; // Success, exit retry loop
             }
             
-            console.error(`[Webhook] Update attempt ${attempt + 1} failed:`, updateError);
-            
             // Short delay before retry
             if (attempt < 2) await new Promise(r => setTimeout(r, 300));
           }
 
           if (updateError) {
-            console.error('[Webhook] All update attempts failed:', {
-              error: updateError,
-              userId,
-              customerId,
-              tier: subscriptionTier,
-              elapsed: Date.now() - startTime + 'ms'
-            });
-
             // Log error to the events table
             await supabase.from('subscription_events').insert({
               user_id: userId,
@@ -159,8 +146,6 @@ export async function POST(req: Request) {
               .select('id, subscription_tier, subscription_status');
 
             if (fallbackError) {
-              console.error('[Webhook] Even fallback update failed:', fallbackError);
-              
               // Last resort: try updating only the essential fields
               const { error: lastResortError, data: lastResortData } = await supabase
                 .from('profiles')
@@ -172,7 +157,6 @@ export async function POST(req: Request) {
                 .select('id, subscription_tier, subscription_status');
                 
               if (lastResortError) {
-                console.error('[Webhook] Last resort update failed:', lastResortError);
                 throw new APIError('Failed to update subscription status', 500, 'update_failed');
               } else {
                 updateResult = lastResortData;
@@ -198,7 +182,6 @@ export async function POST(req: Request) {
           });
           
         } catch (updateException) {
-          console.error('[Webhook] Exception during profile update:', updateException);
           throw new APIError('Failed to update subscription status', 500, 'update_failed');
         }
         break;
@@ -215,7 +198,6 @@ export async function POST(req: Request) {
           .single();
 
         if (userError || !userData) {
-          console.error('[Webhook] User not found for customer:', customerId);
           throw new APIError('User not found', 404, 'user_not_found');
         }
 
@@ -232,7 +214,6 @@ export async function POST(req: Request) {
           .eq('id', userData.id);
 
         if (updateError) {
-          console.error('[Webhook] Failed to reset subscription status:', updateError);
           throw new APIError('Failed to update subscription status', 500, 'update_failed');
         }
         break;
