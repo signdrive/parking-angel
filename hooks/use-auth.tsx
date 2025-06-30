@@ -40,29 +40,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return null;
     
     try {
-      const { data: subscription, error } = await supabaseClient
-        .from('user_subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
+      // Fetch user profile data which includes subscription_tier
+      const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('subscription_tier, subscription_status, stripe_customer_id, stripe_subscription_id')
+        .eq('id', user.id)
         .single();
 
-      if (error) {
-        // It's not a critical error if a user doesn't have a subscription, so we don't log to the console.
-        // We just return the basic user object with a default 'free' plan.
-        return { ...user, plan: 'free' } as AuthUser; 
+      if (error || !profile) {
+        // Return basic user with free plan if no profile exists
+        return { ...user, plan: 'free', status: 'inactive' } as AuthUser; 
       }
       
-      // Combine user and subscription data, aliasing plan_id to plan
+      // Map subscription_tier to plan for backward compatibility
+      const planMapping: Record<string, string> = {
+        'free': 'free',
+        'premium': 'navigator', 
+        'pro': 'pro_parker',
+        'enterprise': 'fleet_manager'
+      };
+      
       const authUser: AuthUser = {
         ...user,
-        ...subscription,
-        plan: subscription.plan_id
+        plan: planMapping[profile.subscription_tier || 'free'] || 'free',
+        status: profile.subscription_status || 'inactive',
+        plan_id: planMapping[profile.subscription_tier || 'free'] || 'free',
+        trial_end: null,
+        cancel_at_period_end: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
       return authUser;
 
     } catch (e) {
-      // Also swallow errors here, default to a free plan.
-      return { ...user, plan: 'free' } as AuthUser;
+      // Default to free plan on error
+      return { ...user, plan: 'free', status: 'inactive' } as AuthUser;
     }
   }, []);
 

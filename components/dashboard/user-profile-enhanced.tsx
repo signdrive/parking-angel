@@ -14,6 +14,17 @@ interface UserProfileEnhancedProps {
   user: any
 }
 
+// Helper function to get display name for plans
+const getPlanDisplayName = (plan: string): string => {
+  const planNames: Record<string, string> = {
+    'free': 'Free',
+    'navigator': 'Navigator',
+    'pro_parker': 'Pro Parker', 
+    'fleet_manager': 'Fleet Manager'
+  };
+  return planNames[plan] || 'Free';
+};
+
 export function UserProfileEnhanced({ user }: UserProfileEnhancedProps) {
   const [activeTab, setActiveTab] = useState("profile")
 
@@ -282,10 +293,16 @@ export function UserProfileEnhanced({ user }: UserProfileEnhancedProps) {
               <div className="p-4 border rounded-lg bg-blue-50">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Current Plan: Free</p>
-                    <p className="text-sm text-gray-600">Upgrade to Premium for advanced features</p>
+                    <p className="font-medium">Current Plan: {getPlanDisplayName(user?.plan || 'free')}</p>
+                    <p className="text-sm text-gray-600">
+                      {user?.plan === 'free' ? 'Upgrade to Premium for advanced features' : `Status: ${user?.status || 'Active'}`}
+                    </p>
                   </div>
-                  <Button>Upgrade</Button>
+                  {user?.plan === 'free' && (
+                    <Button onClick={() => window.location.href = '/#pricing'}>
+                      Upgrade
+                    </Button>
+                  )}
                 </div>
               </div>
 

@@ -187,7 +187,7 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
         )}        <Button
           variant="ghost"
           onClick={() => {
-            console.log('Sign out button clicked');
+
             signOut();
           }}
           className={cn(
