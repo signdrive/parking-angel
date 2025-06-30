@@ -55,7 +55,6 @@ export default function AuthCallbackClient() {
   useEffect(() => {
     if (code && !processed.current) {
       processed.current = true;
-      console.log('Found auth code, handling session...');
       const supabase = getBrowserClient();
       
       // Get return_to from multiple possible sources
@@ -74,7 +73,6 @@ export default function AuthCallbackClient() {
             const isFresh = Date.now() - timestamp < 10 * 60 * 1000; // 10 minutes
             
             if (isFresh && plan) {
-              console.log('Found cached checkout intent for plan:', plan);
               returnTo = `/checkout-redirect?plan=${plan}`;
             }
           }
@@ -82,13 +80,6 @@ export default function AuthCallbackClient() {
           console.error('Error parsing checkout intent:', e);
         }
       }
-      
-      console.log('Auth callback - returnTo params:', {
-        return_to: returnToParam,
-        redirect_to: redirectToParam,
-        final_returnTo: returnTo,
-        all_params: Object.fromEntries(searchParams.entries())
-      });
       
       // For PKCE flow, we need to let Supabase handle the session automatically
       supabase.auth.getSession().then(({ data: { session }, error }) => {
@@ -119,19 +110,12 @@ export default function AuthCallbackClient() {
           }
           
           setMetrics(prev => ({ ...prev, redirectStartTime: performance.now() }));
-          console.log('Session established successfully, redirecting to:', returnTo);
           
           // Performance metrics
           const sessionCheckDuration = metrics.sessionCheckTime 
             ? metrics.sessionCheckTime - metrics.startTime 
             : 'unknown';
           const totalDuration = performance.now() - metrics.startTime;
-          
-          console.log('Auth callback performance:', {
-            sessionCheckMs: sessionCheckDuration,
-            totalProcessingMs: totalDuration,
-            redirectingTo: returnTo
-          });
           
           // For faster redirects, especially on checkout flows, use direct navigation
           if (returnTo.includes('/checkout-redirect')) {
@@ -152,8 +136,6 @@ export default function AuthCallbackClient() {
               router.replace('/auth/login');
             } else {
               // Success - redirect to intended destination
-              console.log('Code exchanged successfully, redirecting to:', returnTo);
-              
               if (returnTo.includes('/checkout-redirect')) {
                 window.location.href = returnTo;
               } else {

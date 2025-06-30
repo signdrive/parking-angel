@@ -38,7 +38,6 @@ function PaymentSuccessContent() {
 
     const verifySession = async (attempt = 1) => {
       try {
-        console.log(`Verifying session, attempt ${attempt}...`);
         const response = await fetch('/api/stripe/verify-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -54,7 +53,6 @@ function PaymentSuccessContent() {
 
         if (data.success) {
           setStatus("success");
-          console.log("Session verified successfully. Forcing auth refresh.");
           await forceRefresh(); // Force a refresh of user data
         } else {
           throw new Error(data.error || "Verification failed.");
@@ -79,7 +77,6 @@ function PaymentSuccessContent() {
 
   useEffect(() => {
     if (status === "success" && user?.plan === tier) {
-      console.log("User plan updated in UI. Showing success message.");
       setStatus("user_updated");
       setShowConfetti(true);
     }

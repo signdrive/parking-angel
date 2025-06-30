@@ -73,6 +73,67 @@ export interface Database {
           event_data?: Json
         }
       }
+      profiles: {
+        Row: {
+          id: string
+          email: string | null
+          full_name: string | null
+          avatar_url: string | null
+          role: string | null
+          created_at: string | null
+          status: string | null
+        }
+        Insert: {
+          id: string
+          email?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          role?: string | null
+          created_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          role?: string | null
+          created_at?: string | null
+          status?: string | null
+        }
+      }
+      parking_spots: {
+        Row: {
+          id: string
+          name: string
+          spot_type: string | null
+          is_available: boolean
+          latitude: number | null
+          longitude: number | null
+          created_at: string
+          confidence_score: number | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          spot_type?: string | null
+          is_available?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          created_at?: string
+          confidence_score?: number | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          spot_type?: string | null
+          is_available?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          created_at?: string
+          confidence_score?: number | null
+        }
+      }
     }
     Views: {
       [_ in never]: never

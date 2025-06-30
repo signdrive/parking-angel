@@ -54,7 +54,6 @@ export async function POST(req: NextRequest) {
   let event: Stripe.Event;
 
   try {
-    console.log('Webhook: Verifying Stripe signature...');
     // Use the non-null assertion operator since we've checked that stripeSignature is not null
     event = stripe.webhooks.constructEvent(body, stripeSignature!, webhookSecret);
   } catch (err: any) {
@@ -66,23 +65,11 @@ export async function POST(req: NextRequest) {
   }
     
   try {
-    console.log('Webhook received:', {
-      eventType: event.type,
-      eventId: event.id,
-      webhookSecret: webhookSecret ? 'Set' : 'Not set',
-      stripeSignature: stripeSignature ? 'Present' : 'Missing',
-      bodyPreview: body.substring(0, 100)
-    });
-    
-    console.log('Webhook: Processing event:', event.type, 'ID:', event.id);
-
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as StripeCheckoutSession;
         const userId = session.metadata?.userId;
         const tier = session.metadata?.tier;
-
-        console.log('Webhook: Processing checkout completion for user:', userId);
 
         if (!userId || !tier) {
           const error = 'Missing userId or tier in session metadata';
@@ -97,14 +84,11 @@ export async function POST(req: NextRequest) {
           if (session.subscription) {
             const response = await stripe.subscriptions.retrieve(session.subscription as string);
             subscription = response;
-            console.log('Webhook: Retrieved subscription details:', subscription?.id || 'No ID');
           }
         } catch (err: any) {
           console.warn('Webhook Warning: Failed to retrieve subscription details:', err.message);
           // Continue processing even if subscription fetch fails
         }
-
-        console.log('Webhook: Updating subscription in Supabase...');
 
         // Prepare the subscription data according to the schema
         // Use type assertion to tell TypeScript that these values are strings
@@ -121,21 +105,12 @@ export async function POST(req: NextRequest) {
           updated_at: new Date().toISOString(),
         };
 
-        console.log('Webhook: Preparing to upsert subscription data:', {
-          ...subscriptionData,
-          session_id: session.id,
-          customer_email: session.customer_email,
-          payment_status: session.payment_status
-        });
-
         // First check if subscription exists
         const { data: existingSub } = await supabase
           .from('user_subscriptions')
           .select()
           .eq('user_id', userId)
           .single();
-
-        console.log('Webhook: Existing subscription:', existingSub);
 
         const { error: subscriptionError } = await supabase
           .from('user_subscriptions')
@@ -170,7 +145,6 @@ export async function POST(req: NextRequest) {
           // Don't throw here, as the main subscription update was successful
         }
 
-        console.log('Webhook: Successfully processed checkout completion');
         break;
       }
 
@@ -184,8 +158,6 @@ export async function POST(req: NextRequest) {
           console.error('Webhook Error:', error);
           return NextResponse.json({ error }, { status: 400 });
         }
-
-        console.log('Webhook: Processing subscription update for user:', userId);
 
         const updateData: Database['public']['Tables']['user_subscriptions']['Update'] = {
           user_id: userId as string,
@@ -208,7 +180,6 @@ export async function POST(req: NextRequest) {
           throw error;
         }
 
-        console.log('Webhook: Successfully processed subscription update');
         break;
       }
     }

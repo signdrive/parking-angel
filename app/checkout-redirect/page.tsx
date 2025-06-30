@@ -73,8 +73,6 @@ export default function CheckoutRedirectPage() {
         timestamp: Date.now()
       }));
 
-      console.log(`Starting checkout for plan: ${planIdentifier}`);
-      
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,8 +108,6 @@ export default function CheckoutRedirectPage() {
           (performanceMetrics.checkoutCompleteTime - performanceMetrics.pageLoadTime!) : 'N/A'
       };
       
-      console.log('Checkout flow performance metrics (ms):', metrics);
-      
       // Redirect to Stripe - using window.location for faster redirect
       window.location.href = url;
     } catch (err: any) {
@@ -139,7 +135,6 @@ export default function CheckoutRedirectPage() {
         timestamp: Date.now()
       }));
       
-      console.log('User not authenticated, redirecting to login...');
       router.replace(`/auth/login?return_to=${encodeURIComponent(`/checkout-redirect?plan=${planId}`)}`);
       return;
     }

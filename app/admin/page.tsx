@@ -56,18 +56,15 @@ export default function AdminDashboard() {
 
     async function fetchUserRole() {
       if (!user?.id) {
-        console.log('No user ID available')
         if (isMounted) {
           setRoleError('No user ID available')
           setRoleLoading(false)
         }
         return
       }      try {
-        console.log('Fetching role for user:', user.id, user.email)
         const supabase = getBrowserClient();
 
         if (user.user_metadata?.role === 'admin') {
-          console.log('Found admin role in user metadata')
           if (isMounted) {
             setRole('admin')
             setRoleLoading(false);
@@ -91,15 +88,12 @@ export default function AdminDashboard() {
         }
 
         if (!profileData) {
-          console.log('No profile found, checking email list')
           if (user.email && ['admin@parkalgo.com', 'admin@parking-angel.com', 'signdrive@gmail.com'].includes(user.email)) {
-            console.log('Email found in admin list')
             setRole('admin')
           } else {
             setRole('user')
           }
         } else {
-          console.log('Profile found:', profileData)
           setRole(profileData.role || 'user')
         }
         
@@ -131,7 +125,6 @@ export default function AdminDashboard() {
       const message = role === null 
         ? 'Access denied: Role not loaded yet or user not authenticated.'
         : `Access denied: User is not admin (role: ${role})`
-      console.log(message)
       
       if ((role !== null && !isAdmin) || (!authLoading && !user)) {
          toast({ title: "Access Denied", description: "You do not have permission to view this page.", variant: "destructive" });
