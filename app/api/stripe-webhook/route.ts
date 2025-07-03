@@ -9,7 +9,7 @@ type SubscriptionTier = Database['public']['Enums']['subscription_tier'];
 
 // Initialize Stripe with optimized settings
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-05-28.basil',
+  apiVersion: '2025-06-30.basil',
   timeout: 5000 // Add timeout to prevent long-hanging requests
 });
 

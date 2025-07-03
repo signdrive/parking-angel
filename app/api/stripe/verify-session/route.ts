@@ -4,155 +4,86 @@ import { getServerClient } from '@/lib/supabase/server-utils';
 
 // Initialize Stripe with optimized settings
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-05-28.basil',
+  apiVersion: '2025-06-30.basil',
   timeout: 5000 // Add timeout to prevent long-hanging requests
 });
 
-// Define valid payment status types
-type StripePaymentStatus = Stripe.Checkout.Session.PaymentStatus;
-type StripePaymentIntentStatus = Stripe.PaymentIntent.Status;
-
-// Map from Stripe price ID tiers to Supabase subscription_tier enum values
-const TIER_MAPPING: Record<string, string> = {
-  'navigator': 'premium',
-  'pro_parker': 'pro',
-  'fleet_manager': 'enterprise'
-};
-
-export async function GET(req: NextRequest) {
-  const startTime = Date.now();
-  
+export async function POST(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const sessionId = searchParams.get('session_id');
+    const { sessionId } = await req.json();
 
     if (!sessionId) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No session ID provided' 
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Session ID is required' },
+        { status: 400 }
+      );
     }
 
-
-    
-    // Retrieve the session from Stripe - use Promise.all to parallelize operations
-    const sessionPromise = stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['subscription', 'customer', 'payment_intent']
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription']
     });
-    
-    // Get the Supabase client in parallel
-    const supabaseClientPromise = getServerClient();
-    
-    // Await both promises together
-    const [session, supabaseClient] = await Promise.all([
-      sessionPromise,
-      supabaseClientPromise
-    ]);
 
     if (!session) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Session not found' 
-      }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      );
     }
 
-    // Log session details for debugging
-
-
-    // For the first few retries, we don't need to verify the user
-    // This helps when the webhook hasn't processed yet
-    const retryCount = parseInt(searchParams.get('retry') || '0');
-    
-    // Check payment status
-    const paymentStatus = session.payment_status as StripePaymentStatus;
-    const paymentIntentStatus = (session.payment_intent as Stripe.PaymentIntent)?.status as StripePaymentIntentStatus;
-    const subscriptionStatus = (session.subscription as Stripe.Subscription)?.status;
-
-    // If payment is complete or subscription is active
-    if (paymentStatus === 'paid' || 
-        paymentIntentStatus === 'succeeded' ||
-        paymentStatus === 'no_payment_required' ||
-        subscriptionStatus === 'active') {
-      
-      let profileData = null;
-      let profileError = null;
-      let updatedManually = false;
-      
-      // Only check the database if we have a userId
-      if (session.metadata?.userId) {
-        // First try to query the current subscription status
-        const result = await supabaseClient
-          .from('profiles')
-          .select('subscription_tier, subscription_status, updated_at')
-          .eq('id', session.metadata.userId)
-          .single();
-          
-        profileData = result.data;
-        profileError = result.error;
-        
-
-
-        const targetTier = TIER_MAPPING[session.metadata.tier as keyof typeof TIER_MAPPING] || session.metadata.tier;
-
-        // If the profile exists but the plan is not yet updated, update it manually
-        if (profileData && (profileData.subscription_tier !== targetTier || profileData.subscription_status !== 'active')) {
-
-          
-          const { error: updateError } = await supabaseClient
-            .from('profiles')
-            .update({
-              subscription_tier: targetTier,
-              subscription_status: 'active',
-              stripe_customer_id: session.customer as string,
-              stripe_subscription_id: session.subscription as string,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', session.metadata.userId);
-
-          if (updateError) {
-
-            // Don't block success, but log the error. The webhook should eventually fix it.
-          } else {
-
-            updatedManually = true;
-          }
-        }
-      }
-      
-      const duration = Date.now() - startTime;
-
-      
-      return NextResponse.json({ 
-        success: true,
-        updated: updatedManually,
-        tier: session.metadata?.tier 
+    // Verify payment status
+    if (session.payment_status !== 'paid') {
+      return NextResponse.json({
+        status: 'pending',
+        message: 'Payment not completed'
       });
     }
 
-    // If payment is still pending after some time, it might be a slow process
-    if (paymentStatus === 'unpaid' && retryCount > 2) {
-
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Payment is still processing. Please wait a few more moments.' 
-      }, { status: 202 }); // Accepted
+    // Verify subscription was created
+    if (!session.subscription) {
+      return NextResponse.json({
+        status: 'error',
+        message: 'No subscription found'
+      });
     }
 
-    // Otherwise, the payment is not yet confirmed
-    const duration = Date.now() - startTime;
+    // Double-check subscription in Supabase
+    const supabase = await getServerClient();
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('subscription_status, subscription_tier')
+      .eq('id', session.metadata?.user_id)
+      .single();
 
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Payment not confirmed yet.' 
-    }, { status: 202 }); // Accepted, client should retry
+    if (profileError || !profile) {
+      console.error('Error verifying profile:', profileError);
+      return NextResponse.json({
+        status: 'error',
+        message: 'Error verifying subscription'
+      });
+    }
 
-  } catch (err: any) {
-    const elapsed = Date.now() - startTime;
-    
+    // Verify subscription is active
+    if (profile.subscription_status !== 'active') {
+      return NextResponse.json({
+        status: 'pending',
+        message: 'Subscription pending activation'
+      });
+    }
+
+    // Everything is good!
     return NextResponse.json({
-      success: false,
-      error: err.message || 'Failed to verify session',
-      elapsedMs: elapsed
-    }, { status: 500 });
+      status: 'complete',
+      tier: profile.subscription_tier
+    });
+
+  } catch (error) {
+    console.error('Error verifying session:', error);
+    return NextResponse.json(
+      { 
+        status: 'error',
+        message: 'Failed to verify payment'
+      },
+      { status: 500 }
+    );
   }
 }

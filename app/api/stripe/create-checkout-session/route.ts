@@ -1,111 +1,104 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUser } from '@/lib/server-auth'
 import Stripe from "stripe";
+import { createClient } from '@/lib/supabase/server';
 
 // Initialize Stripe with optimized settings
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-05-28.basil",
+  apiVersion: "2025-06-30.basil",
   httpClient: Stripe.createFetchHttpClient(),
   timeout: 5000, // Add timeout to prevent long-hanging requests
 });
 
 const PRICE_IDS = {
-  navigator: process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID!,
-  pro_parker: process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID!,
-  fleet_manager: process.env.NEXT_PUBLIC_STRIPE_FLEET_MANAGER_PRICE_ID!
+  free: '', // Free plan has no price ID
+  premium: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID!,
+  pro: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID!,
+  enterprise: process.env.NEXT_PUBLIC_STRIPE_ENTERPRISE_PRICE_ID!
 } as const;
 
 type PlanTier = keyof typeof PRICE_IDS;
 type CheckoutSessionParams = Stripe.Checkout.SessionCreateParams;
 type StripeMetadata = Record<string, string | number | null>;
 
-export async function HEAD(req: NextRequest) {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Allow': 'POST'
-    }
-  });
-}
-
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
+  const supabase = createClient();
   
   try {
-    // Parse request body first (faster than auth check)
-    const body = await req.json();
-    const { tier } = body as { tier: PlanTier };
+    // Parse request body
+    const { planId, priceId } = await req.json();
     
-    if (!tier || !(tier in PRICE_IDS)) {
-
+    if (!planId || !PRICE_IDS[planId as PlanTier]) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
     
-    // Get user info (auth) - perform in parallel with other preparations
-    const userPromise = getUser();
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    // Get price ID
-    const priceId = PRICE_IDS[tier];
-    
-    // Get the base URL dynamically based on the request host
-    const host = req.headers.get('host') || '';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const baseUrl = `${protocol}://${host}`;
-    
-    // Wait for user authentication
-    const user = await userPromise;
-    if (!user) {
-
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Prepare metadata
-    const metadata: StripeMetadata = {
-      userId: user.id,
-      tier,
-      customerEmail: user.email || null
-    };
+    // Get or create Stripe customer
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', user.id)
+      .single();
 
-    // Prepare minimal session parameters for faster creation
+    let customerId = profile?.stripe_customer_id;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: {
+          supabase_uid: user.id,
+        },
+      });
+      customerId = customer.id;
+
+      await supabase
+        .from('profiles')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', user.id);
+    }
+
+    // Prepare session parameters
     const sessionParams: CheckoutSessionParams = {
+      customer: customerId,
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`,
-      cancel_url: `${baseUrl}/failed`,
-      metadata,
-      subscription_data: { metadata },
+      success_url: `${process.env.NEXT_PUBLIC_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_URL}/plans`,
+      metadata: {
+        user_id: user.id,
+        plan_id: planId
+      },
+      subscription_data: {
+        metadata: {
+          user_id: user.id,
+          plan_id: planId
+        }
+      },
       allow_promotion_codes: true
     };
 
-    // Only add customer_email if it exists
-    if (user.email) {
-      sessionParams.customer_email = user.email;
-    }
-
-    // Create the session with Stripe
+    // Create the session
     const session = await stripe.checkout.sessions.create(sessionParams);
-   
-    const duration = Date.now() - startTime;
-   
-    // Return immediately without unnecessary processing
+    
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
-    const duration = Date.now() - startTime;
+    console.error('Checkout session error:', err);
     
     // Handle specific Stripe errors
     if (err.type === 'StripeCardError') {
       return NextResponse.json({ error: 'Your card was declined.' }, { status: 400 });
     } else if (err.type === 'StripeInvalidRequestError') {
       return NextResponse.json({ error: 'Invalid request to Stripe.' }, { status: 400 });
-    } else if (err.type === 'StripeAPIError') {
-      return NextResponse.json({ error: 'Stripe API error.' }, { status: 500 });
     }
     
-    return NextResponse.json(
-      { error: err.message || 'Failed to create checkout session' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
   }
 }
