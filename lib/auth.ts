@@ -13,20 +13,34 @@ export async function signInWithGoogle(
 ): Promise<AuthResult<{ provider: string; url: string }>> {
   try {
     const supabase = getBrowserClient()
-    console.log(`[lib/auth.ts] Using redirectTo: '${redirectTo}'`)
+    
+    // Make sure redirectTo is absolute
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : process.env.NEXT_PUBLIC_APP_URL
+
+    const finalRedirectTo = redirectTo.startsWith('http') 
+      ? redirectTo 
+      : `${baseUrl}${redirectTo}`
+
+    // Clear any existing auth state to prevent issues
+    await supabase.auth.signOut()
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo,
+        redirectTo: finalRedirectTo,
+        skipBrowserRedirect: false,
         queryParams: {
           access_type: 'offline',
-        },
-      },
+          prompt: 'consent'
+        }
+      }
     })
+
     if (error) throw error
     return { data, error: null }
   } catch (error) {
-    console.error('Sign in error:', error)
     return { data: null, error: error as AuthError }
   }
 }
@@ -45,7 +59,6 @@ export async function signInWithEmail(
     if (error) throw error
     return { data, error: null }
   } catch (error) {
-    console.error('Sign in error:', error)
     return { data: null, error: error as AuthError }
   }
 }
@@ -170,5 +183,25 @@ export async function refreshClientSession(): Promise<{ session: Session | null;
   } catch (error) {
     console.error('Session refresh error:', error)
     return { session: null, error: error as AuthError }
+  }
+}
+
+// Ensure proper session handling on page load
+export async function initAuth() {
+  const supabase = getBrowserClient()
+  
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) throw error
+    
+    if (!session) {
+      // Try to exchange code for session if in URL
+      const params = new URLSearchParams(window.location.search)
+      if (params.has('code')) {
+        await supabase.auth.exchangeCodeForSession(params.get('code')!)
+      }
+    }
+  } catch (error) {
+    console.warn('Auth initialization error:', error)
   }
 }

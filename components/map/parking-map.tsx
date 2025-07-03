@@ -124,21 +124,30 @@ export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
     spots.forEach((spot) => {
       const el = document.createElement("div")
       el.className = "parking-spot-marker"
-      el.innerHTML = `
-        <div class="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:bg-green-600 transition-colors">          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+      const markerHtml = `
+        <div class="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:bg-green-600 transition-colors">
+          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
           </svg>
         </div>
       `
+      el.innerHTML = markerHtml
 
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+      const popupHtml = `
         <div class="p-2">
           <h3 class="font-semibold">${spot.spot_type ? spot.spot_type.charAt(0).toUpperCase() + spot.spot_type.slice(1) : 'Unknown'} Parking</h3>
-          <p class="text-sm text-gray-600">${spot.address || "Address not available"}</p>
-          <p class="text-xs text-gray-500">Updated: ${spot.updated_at ? new Date(spot.updated_at).toLocaleTimeString() : 'Unknown'}</p>
-          <p class="text-xs text-green-600">Confidence: ${spot.confidence_score || 0}%</p>
+          <p class="text-sm text-gray-600">${spot.name || "Location not available"}</p>
+          <p class="text-xs text-gray-500">Created: ${new Date(spot.created_at).toLocaleTimeString()}</p>
+          <p class="text-xs text-green-600">Confidence: ${spot.confidence_score ?? 0}%</p>
         </div>
-      `)
+      `
+      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(popupHtml)
+
+      // Add type guard before using coordinates
+      if (!spot.latitude || !spot.longitude) {
+        console.warn(`Skipping spot ${spot.id} due to missing coordinates`)
+        return
+      }
 
       const marker = new mapboxgl.Marker(el)
         .setLngLat([spot.longitude, spot.latitude])

@@ -312,9 +312,9 @@ export class AIParkingPredictor {
     })
 
     return (data || [])
-      .filter((s) => s.id !== spot.id)
+      .filter((s: { id: string }) => s.id !== spot.id)
       .slice(0, 3)
-      .map((s) => s.id.toString())
+      .map((s: { id: string }) => s.id.toString())
   }
 
   async generateDemandForecast(lat: number, lng: number, date: Date): Promise<ParkingDemandForecast[]> {

@@ -29,7 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
-    console.log("TfL API response:", data.length, "places found")
+    if (!Array.isArray(data)) {
+      return NextResponse.json({ error: "Invalid response from TfL API" }, { status: 502 })
+    }
 
     // Transform TfL data to our parking spot format
     const spots = data
@@ -97,7 +99,6 @@ export async function POST(request: NextRequest) {
         }
       })
 
-    console.log("Transformed TfL spots:", spots.length)
     return NextResponse.json({ spots })
   } catch (error) {
     console.error("TfL API error:", error)

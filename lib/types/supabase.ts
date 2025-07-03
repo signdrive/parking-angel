@@ -6,6 +6,19 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export interface ParkingSpot {
+  id: string
+  name: string
+  spot_type: string | null
+  is_available: boolean
+  latitude: number
+  longitude: number
+  created_at: string
+  updated_at: string
+  confidence_score: number | null
+  address: string | null
+}
+
 export interface Database {
   public: {
     Tables: {

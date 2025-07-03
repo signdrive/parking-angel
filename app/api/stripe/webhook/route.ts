@@ -1,13 +1,24 @@
 import { headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { Database } from '@/lib/types/supabase';
+import type { Database } from '@/lib/types/supabase';
+import type {
+  StripeSubscriptionWithMetadata,
+  StripeInvoiceWithSubscription,
+  SubscriptionStatus,
+} from '@/lib/types/stripe-types';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-// Create a Supabase client with the service role key for webhook
+// Initialize Stripe with the secret key
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-06-30.basil',
+  httpClient: Stripe.createFetchHttpClient(),
+});
+
+// Initialize Supabase client with service role key for webhook
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role key for webhook
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
     auth: {
       autoRefreshToken: false,
@@ -16,25 +27,42 @@ const supabase = createClient<Database>(
   }
 );
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-06-30.basil',
-  httpClient: Stripe.createFetchHttpClient(),
-});
+async function updateUserSubscription(
+  userId: string,
+  subscriptionId: string,
+  status: SubscriptionStatus,
+  planId: string,
+  currentPeriodEnd: number
+) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      subscription_id: subscriptionId,
+      subscription_status: status,
+      plan_id: planId,
+      subscription_period_end: new Date(currentPeriodEnd * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('Error updating user subscription:', error);
+    throw error;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.text();
-    const headersList = headers();
-    const signature = headersList.get('stripe-signature');
+    const signatureHeader = req.headers.get('stripe-signature');
 
-    if (!signature) {
+    if (!signatureHeader) {
       return new NextResponse('No signature found', { status: 400 });
     }
 
     const event = stripe.webhooks.constructEvent(
       payload,
-      signature,
+      signatureHeader,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
 
@@ -44,85 +72,101 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
 
-        // Verify metadata exists
         if (!session.metadata?.user_id || !session.metadata?.plan_id) {
           throw new Error('Missing metadata in session');
         }
 
-        // Update user profile with subscription info
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({
-            subscription_tier: session.metadata.plan_id,
-            subscription_status: 'active',
-            stripe_customer_id: session.customer as string,
-            stripe_subscription_id: session.subscription as string,
-            subscription_updated_at: new Date().toISOString(),
-          })
-          .eq('id', session.metadata.user_id);
-
-        if (updateError) {
-          throw new Error(`Error updating profile: ${updateError.message}`);
+        if (!session.subscription) {
+          throw new Error('No subscription in session');
         }
+
+        // Get subscription details
+        const subscription = (await stripe.subscriptions.retrieve(
+          session.subscription as string
+        )) as unknown as StripeSubscriptionWithMetadata;
+
+        await updateUserSubscription(
+          session.metadata.user_id,
+          subscription.id,
+          subscription.status as SubscriptionStatus,
+          session.metadata.plan_id,
+          subscription.current_period_end
+        );
 
         break;
       }
 
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
-
-        if (!subscription.metadata?.user_id) {
-          throw new Error('Missing user_id in subscription metadata');
-        }
-
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({
-            subscription_status: subscription.status,
-            cancel_at_period_end: subscription.cancel_at_period_end,
-            subscription_updated_at: new Date().toISOString(),
-          })
-          .eq('id', subscription.metadata.user_id);
-
-        if (updateError) {
-          throw new Error(`Error updating subscription: ${updateError.message}`);
-        }
-
-        break;
-      }
-
+      case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object as StripeSubscriptionWithMetadata;
+        const userId = subscription.metadata.user_id;
 
-        if (!subscription.metadata?.user_id) {
-          throw new Error('Missing user_id in subscription metadata');
+        if (!userId) {
+          throw new Error('No user_id in subscription metadata');
         }
 
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({
-            subscription_tier: 'free',
-            subscription_status: 'inactive',
-            stripe_subscription_id: null,
-            cancel_at_period_end: false,
-            subscription_updated_at: new Date().toISOString(),
-          })
-          .eq('id', subscription.metadata.user_id);
+        await updateUserSubscription(
+          userId,
+          subscription.id,
+          subscription.status as SubscriptionStatus,
+          subscription.metadata.plan_id,
+          subscription.current_period_end
+        );
 
-        if (updateError) {
-          throw new Error(`Error resetting subscription: ${updateError.message}`);
+        break;
+      }
+
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as StripeInvoiceWithSubscription;
+
+        if (invoice.subscription) {
+          const subscription = (await stripe.subscriptions.retrieve(
+            invoice.subscription
+          )) as unknown as StripeSubscriptionWithMetadata;
+
+          if (subscription.metadata.user_id) {
+            await updateUserSubscription(
+              subscription.metadata.user_id,
+              subscription.id,
+              subscription.status as SubscriptionStatus,
+              subscription.metadata.plan_id,
+              subscription.current_period_end
+            );
+          }
+        }
+
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as StripeInvoiceWithSubscription;
+
+        if (invoice.subscription) {
+          const subscription = (await stripe.subscriptions.retrieve(
+            invoice.subscription
+          )) as unknown as StripeSubscriptionWithMetadata;
+
+          if (subscription.metadata.user_id) {
+            await updateUserSubscription(
+              subscription.metadata.user_id,
+              subscription.id,
+              'past_due',
+              subscription.metadata.plan_id,
+              subscription.current_period_end
+            );
+          }
         }
 
         break;
       }
     }
 
-    return new NextResponse(null, { status: 200 });
-  } catch (err: any) {
-    console.error('Webhook error:', err.message);
+    return new NextResponse(JSON.stringify({ received: true }));
+  } catch (error) {
+    console.error('Webhook error:', error);
     return new NextResponse(
-      `Webhook Error: ${err.message}`,
-      { status: err.statusCode || 400 }
+      JSON.stringify({ error: 'Webhook handler failed' }),
+      { status: 400 }
     );
   }
 }

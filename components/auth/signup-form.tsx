@@ -160,6 +160,7 @@ export function SignUpForm() {
               required
               disabled={loading || googleLoading}
               minLength={6}
+              autoComplete="new-password"
             />
           </div>
 

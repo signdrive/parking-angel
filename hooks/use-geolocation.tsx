@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useRef } from "react"
 
 interface GeolocationState {
   latitude: number | null
@@ -9,15 +9,31 @@ interface GeolocationState {
   loading: boolean
 }
 
-export function useGeolocation() {
+interface GeolocationOptions extends PositionOptions {
+  maxRetries?: number
+  retryDelay?: number
+}
+
+export function useGeolocation(options: GeolocationOptions = {}) {
+  const {
+    maxRetries = 3,
+    retryDelay = 1000,
+    enableHighAccuracy = true,
+    timeout = 5000,
+    maximumAge = 0,
+  } = options
+
   const [state, setState] = useState<GeolocationState>({
     latitude: null,
     longitude: null,
     error: null,
-    loading: true,
+    loading: false,
   })
 
-  const requestGeolocation = () => {
+  const retryCount = useRef(0)
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+
+  const requestGeolocation = useCallback(() => {
     if (!navigator.geolocation) {
       setState((prev) => ({
         ...prev,
@@ -30,6 +46,7 @@ export function useGeolocation() {
     setState((prev) => ({ ...prev, loading: true }))
 
     const handleSuccess = (position: GeolocationPosition) => {
+      retryCount.current = 0
       setState({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
@@ -39,6 +56,14 @@ export function useGeolocation() {
     }
 
     const handleError = (error: GeolocationPositionError) => {
+      if (retryCount.current < maxRetries) {
+        retryCount.current++
+        timeoutRef.current = setTimeout(() => {
+          requestGeolocation()
+        }, retryDelay)
+        return
+      }
+
       setState((prev) => ({
         ...prev,
         error: error.message,
@@ -47,11 +72,25 @@ export function useGeolocation() {
     }
 
     navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 300000,
+      enableHighAccuracy,
+      timeout,
+      maximumAge,
     })
-  }
+  }, [maxRetries, retryDelay, enableHighAccuracy, timeout, maximumAge])
 
-  return { ...state, requestGeolocation }
+  const cancel = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+    setState((prev) => ({
+      ...prev,
+      loading: false,
+    }))
+  }, [])
+
+  return {
+    ...state,
+    requestGeolocation,
+    cancel,
+  }
 }
