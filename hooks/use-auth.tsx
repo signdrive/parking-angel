@@ -3,8 +3,8 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import type { User, SupabaseClient } from "@supabase/supabase-js"
-import { getBrowserClient } from "@/lib/supabase/browser"
-import { Database } from "@/lib/types/supabase"
+import { createBrowserClient } from '@supabase/ssr'
+import { Database } from "../lib/types/database"
 
 // Define a more detailed user type that includes subscription data
 type Subscription = Database['public']['Tables']['user_subscriptions']['Row'];
@@ -97,7 +97,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    const client = getBrowserClient()
+    const client = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
     setSupabase(client)
 
     const updateUserAndSubscription = async (session: any) => {

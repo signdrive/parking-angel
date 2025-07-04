@@ -13,12 +13,13 @@ import { useGeolocation } from "@/hooks/use-geolocation"
 import { SiteFooter } from "@/components/layout/site-footer"
 import { useAuth } from "@/components/auth/auth-provider"
 
-const STRIPE_NAVIGATOR_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID || "";
-const STRIPE_PRO_PARKER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID || "";
-const STRIPE_FLEET_MANAGER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_FLEET_MANAGER_PRICE_ID || "";
+const STRIPE_NAVIGATOR_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID || "price_navigator_default";
+const STRIPE_PRO_PARKER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID || "price_pro_parker_default";
+const STRIPE_FLEET_MANAGER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_FLEET_MANAGER_PRICE_ID || "price_fleet_manager_default";
 
+// Add default values to prevent blank page
 if (!STRIPE_NAVIGATOR_PRICE_ID || !STRIPE_PRO_PARKER_PRICE_ID || !STRIPE_FLEET_MANAGER_PRICE_ID) {
-
+  console.warn('Some Stripe price IDs are missing. Using default values for development.');
 }
 
 const plans = [

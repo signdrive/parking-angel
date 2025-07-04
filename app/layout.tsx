@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
+import { GoogleAnalytics } from '@next/third-parties/google'
 import "./globals.css"
 import { AuthProvider } from "@/components/auth/auth-provider"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -14,7 +15,6 @@ import { FloatingAIChat } from "@/components/ai/floating-ai-chat"
 import Loading from "./loading"
 import { ConsentProvider } from "@/hooks/use-consent"
 import { ConsentScreen } from "@/components/consent/consent-screen"
-import { GoogleAnalytics } from "@/components/analytics/google-analytics"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -67,6 +67,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <GoogleAnalytics gaId="G-XDLGR86H8Q" />
+      </head>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
@@ -74,27 +77,24 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Suspense fallback={<Loading />}>
-            <GoogleAnalytics />
-            <SupabaseBoundary>
-              <AuthProvider>
-                <AnalyticsProvider>
-                  <PWAProvider>
-                    <ConsentProvider>
-                      <AIAssistantProvider>
-                        <main className="min-h-screen bg-background">
-                          {children}
-                          <FloatingAIChat />
-                          <Toaster />
-                        </main>
+          <ConsentProvider>
+            <AuthProvider>
+              <AnalyticsProvider>
+                <PWAProvider>
+                  <AIAssistantProvider>
+                    <SupabaseBoundary>
+                      <Suspense fallback={<Loading />}>
+                        {children}
+                        <FloatingAIChat />
                         <ConsentScreen />
-                      </AIAssistantProvider>
-                    </ConsentProvider>
-                  </PWAProvider>
-                </AnalyticsProvider>
-              </AuthProvider>
-            </SupabaseBoundary>
-          </Suspense>
+                      </Suspense>
+                    </SupabaseBoundary>
+                  </AIAssistantProvider>
+                </PWAProvider>
+              </AnalyticsProvider>
+            </AuthProvider>
+          </ConsentProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

@@ -1,5 +1,5 @@
 // Temporary type extensions for missing Supabase functions
-import type { Database } from '../../types/supabase'
+import type { Database } from './database'
 import type { 
   CreateSpotHoldParams, 
   CreateSpotHoldResult,

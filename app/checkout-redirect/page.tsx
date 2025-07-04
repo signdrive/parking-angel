@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/components/auth/auth-provider';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 export default function CheckoutRedirectPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, initialized } = useAuth();
+  const { user } = useAuth();
   const [error, setError] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
   const planId = searchParams.get('plan');
@@ -62,8 +62,8 @@ export default function CheckoutRedirectPage() {
       return;
     }
 
-    // Wait until the auth state is fully initialized
-    if (!initialized) {
+    // Wait until the auth state is determined (user is either null or an object)
+    if (typeof user === "undefined") {
       setLoadingMessage("Verifying authentication...");
       return;
     }
@@ -82,7 +82,7 @@ export default function CheckoutRedirectPage() {
      router.replace(`/auth/login?return_to=${encodeURIComponent(`/checkout-redirect?plan=${planId}`)}`);
     }
     
-  }, [user, initialized, planId, router, startCheckout]);
+  }, [user, planId, router, startCheckout]);
 
   if (error) {
     return (
