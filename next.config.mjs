@@ -27,7 +27,64 @@ const nextConfig = {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin',
         
-          },
+                  // ...existing code...
+                    {
+                      key: 'Content-Security-Policy',
+                      value: [
+                        "default-src 'self'",
+                        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://checkout.stripe.com https://maps.googleapis.com",
+                        "script-src-elem 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com https://checkout.stripe.com https://maps.googleapis.com",
+                        "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
+                        "img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://lh3.googleusercontent.com",
+                        "font-src 'self' data:",
+                        "object-src 'none'",
+                        "base-uri 'self'",
+                        "form-action 'self'",
+                        "frame-ancestors 'none'",
+                        "frame-src 'self' https://checkout.stripe.com https://*.stripe.com https://accounts.google.com",
+                        "worker-src 'self' blob:",
+                        "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://api.stripe.com https://*.supabase.co wss://*.supabase.co https://api.mapbox.com https://overpass-api.de https://tile.openstreetmap.org https://maps.googleapis.com https://places.googleapis.com https://region1.google-analytics.com"
+                      ].join('; ')
+                    }
+          // ...existing code...          // ...existing code...
+                    {
+                      key: 'Content-Security-Policy',
+                      value: [
+                        "default-src 'self'",
+                        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://checkout.stripe.com https://maps.googleapis.com",
+                        "script-src-elem 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com https://checkout.stripe.com https://maps.googleapis.com",
+                        "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
+                        "img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://lh3.googleusercontent.com",
+                        "font-src 'self' data:",
+                        "object-src 'none'",
+                        "base-uri 'self'",
+                        "form-action 'self'",
+                        "frame-ancestors 'none'",
+                        "frame-src 'self' https://checkout.stripe.com https://*.stripe.com https://accounts.google.com",
+                        "worker-src 'self' blob:",
+                        "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://api.stripe.com https://*.supabase.co wss://*.supabase.co https://api.mapbox.com https://overpass-api.de https://tile.openstreetmap.org https://maps.googleapis.com https://places.googleapis.com https://region1.google-analytics.com"
+                      ].join('; ')
+                    }
+          // ...existing code...          // ...existing code...
+                    {
+                      key: 'Content-Security-Policy',
+                      value: [
+                        "default-src 'self'",
+                        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://checkout.stripe.com https://maps.googleapis.com",
+                        "script-src-elem 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com https://checkout.stripe.com https://maps.googleapis.com",
+                        "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
+                        "img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://lh3.googleusercontent.com",
+                        "font-src 'self' data:",
+                        "object-src 'none'",
+                        "base-uri 'self'",
+                        "form-action 'self'",
+                        "frame-ancestors 'none'",
+                        "frame-src 'self' https://checkout.stripe.com https://*.stripe.com https://accounts.google.com",
+                        "worker-src 'self' blob:",
+                        "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://api.stripe.com https://*.supabase.co wss://*.supabase.co https://api.mapbox.com https://overpass-api.de https://tile.openstreetmap.org https://maps.googleapis.com https://places.googleapis.com https://region1.google-analytics.com"
+                      ].join('; ')
+                    }
+          // ...existing code...  },
           {
             key: 'Strict-Transport-Security',
             value: 'max-age=31536000; includeSubDomains',
