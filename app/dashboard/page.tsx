@@ -13,6 +13,7 @@ import { SmartAssistant } from "@/components/ai/smart-assistant"
 import { MapPin } from "lucide-react"
 import { PWADebug } from "@/components/pwa/pwa-debug"
 import { usePersistentState } from "@/hooks/use-persistent-state"
+import { SubscriptionManagement } from "@/components/subscription/subscription-management"
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth()
@@ -169,6 +170,16 @@ export default function DashboardPage() {
           <div className="p-6 bg-gray-50 h-full overflow-y-auto">
             <div className="max-w-4xl mx-auto">
               <SmartAssistant />
+            </div>
+          </div>
+        )
+
+      case "subscription":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl font-semibold mb-4">Subscription Status</h2>
+              <SubscriptionManagement />
             </div>
           </div>
         )

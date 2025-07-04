@@ -1,28 +1,31 @@
-export type SubscriptionTier = 'free' | 'premium' | 'pro' | 'enterprise';
+export type PlanId = 'free' | 'basic' | 'premium' | 'enterprise';
+
+export interface PlanFeatures {
+  items: string[];
+  details: PlanFeature[];
+}
 
 export interface PlanFeature {
-  id: string;
   name: string;
   description: string;
   included: boolean;
 }
 
-export interface Plan {
-  id: SubscriptionTier;
+export interface SubscriptionPlan {
+  id: PlanId;
   name: string;
   description: string;
   price: number;
-  features: PlanFeature[];
   stripePriceId: string;
-  recommended?: boolean;
+  features: PlanFeatures;
+  interval?: 'month' | 'year';
+  currency?: string;
 }
 
-export interface SubscriptionStatus {
-  isActive: boolean;
-  tier: SubscriptionTier;
-  expiresAt?: string;
-  cancelAtPeriodEnd: boolean;
-  stripeCustomerId?: string;
-  stripePriceId?: string;
-  stripeSubscriptionId?: string;
+export interface SubscriptionState {
+  isSubscribed: boolean;
+  planId: PlanId | null;
+  status: 'active' | 'canceled' | 'incomplete' | 'past_due' | 'trialing' | null;
+  interval?: 'month' | 'year';
+  currentPeriodEnd?: string | null;
 }

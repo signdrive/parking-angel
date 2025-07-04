@@ -14,6 +14,7 @@ import { FloatingAIChat } from "@/components/ai/floating-ai-chat"
 import Loading from "./loading"
 import { ConsentProvider } from "@/hooks/use-consent"
 import { ConsentScreen } from "@/components/consent/consent-screen"
+import { GoogleAnalytics } from "@/components/analytics/google-analytics"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -74,6 +75,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Suspense fallback={<Loading />}>
+            <GoogleAnalytics />
             <SupabaseBoundary>
               <AuthProvider>
                 <AnalyticsProvider>

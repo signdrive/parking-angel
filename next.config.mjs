@@ -10,6 +10,36 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['@mui/icons-material']
   },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+        ],
+      },
+    ]
+  },
+  async redirects() {
+    return [
+      {
+        source: '/auth/callback',
+        destination: '/dashboard',
+        permanent: true,
+      },
+    ]
+  },
   webpack: (config, { isServer }) => {
     // Fixes npm packages that depend on `fs` module
     if (!isServer) {

@@ -4,7 +4,13 @@ export async function POST(request: NextRequest) {
   try {
     const { spotId, arrivalTime } = await request.json()
 
-    console.log("🎯 Confirming arrival at spot:", spotId, "at", arrivalTime)
+    // Remove console.log and continue processing
+    if (!spotId || !arrivalTime) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      )
+    }
 
     // Simulate arrival confirmation processing
     await new Promise((resolve) => setTimeout(resolve, 500))
@@ -24,10 +30,12 @@ export async function POST(request: NextRequest) {
       parkingDuration: "2 hours", // Default or user-selected duration
     }
 
-    console.log("✅ Arrival confirmed:", response)
+    // Remove console.log and return response
     return NextResponse.json(response)
   } catch (error) {
-    console.error("❌ Arrival confirmation error:", error)
-    return NextResponse.json({ error: "Failed to confirm arrival" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to confirm arrival" },
+      { status: 500 }
+    )
   }
 }

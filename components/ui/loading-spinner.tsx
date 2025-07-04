@@ -1,18 +1,25 @@
 "use client"
 
-import { Shield } from "lucide-react"
+import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
 interface LoadingSpinnerProps {
+  size?: "sm" | "md" | "lg";
+  className?: string;
   text?: string;
 }
 
-export function LoadingSpinner({ text = "Loading data..." }: LoadingSpinnerProps) {
+export function LoadingSpinner({ size = "md", className, text }: LoadingSpinnerProps) {
+  const sizeClass = {
+    sm: "w-4 h-4",
+    md: "w-6 h-6",
+    lg: "w-8 h-8",
+  }[size];
+
   return (
-    <div className="min-h-[200px] flex items-center justify-center">
-      <div className="text-center">
-        <Shield className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-        <p className="text-gray-600">{text}</p>
-      </div>
+    <div className="flex items-center gap-2">
+      <Loader2 className={cn("animate-spin", sizeClass, className)} />
+      {text && <span className="text-sm text-muted-foreground">{text}</span>}
     </div>
-  )
+  );
 }

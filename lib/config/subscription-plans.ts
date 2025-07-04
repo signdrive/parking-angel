@@ -1,104 +1,99 @@
-import { Plan } from '@/lib/types/subscription';
+import { SubscriptionPlan } from '../types/subscription';
 
-export const SUBSCRIPTION_PLANS: Plan[] = [
+export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: 'free',
-    name: 'Basic',
-    description: 'Perfect for getting started',
+    name: 'Free',
+    description: 'Basic parking finder features',
     price: 0,
-    stripePriceId: '', // Free plan doesn't need a Stripe price ID
-    features: [
-      {
-        id: 'basic-spots',
-        name: 'Basic Parking Spots',
-        description: 'Access to basic parking spot information',
-        included: true,
-      },
-      {
-        id: 'predictions',
-        name: 'Basic Predictions',
-        description: 'Limited parking availability predictions',
-        included: true,
-      },
-      {
-        id: 'notifications',
-        name: 'Basic Notifications',
-        description: 'Essential parking alerts',
-        included: true,
-      },
-      {
-        id: 'advanced-features',
-        name: 'Advanced Features',
-        description: 'Access to premium features',
-        included: false,
-      },
-    ],
+    stripePriceId: '',
+    features: {
+      items: [
+        'Basic parking spot search',
+        'Limited spot updates',
+        'Standard support',
+      ],
+      details: [
+        {
+          name: 'Parking Spot Search',
+          description: 'Basic search functionality',
+          included: true,
+        },
+        {
+          name: 'Spot Updates',
+          description: 'Limited to 10 updates per day',
+          included: true,
+        },
+        {
+          name: 'Support',
+          description: 'Standard email support',
+          included: true,
+        },
+      ],
+    },
+  },
+  {
+    id: 'basic',
+    name: 'Basic',
+    description: 'Enhanced parking features for regular users',
+    price: 9.99,
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_BASIC_PRICE_ID || '',
+    features: {
+      items: [
+        'All Free features',
+        'Real-time parking updates',
+        'Parking history',
+        'Priority support',
+      ],
+      details: [
+        {
+          name: 'Real-time Updates',
+          description: 'Get instant parking spot updates',
+          included: true,
+        },
+        {
+          name: 'Parking History',
+          description: 'View your parking history',
+          included: true,
+        },
+        {
+          name: 'Priority Support',
+          description: 'Get faster support response',
+          included: true,
+        },
+      ],
+    },
   },
   {
     id: 'premium',
     name: 'Premium',
-    description: 'Best for regular drivers',
-    price: 9.99,
-    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID!,
-    recommended: true,
-    features: [
-      {
-        id: 'premium-spots',
-        name: 'Premium Parking Spots',
-        description: 'Access to all parking spots',
-        included: true,
-      },
-      {
-        id: 'advanced-predictions',
-        name: 'Advanced Predictions',
-        description: 'AI-powered parking predictions',
-        included: true,
-      },
-      {
-        id: 'real-time',
-        name: 'Real-time Updates',
-        description: 'Live parking availability updates',
-        included: true,
-      },
-      {
-        id: 'priority-support',
-        name: 'Priority Support',
-        description: '24/7 priority customer support',
-        included: true,
-      },
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    description: 'For power users and businesses',
+    description: 'Advanced features for power users',
     price: 19.99,
-    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID!,
-    features: [
-      {
-        id: 'everything-premium',
-        name: 'Everything in Premium',
-        description: 'All Premium features included',
-        included: true,
-      },
-      {
-        id: 'api-access',
-        name: 'API Access',
-        description: 'Access to our REST API',
-        included: true,
-      },
-      {
-        id: 'dedicated-support',
-        name: 'Dedicated Support',
-        description: 'Personal account manager',
-        included: true,
-      },
-      {
-        id: 'custom-features',
-        name: 'Custom Features',
-        description: 'Custom feature development',
-        included: true,
-      },
-    ],
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID || '',
+    features: {
+      items: [
+        'All Basic features',
+        'AI parking predictions',
+        'Reserved spots',
+        'Premium support',
+      ],
+      details: [
+        {
+          name: 'AI Predictions',
+          description: 'Smart parking availability predictions',
+          included: true,
+        },
+        {
+          name: 'Reserved Spots',
+          description: 'Reserve parking spots in advance',
+          included: true,
+        },
+        {
+          name: 'Premium Support',
+          description: '24/7 premium support',
+          included: true,
+        },
+      ],
+    },
   },
 ];
