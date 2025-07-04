@@ -64,7 +64,7 @@ export function useSubscription() {
 
   const initiateCheckout = async (planId: string) => {
     try {
-      const response = await fetch('/api/stripe/create-checkout-session', {
+      const response = await fetch('/api/subscription/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

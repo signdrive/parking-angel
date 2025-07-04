@@ -40,10 +40,10 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com",
-              "script-src-elem 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com https://www.google-analytics.com https://ssl.google-analytics.com",
+              "script-src-elem 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com https://www.google-analytics.com https://ssl.google-analytics.com",
               "style-src 'self' 'unsafe-inline' https://api.mapbox.com https://checkout.stripe.com https://fonts.googleapis.com",
-              "img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://*.googleusercontent.com https://*.stripe.com",
+              "img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://*.googleusercontent.com https://*.stripe.com https://www.google-analytics.com https://ssl.google-analytics.com",
               "font-src 'self' data: https://checkout.stripe.com https://fonts.gstatic.com",
               "object-src 'none'",
               "base-uri 'self'",
@@ -51,7 +51,7 @@ const nextConfig = {
               "frame-ancestors 'none'",
               "frame-src 'self' https://checkout.stripe.com https://*.stripe.com https://accounts.google.com",
               "worker-src 'self' blob:",
-              "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://region1.google-analytics.com https://api.stripe.com https://*.stripe.com https://*.supabase.co wss://*.supabase.co https://api.mapbox.com https://overpass-api.de https://tile.openstreetmap.org https://maps.googleapis.com https://places.googleapis.com https://*.googleapis.com https://lh3.googleusercontent.com"
+              "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://www.google-analytics.com https://ssl.google-analytics.com https://api.stripe.com https://*.stripe.com https://*.supabase.co wss://*.supabase.co https://api.mapbox.com https://overpass-api.de https://tile.openstreetmap.org https://maps.googleapis.com https://places.googleapis.com https://*.googleapis.com https://lh3.googleusercontent.com https://www.google-analytics.com https://ssl.google-analytics.com https://stats.g.doubleclick.net"
             ].join('; ')
           }
         ],
