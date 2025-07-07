@@ -98,13 +98,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (!verifier) {
+      const allCookies = cookieStore.getAll();
       console.error('No PKCE code verifier in cookies', {
-        cookieNames: cookieStore.getAll().map((cookie: { name: string }) => cookie.name),
+        cookieNames: allCookies.map((cookie: { name: string }) => cookie.name),
+        cookieValues: allCookies.map((cookie: { name: string, value: string }) => ({
+          name: cookie.name,
+          valueLength: cookie.value?.length || 0
+        })),
         legacyVerifierExists: !!legacyVerifier,
-        newVerifierExists: !!newVerifier
+        newVerifierExists: !!newVerifier,
+        requestHeaders: Object.fromEntries(request.headers.entries())
       });
       return NextResponse.redirect(
-        new URL('/auth/error?error=no_verifier', requestUrl.origin)
+        new URL('/auth/error?error=no_verifier&debug=true', requestUrl.origin)
       );
     }
 
@@ -129,10 +135,17 @@ export async function GET(request: NextRequest) {
         redirectUrl = DEFAULT_REDIRECT;
       }
 
-      // Clean up PKCE cookies
+      // Clean up PKCE cookies with correct path
       const response = NextResponse.redirect(new URL(redirectUrl, requestUrl.origin));
-      response.cookies.delete('code_verifier');
-      response.cookies.delete('my-code-verifier');
+      response.cookies.delete('code_verifier', { path: '/' });
+      response.cookies.delete('my-code-verifier', { path: '/' });
+      
+      // Add debug headers to trace PKCE flow
+      response.headers.set('X-Auth-Debug', JSON.stringify({
+        hadVerifier: !!verifier,
+        verifierLength: verifier?.length,
+        exchangeSuccess: true
+      }));
 
       // Add plan parameter if present
       if (plan) {

@@ -61,10 +61,17 @@ export function useAuth(): AuthContextType {
       const verifier = generatePKCEVerifier();
       const challenge = await generatePKCEChallenge(verifier);
 
-      // Set cookies with proper attributes
-      const cookieOptions = 'path=/auth; secure; samesite=lax; max-age=300';
+      // Set cookies with proper attributes - use root path to ensure availability
+      const cookieOptions = 'path=/; secure; samesite=lax; max-age=300';
       document.cookie = `my-code-verifier=${verifier}; ${cookieOptions}`;
       document.cookie = `code_verifier=${verifier}; ${cookieOptions}`;
+      
+      // Debug cookie setting
+      console.log('PKCE cookies set:', {
+        verifierLength: verifier.length,
+        cookiePresent: document.cookie.includes('code_verifier'),
+        allCookies: document.cookie
+      });
 
       // Debug logging
       console.log('Starting OAuth flow with PKCE', {
