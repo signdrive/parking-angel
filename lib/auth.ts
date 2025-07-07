@@ -27,9 +27,7 @@ export async function signInWithGoogle(
         ? redirectTo 
         : `${baseUrl}${redirectTo}`
 
-    // Clear any existing auth state to prevent issues
-    await supabase.auth.signOut()
-
+    // Configure OAuth with PKCE
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -37,7 +35,9 @@ export async function signInWithGoogle(
         skipBrowserRedirect: false,
         queryParams: {
           access_type: 'offline',
-          prompt: 'consent'
+          prompt: 'select_account',
+          response_type: 'code',
+          code_challenge_method: 'S256' // Enable PKCE with SHA-256
         }
       }
     })
@@ -45,6 +45,7 @@ export async function signInWithGoogle(
     if (error) throw error
     return { data, error: null }
   } catch (error) {
+    console.error('Google sign in error:', error)
     return { data: null, error: error as AuthError }
   }
 }

@@ -54,8 +54,9 @@ const nextConfig = {
       'connect-src': [
         "'self'",
         ...googleAnalyticsDomains,
+        'https://js.stripe.com',
         'https://api.stripe.com',
-        'https://*.stripe.com',
+        'https://checkout.stripe.com',
         'https://*.supabase.co',
         'wss://*.supabase.co',
         'https://api.mapbox.com',
