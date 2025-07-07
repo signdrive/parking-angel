@@ -19,6 +19,7 @@ const ALLOWED_REDIRECT_PATHS = [
 
 const MAX_RETURN_URL_LENGTH = 500
 const DEFAULT_REDIRECT = '/dashboard'
+const PKCE_CODE_VERIFIER = 'code_verifier' // Updated to match Supabase's cookie name
 
 // Utility function to validate return URLs
 function isValidReturnUrl(returnUrl: string, origin: string): boolean {
@@ -85,8 +86,13 @@ export async function GET(request: NextRequest) {
     const error_description = requestUrl.searchParams.get('error_description')
     const plan = requestUrl.searchParams.get('plan')
     
+    // Get PKCE code verifier from cookies
+    const cookieStore = await cookies()
+    const codeVerifier = cookieStore.get(PKCE_CODE_VERIFIER)?.value
+
     console.log('Auth callback received:', { 
       code: code ? 'present' : 'missing',
+      codeVerifier: codeVerifier ? 'present' : 'missing',
       return_to,
       error,
       plan
@@ -94,28 +100,42 @@ export async function GET(request: NextRequest) {
 
     // If there's an error, redirect to error page
     if (error) {
-      return NextResponse.redirect(
+      const response = NextResponse.redirect(
         `${requestUrl.origin}/auth/error?error=${encodeURIComponent(error)}&description=${encodeURIComponent(error_description || '')}`
       )
+      response.cookies.delete(PKCE_CODE_VERIFIER)
+      return response
     }
 
-    // Validate code is present
-    if (!code) {
-      return NextResponse.redirect(
-        `${requestUrl.origin}/auth/error?error=no_code&description=${encodeURIComponent('No code provided')}`
+    // Validate code and code verifier are present
+    if (!code || !codeVerifier) {
+      const missing = !code ? 'code' : 'code_verifier'
+      const response = NextResponse.redirect(
+        `${requestUrl.origin}/auth/error?error=invalid_request&description=${encodeURIComponent(`Missing ${missing}`)}`
       )
+      response.cookies.delete(PKCE_CODE_VERIFIER)
+      return response
     }
 
-    // Exchange code for session
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    // Initialize Supabase client
+    const supabase = createRouteHandlerClient({ cookies })
+
+    // Exchange code for session using code verifier
+    const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+    // Create base response that will delete the code verifier cookie
+    const response = exchangeError
+      ? NextResponse.redirect(
+          `${requestUrl.origin}/auth/error?error=session_error&description=${encodeURIComponent(exchangeError.message)}`
+        )
+      : NextResponse.next()
+
+    // Always clean up the code verifier cookie
+    response.cookies.delete(PKCE_CODE_VERIFIER)
 
     if (exchangeError) {
       console.error('Auth callback error:', exchangeError)
-      return NextResponse.redirect(
-        `${requestUrl.origin}/auth/error?error=session_error&description=${encodeURIComponent(exchangeError.message)}`
-      )
+      return response
     }
 
     // Get the current session to verify everything worked
@@ -136,7 +156,7 @@ export async function GET(request: NextRequest) {
 
     // First check explicit return_to
     if (return_to && isValidReturnUrl(return_to, requestUrl.origin)) {
-      finalRedirectUrl = return_to
+      finalRedirectUrl = return_to.startsWith('http') ? return_to : return_to
       console.log('Using return_to URL:', finalRedirectUrl)
     }
     
@@ -157,13 +177,23 @@ export async function GET(request: NextRequest) {
       redirectTo: finalRedirectUrl
     })
 
-    // Always use absolute URLs for redirects
-    return NextResponse.redirect(`${requestUrl.origin}${finalRedirectUrl}`)
+    // Ensure URL is absolute for redirect
+    const redirectUrl = finalRedirectUrl.startsWith('http') 
+      ? finalRedirectUrl 
+      : `${requestUrl.origin}${finalRedirectUrl}`
+
+    // Add redirect to response
+    return NextResponse.redirect(redirectUrl, { 
+      status: 302,
+      headers: response.headers // Preserve cookie cleanup
+    })
 
   } catch (err) {
     console.error('Unexpected auth callback error:', err)
-    return NextResponse.redirect(
+    const response = NextResponse.redirect(
       `${requestUrl.origin}/auth/error?error=unexpected&description=${encodeURIComponent('An unexpected error occurred')}`
     )
+    response.cookies.delete(PKCE_CODE_VERIFIER)
+    return response
   }
 }

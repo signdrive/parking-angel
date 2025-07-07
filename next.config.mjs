@@ -12,6 +12,89 @@ const nextConfig = {
     optimizeCss: true // Enable CSS optimization
   },
   async headers() {
+    const googleAnalyticsDomains = [
+      'https://*.google-analytics.com',
+      'https://*.analytics.google.com',
+      'https://*.googletagmanager.com',
+      'https://analytics.google.com',
+      'https://region1.google-analytics.com',
+      'https://www.google-analytics.com',
+      'https://ssl.google-analytics.com',
+      'https://stats.g.doubleclick.net'
+    ];
+
+    const cspDirectives = {
+      'default-src': ["'self'"],
+      'script-src': [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        ...googleAnalyticsDomains,
+        'https://js.stripe.com',
+        'https://checkout.stripe.com',
+        'https://maps.googleapis.com',
+        'https://apis.google.com'
+      ],
+      'style-src': [
+        "'self'",
+        "'unsafe-inline'",
+        'https://api.mapbox.com',
+        'https://checkout.stripe.com',
+        'https://fonts.googleapis.com'
+      ],
+      'img-src': [
+        "'self'",
+        'data:',
+        'blob:',
+        'https:',
+        ...googleAnalyticsDomains,
+        'https://*.googleusercontent.com',
+        'https://*.stripe.com'
+      ],
+      'connect-src': [
+        "'self'",
+        ...googleAnalyticsDomains,
+        'https://api.stripe.com',
+        'https://*.stripe.com',
+        'https://*.supabase.co',
+        'wss://*.supabase.co',
+        'https://api.mapbox.com',
+        'https://overpass-api.de',
+        'https://tile.openstreetmap.org',
+        'https://maps.googleapis.com',
+        'https://places.googleapis.com',
+        'https://*.googleapis.com',
+        'https://lh3.googleusercontent.com'
+      ],
+      'font-src': [
+        "'self'",
+        'data:',
+        'https://checkout.stripe.com',
+        'https://fonts.gstatic.com'
+      ],
+      'object-src': ["'none'"],
+      'base-uri': ["'self'"],
+      'form-action': [
+        "'self'",
+        'https://checkout.stripe.com',
+        'https://accounts.google.com'
+      ],
+      'frame-ancestors': ["'none'"],
+      'frame-src': [
+        "'self'",
+        'https://checkout.stripe.com',
+        'https://*.stripe.com',
+        'https://accounts.google.com'
+      ],
+      'worker-src': ["'self'", 'blob:'],
+      'manifest-src': ["'self'"]
+    };
+
+    // Build CSP string from directives
+    const csp = Object.entries(cspDirectives)
+      .map(([key, values]) => `${key} ${values.join(' ')}`)
+      .join('; ');
+
     return [
       {
         source: '/:path*',
@@ -27,7 +110,6 @@ const nextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin',
-        
           },
           {
             key: 'Strict-Transport-Security',
@@ -39,22 +121,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com https://www.google-analytics.com https://ssl.google-analytics.com https://region1.google-analytics.com",
-              "script-src-elem 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com https://www.google-analytics.com https://ssl.google-analytics.com https://region1.google-analytics.com",
-              "style-src 'self' 'unsafe-inline' https://api.mapbox.com https://checkout.stripe.com https://fonts.googleapis.com",
-              "img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://*.googleusercontent.com https://*.stripe.com https://www.google-analytics.com https://ssl.google-analytics.com https://region1.google-analytics.com",
-              "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://region1.google-analytics.com wss://*.supabase.co https://*.supabase.co",
-              "font-src 'self' data: https://checkout.stripe.com https://fonts.gstatic.com",
-              "object-src 'none'",
-              "base-uri 'self'",
-              "form-action 'self' https://checkout.stripe.com https://accounts.google.com",
-              "frame-ancestors 'none'",
-              "frame-src 'self' https://checkout.stripe.com https://*.stripe.com https://accounts.google.com",
-              "worker-src 'self' blob:",
-              "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://www.google-analytics.com https://ssl.google-analytics.com https://api.stripe.com https://*.stripe.com https://*.supabase.co wss://*.supabase.co https://api.mapbox.com https://overpass-api.de https://tile.openstreetmap.org https://maps.googleapis.com https://places.googleapis.com https://*.googleapis.com https://lh3.googleusercontent.com https://www.google-analytics.com https://ssl.google-analytics.com https://stats.g.doubleclick.net"
-            ].join('; ')
+            value: csp
           }
         ],
       },
