@@ -78,6 +78,9 @@ const nextConfig = {
       },
     ]
   },
+  env: {
+    GA4_API_SECRET: process.env.GA4_API_SECRET,
+  },
 }
 
 export default nextConfig
