@@ -2,7 +2,8 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { GoogleAnalytics } from '@next/third-parties/google'
-import "./globals.css"
+import { type PropsWithChildren } from "react"
+import "./globals.css" // This will be automatically optimized by Next.js
 import { AuthProvider } from "@/components/auth/auth-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"

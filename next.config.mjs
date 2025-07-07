@@ -8,7 +8,8 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   experimental: {
-    optimizePackageImports: ['@mui/icons-material']
+    optimizePackageImports: ['@mui/icons-material'],
+    optimizeCss: true // Enable CSS optimization
   },
   async headers() {
     return [
@@ -40,10 +41,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com https://www.google-analytics.com https://ssl.google-analytics.com",
-              "script-src-elem 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com https://www.google-analytics.com https://ssl.google-analytics.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com https://www.google-analytics.com https://ssl.google-analytics.com https://region1.google-analytics.com",
+              "script-src-elem 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com https://js.stripe.com https://checkout.stripe.com https://maps.googleapis.com https://apis.google.com https://www.google-analytics.com https://ssl.google-analytics.com https://region1.google-analytics.com",
               "style-src 'self' 'unsafe-inline' https://api.mapbox.com https://checkout.stripe.com https://fonts.googleapis.com",
-              "img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://*.googleusercontent.com https://*.stripe.com https://www.google-analytics.com https://ssl.google-analytics.com",
+              "img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://*.googleusercontent.com https://*.stripe.com https://www.google-analytics.com https://ssl.google-analytics.com https://region1.google-analytics.com",
+              "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://region1.google-analytics.com wss://*.supabase.co https://*.supabase.co",
               "font-src 'self' data: https://checkout.stripe.com https://fonts.gstatic.com",
               "object-src 'none'",
               "base-uri 'self'",
