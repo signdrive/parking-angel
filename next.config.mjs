@@ -35,7 +35,8 @@ const nextConfig = {
         'https://js.stripe.com',
         'https://checkout.stripe.com',
         'https://maps.googleapis.com',
-        'https://apis.google.com'
+        'https://apis.google.com',
+        'https://accounts.google.com'
       ],
       'style-src': [
         "'self'",

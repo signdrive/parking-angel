@@ -5,14 +5,22 @@ import { User, createClient } from '@supabase/supabase-js';
 import { Database } from '@/lib/types/supabase';
 import { useRouter } from 'next/navigation';
 
+export interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  signInWithGoogle: (redirectTo?: string) => Promise<void>;
+  error: Error | null;
+}
+
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export function useAuth() {
+export function useAuth(): AuthContextType {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -42,42 +50,58 @@ export function useAuth() {
 
   const signInWithGoogle = useCallback(async (redirectTo: string = '/dashboard') => {
     try {
-      const baseUrl = typeof window !== 'undefined' 
-        ? window.location.origin 
-        : process.env.NEXT_PUBLIC_APP_URL;
+      setLoading(true);
+      setError(null);
+
+      // Clear any existing verifier cookies first
+      document.cookie = 'my-code-verifier=; path=/auth; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'code_verifier=; path=/auth; expires=Thu, 01 Jan 1970 00:00:00 GMT';
 
       // Generate PKCE verifier and challenge
       const verifier = generatePKCEVerifier();
       const challenge = await generatePKCEChallenge(verifier);
 
-      // Store verifier in secure cookie
-      document.cookie = `my-code-verifier=${verifier}; path=/auth; secure; samesite=lax; max-age=300`;
-      document.cookie = `code_verifier=${verifier}; path=/auth; secure; samesite=lax; max-age=300`;
+      // Set cookies with proper attributes
+      const cookieOptions = 'path=/auth; secure; samesite=lax; max-age=300';
+      document.cookie = `my-code-verifier=${verifier}; ${cookieOptions}`;
+      document.cookie = `code_verifier=${verifier}; ${cookieOptions}`;
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      // Debug logging
+      console.log('Starting OAuth flow with PKCE', {
+        challenge,
+        hasCookies: document.cookie.includes('code_verifier')
+      });
+
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${baseUrl}${redirectTo}`,
+          redirectTo: `${window.location.origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',
             code_challenge: challenge,
-            code_challenge_method: 'S256'
+            code_challenge_method: 'S256',
+            response_type: 'code'
           }
         }
       });
 
-      if (error) throw error;
-    } catch (error) {
-      console.error('Google sign in error:', error);
-      throw error;
+      if (signInError) throw signInError;
+
+    } catch (err) {
+      console.error('Google sign in error:', err);
+      setError(err instanceof Error ? err : new Error('Failed to sign in with Google'));
+      throw err;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   return { 
     user, 
     loading,
-    signInWithGoogle 
+    signInWithGoogle,
+    error 
   } as const;
 }
 
