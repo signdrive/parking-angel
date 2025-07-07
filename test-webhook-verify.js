@@ -13,20 +13,127 @@
  * - Verify the response
  */
 
-require('dotenv').config({ path: '.env.local' });
-const Stripe = require('stripe');
-const fetch = require('node-fetch');
-const crypto = require('crypto');
+import 'dotenv/config';
+import Stripe from 'stripe';
+import fetch from 'node-fetch';
+import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize Stripe with your secret key
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-05-28.basil'
+  apiVersion: '2025-06-30.basil'
 });
 
-// Your webhook secret for testing 
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
-// Helper to verify response
+// Helper function to create a test user in Supabase
+async function createTestUser() {
+  const timestamp = Date.now();
+  const email = `test.user.${timestamp}@parking-angel-test.com`;
+  const password = `TestPass123!${timestamp}`;
+
+  console.log('Creating test user with email:', email);
+
+  try {
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: 'Test User',
+          created_at: new Date().toISOString()
+        }
+      }
+    });
+
+    if (signUpError) {
+      console.error('Error signing up user:', signUpError);
+      throw signUpError;
+    }
+
+    if (!signUpData.user) {
+      throw new Error('No user data returned from signup');
+    }
+
+    // Wait for the user to be fully created
+    console.log('Waiting for user to be confirmed...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Verify the user exists
+    const { data: userData, error: userError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', signUpData.user.id)
+      .single();
+
+    if (userError || !userData) {
+      console.error('Error verifying user profile:', userError);
+      throw new Error('Failed to verify user creation');
+    }
+
+    console.log('Test user created successfully:', signUpData.user.id);
+    return signUpData.user;
+  } catch (error) {
+    console.error('Error in createTestUser:', error);
+    throw error;
+  }
+}
+
+// Helper function to delete test user from Supabase
+async function deleteTestUser(userId) {
+  if (!userId) return;
+  
+  console.log('Cleaning up test user:', userId);
+  try {
+    // First remove from profiles table
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+    
+    if (profileError) {
+      console.error('Error deleting user profile:', profileError);
+    }
+
+    // Then remove from user_subscriptions table
+    const { error: subError } = await supabase
+      .from('user_subscriptions')
+      .delete()
+      .eq('user_id', userId);
+    
+    if (subError) {
+      console.error('Error deleting user subscriptions:', subError);
+    }
+
+    // Finally delete the auth user
+    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+    if (authError) {
+      console.error('Error deleting Supabase auth user:', authError);
+    }
+
+    console.log('Successfully cleaned up test user data');
+  } catch (error) {
+    console.error('Error cleaning up test user:', error);
+  }
+}
+
+// Helper to generate webhook signature
+function generateStripeSignature(payload) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signedPayload = `${timestamp}.${payload}`;
+  const signature = crypto
+    .createHmac('sha256', webhookSecret)
+    .update(signedPayload)
+    .digest('hex');
+  
+  return `t=${timestamp},v1=${signature}`;
+}
+
+// Helper to verify webhook response
 async function checkEndpointResponse(url, payload, signature) {
   try {
     console.log(`Testing endpoint: ${url}`);
@@ -53,124 +160,135 @@ async function checkEndpointResponse(url, payload, signature) {
     return response.status;
   } catch (error) {
     console.error('Error calling endpoint:', error);
-    return null;
+    return 500;
   }
 }
 
-// Helper to generate a webhook signature
-function generateWebhookSignature(payload, secret) {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const payloadToSign = `${timestamp}.${payload}`;
-  const signature = crypto.createHmac('sha256', secret)
-    .update(payloadToSign)
-    .digest('hex');
-  
-  return `t=${timestamp},v1=${signature}`;
+// Use hardcoded webhook secret as specified
+const webhookSecret = 'parkalgo.com';
+
+// Get price IDs from env
+const NAVIGATOR_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID;
+const PRO_PARKER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID;
+const FLEET_MANAGER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_FLEET_MANAGER_PRICE_ID;
+
+if (!NAVIGATOR_PRICE_ID || !PRO_PARKER_PRICE_ID || !FLEET_MANAGER_PRICE_ID) {
+  console.error('❌ One or more Stripe price IDs are not set in .env.local');
+  process.exit(1);
 }
 
+// Main test function
 async function testWebhook() {
+  let testUser;
+  let customer;
+  let subscription;
+
   try {
-    console.log('🧪 Testing Stripe webhook functionality...');
-    
-    // Generate a random test user ID
-    const testUserId = `test_${crypto.randomUUID()}`;
-    
-    // Create a test checkout session (this won't charge anyone)
-    console.log('📝 Creating test checkout session...');
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID,
-          quantity: 1
-        }
-      ],
-      success_url: 'http://localhost:3000/payment-success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: 'http://localhost:3000/failed',
+    // Step 1: Create a test user in Supabase
+    console.log('Creating test user in Supabase...');
+    testUser = await createTestUser();
+    console.log('Test user created:', testUser.id);
+
+    // Step 2: Create a Stripe customer with the Supabase user ID
+    console.log('Creating Stripe customer...');
+    customer = await stripe.customers.create({
+      email: testUser.email,
       metadata: {
-        userId: testUserId,
-        tier: 'navigator',
-        test: true
-      },
-      subscription_data: {
-        metadata: {
-          userId: testUserId,
-          tier: 'navigator',
-          test: true
-        }
+        supabaseUuid: testUser.id
       }
     });
-    
-    console.log(`✅ Test session created: ${session.id}`);
-    console.log(`   User ID: ${testUserId}`);
-    console.log(`   Tier: navigator`);
-    
-    // Create a mock completed checkout session event
-    const eventData = {
-      id: `evt_test_${Date.now()}`,
-      object: 'event',
-      api_version: '2025-05-28.basil',
-      created: Math.floor(Date.now() / 1000),
-      data: {
-        object: {
-          ...session,
-          payment_status: 'paid',
-          status: 'complete'
+    console.log('Stripe customer created:', customer.id);
+
+    // Step 3: Create a test subscription
+    console.log('Creating test subscription...');
+    subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [{ price: NAVIGATOR_PRICE_ID }],
+      metadata: {
+        supabaseUuid: testUser.id
+      }
+    });
+    console.log('Test subscription created:', subscription.id);
+
+    // Step 4: Generate and send webhook events
+    console.log('Generating webhook events...');
+    const events = [
+      {
+        type: 'customer.subscription.created',
+        data: {
+          object: subscription
         }
-      },
-      livemode: false,
-      pending_webhooks: 1,
-      request: { id: null },
-      type: 'checkout.session.completed'
-    };
-    
-    const payload = JSON.stringify(eventData);
-    
-    // Generate a valid signature (if we have the secret)
-    let signature = 'test_signature';
-    if (endpointSecret) {
-      signature = generateWebhookSignature(payload, endpointSecret);
-      console.log('✅ Generated valid webhook signature');
-    } else {
-      console.warn('⚠️ No webhook secret found, using test signature (will fail signature verification)');
+      }
+    ];
+
+    // Test endpoints
+    const endpoints = [
+      'http://localhost:3000/api/stripe-webhook',
+      'http://localhost:3000/api/stripe/webhook'
+    ];
+
+    // Test each endpoint
+    for (const endpoint of endpoints) {
+      console.log(`\nTesting ${endpoint}...`);
+      
+      for (const event of events) {
+        console.log(`\nTesting event type: ${event.type}`);
+        
+        const payload = JSON.stringify({
+          id: `evt_${crypto.randomBytes(16).toString('hex')}`,
+          object: 'event',
+          api_version: '2025-06-30.basil',
+          created: Math.floor(Date.now() / 1000),
+          data: event.data,
+          type: event.type,
+          livemode: false
+        });
+
+        const signature = generateStripeSignature(payload);
+        const status = await checkEndpointResponse(endpoint, payload, signature);
+
+        if (status === 200) {
+          console.log(`✅ Webhook test succeeded for ${endpoint} with ${event.type}`);
+        } else {
+          console.error(`❌ Webhook test failed for ${endpoint} with ${event.type} (status: ${status})`);
+        }
+      }
     }
-    
-    // Test the main webhook endpoint
-    console.log('\n🔍 Testing primary webhook endpoint...');
-    const mainStatus = await checkEndpointResponse(
-      'http://localhost:3000/api/stripe-webhook',
-      payload,
-      signature
-    );
-    
-    // Test the alternative webhook endpoint
-    console.log('\n🔍 Testing alternative webhook endpoint...');
-    const altStatus = await checkEndpointResponse(
-      'http://localhost:3000/api/stripe/webhook',
-      payload,
-      signature
-    );
-    
-    console.log('\n📊 Test Results:');
-    console.log(`Primary webhook endpoint: ${mainStatus === 200 ? '✅ Success' : '❌ Failed'}`);
-    console.log(`Alternative webhook endpoint: ${altStatus === 200 ? '✅ Success' : '❌ Failed'}`);
-    
-    // Test with invalid signature
-    console.log('\n🔍 Testing with invalid signature (should fail)...');
-    const invalidSig = 't=1234567890,v1=invalid_signature';
-    const invalidStatus = await checkEndpointResponse(
-      'http://localhost:3000/api/stripe-webhook',
-      payload,
-      invalidSig
-    );
-    
-    console.log(`Invalid signature test: ${invalidStatus === 400 ? '✅ Correctly rejected' : '❌ Failed (should be rejected)'}`);
-    
+
   } catch (error) {
-    console.error('❌ Test failed:', error);
-    process.exit(1);
+    console.error('Error during test:', error);
+  } finally {
+    // Clean up resources
+    console.log('Cleaning up...');
+    
+    if (subscription) {
+      try {
+        await stripe.subscriptions.del(subscription.id);
+        console.log('Subscription deleted');
+      } catch (error) {
+        console.error('Error deleting subscription:', error);
+      }
+    }
+
+    if (customer) {
+      try {
+        await stripe.customers.del(customer.id);
+        console.log('Customer deleted');
+      } catch (error) {
+        console.error('Error deleting customer:', error);
+      }
+    }
+
+    if (testUser?.id) {
+      try {
+        await deleteTestUser(testUser.id);
+        console.log('Test user deleted');
+      } catch (error) {
+        console.error('Error deleting test user:', error);
+      }
+    }
   }
 }
 
-testWebhook();
+// Run the test
+testWebhook().catch(console.error);

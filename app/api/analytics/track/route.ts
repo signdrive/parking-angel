@@ -3,23 +3,20 @@ import { getClientUser } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
-    const { user } = await getClientUser()
-    const { event, data } = await request.json()
+    const { event, properties } = await request.json()
 
-    // Log analytics event to your backend
-    console.log("Analytics Event:", {
-      userId: user?.id,
-      event,
-      data,
-      timestamp: new Date().toISOString(),
-    })
+    if (!event) {
+      return NextResponse.json({ error: "Missing event name" }, { status: 400 })
+    }
 
-    // You can store this in your database for custom analytics
-    // or send to other analytics services
+    // Track the event using the analytics service
+    // await trackEvent(event, properties); // Uncomment and implement this line to track the event
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error tracking analytics:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to track analytics event" },
+      { status: 500 }
+    )
   }
 }

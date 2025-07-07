@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { getBrowserClient } from "@/lib/supabase/browser"
-import { Database } from "@/lib/types/supabase"
-
-type ParkingSpot = Database['public']['Tables']['parking_spots']['Row']
+import { ParkingSpot } from "@/lib/types/supabase-helpers"
 
 export function useParkingSpots({ latitude, longitude, radius = 500 }: { latitude?: number | null, longitude?: number | null, radius?: number }) {
   const supabase = getBrowserClient()

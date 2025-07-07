@@ -1,26 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from '@supabase/supabase-js';
-import { subscriptionService } from '@/lib/services/subscription-service';
+import { SubscriptionService } from '@/lib/services/subscription-service';
+import { getDirectServerClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { planId, returnUrl } = await req.json();
+    const supabase = getDirectServerClient();
+    const subscriptionService = new SubscriptionService(supabase);
+    const { userId, priceId } = await req.json();
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    const session = await subscriptionService.createCheckoutSession(
-      user.id,
-      planId,
-      returnUrl
-    );
+    const session = await subscriptionService.createCheckoutSession({
+      userId,
+      priceId,
+      successUrl: `${new URL(req.url).origin}/payment-success`,
+      cancelUrl: `${new URL(req.url).origin}/subscription?canceled=true`
+    });
 
     return NextResponse.json(session);
   } catch (error) {

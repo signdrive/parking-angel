@@ -1,6 +1,6 @@
 import { getBrowserClient } from './supabase/browser'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from './types/supabase'
+import type { Database } from './types/database'
 
 export interface ParkingNotification {
   id: string

@@ -14,11 +14,17 @@ An intelligent parking management system with real-time spot detection, AI-power
 - **Analytics Dashboard** - Usage insights and trends
 - **Premium Subscription** - Tiered subscription plans via Stripe
 
+## 📚 Documentation
+
+- [Webhook Setup & Integration](docs/WEBHOOK_SETUP.md) - Complete guide for Stripe webhook handling
+- [Subscription Flow](docs/SUBSCRIPTION_FLOW_STATUS.md) - Subscription management workflow
+- [Stripe Test Cards](docs/STRIPE_TEST_CARDS.md) - Test card details for development
+
 ## 🔧 Quick Setup
 
 ### 1. Deploy to Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/parking-angel)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/parkalgo/parking-angel)
 
 ### 2. Add Integrations
 
@@ -52,7 +58,7 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 # App URLs
-NEXT_PUBLIC_APP_URL=https://your-domain.com
+NEXT_PUBLIC_APP_URL=https://www.parkalgo.com
 
 # Stripe (Public)
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
@@ -80,7 +86,7 @@ This application follows security best practices:
 
 \`\`\`bash
 # Clone the repository
-git clone https://github.com/your-username/parking-angel.git
+git clone https://github.com/parkalgo/parking-angel.git
 cd parking-angel
 
 # Install dependencies
@@ -287,7 +293,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 - **Documentation**: Check the `/docs` folder
 - **Issues**: Create a GitHub issue
 - **Discussions**: Use GitHub Discussions
-- **Email**: support@parking-angel.com
+- **Email**: support@parkalgo.com
 
 ---
 

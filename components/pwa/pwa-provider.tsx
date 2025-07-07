@@ -22,15 +22,12 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
 
         })
     } else if ("serviceWorker" in navigator && process.env.NODE_ENV === "development") {
-      // In development, register but with minimal interference
-      navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
-        .then((registration) => {
-
-        })
-        .catch((error) => {
-
-        })
+      // In development, unregister any existing service workers
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          registration.unregister();
+        }
+      });
     }
 
     // Handle PWA installation prompt

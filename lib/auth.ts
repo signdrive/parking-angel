@@ -19,9 +19,13 @@ export async function signInWithGoogle(
       ? window.location.origin 
       : process.env.NEXT_PUBLIC_APP_URL
 
-    const finalRedirectTo = redirectTo.startsWith('http') 
-      ? redirectTo 
-      : `${baseUrl}${redirectTo}`
+    // Force localhost in development
+    const devBaseUrl = 'http://localhost:3000'
+    const finalRedirectTo = process.env.NODE_ENV === 'development'
+      ? `${devBaseUrl}${redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`}`
+      : redirectTo.startsWith('http') 
+        ? redirectTo 
+        : `${baseUrl}${redirectTo}`
 
     // Clear any existing auth state to prevent issues
     await supabase.auth.signOut()

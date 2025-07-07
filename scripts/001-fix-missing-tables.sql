@@ -52,18 +52,8 @@ CREATE TABLE IF NOT EXISTS public.ai_predictions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create subscriptions table if it doesn't exist
-CREATE TABLE IF NOT EXISTS public.subscriptions (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-    tier TEXT NOT NULL CHECK (tier IN ('free', 'premium', 'enterprise')),
-    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'expired', 'pending')),
-    stripe_subscription_id TEXT,
-    current_period_start TIMESTAMP WITH TIME ZONE,
-    current_period_end TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Note: Subscriptions are now handled by the user_subscriptions table
+-- See migration 20250706000001_cleanup_subscription_tables.sql
 
 -- Create indexes for the new tables
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications (user_id);

@@ -1,0 +1,12 @@
+{
+  "name": "stripe-webhook-tests",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "dotenv": "latest",
+    "node-fetch": "latest",
+    "stripe": "latest"
+  }
+}

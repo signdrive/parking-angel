@@ -1,6 +1,6 @@
 import { getBrowserClient } from './supabase/browser'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from './types/supabase'
+import type { Database } from './types/database'
 
 export interface PremiumPlan {
   id: string
@@ -144,29 +144,29 @@ export const PREMIUM_PLANS: PremiumPlan[] = [
 
 export class PremiumFeatureService {
   private static instance: PremiumFeatureService
-  private supabase: SupabaseClient<Database>
+  private client: SupabaseClient<Database>
   private initialized: boolean = false
 
-  private constructor() {
-    this.supabase = getBrowserClient()
+  private constructor(client: SupabaseClient<Database>) {
+    this.client = client
     this.initialized = true
   }
 
-  static getInstance(): PremiumFeatureService {
-    if (!PremiumFeatureService.instance) {
-      PremiumFeatureService.instance = new PremiumFeatureService()
+  static getInstance(client?: SupabaseClient<Database>): PremiumFeatureService {
+    if (!PremiumFeatureService.instance && client) {
+      PremiumFeatureService.instance = new PremiumFeatureService(client)
     }
     return PremiumFeatureService.instance
   }
 
   private checkInitialized() {
-    if (!this.initialized || !this.supabase) {
+    if (!this.initialized || !this.client) {
       throw new Error('PremiumFeatureService not properly initialized')
     }
   }
   async getUserSubscription(userId: string): Promise<UserSubscription | null> {
     this.checkInitialized()
-    const { data } = await this.supabase.from("user_subscriptions").select("*").eq("user_id", userId).single()
+    const { data } = await this.client.from("user_subscriptions").select("*").eq("user_id", userId).single()
 
     if (!data) return null
 
@@ -211,7 +211,7 @@ export class PremiumFeatureService {
   async startFreeTrial(userId: string, planId: string): Promise<{ success: boolean; error?: string }> {
     try {
       // Check if user already had a trial
-      const { data: existingTrial } = await this.supabase
+      const { data: existingTrial } = await this.client
         .from("user_subscriptions")
         .select("trial_end")
         .eq("user_id", userId)
@@ -225,7 +225,7 @@ export class PremiumFeatureService {
       const trialEnd = new Date()
       trialEnd.setDate(trialEnd.getDate() + 14) // 14-day trial
 
-      await this.supabase.from("user_subscriptions").upsert({
+      await this.client.from("user_subscriptions").upsert({
         user_id: userId,
         plan_id: planId,
         status: "trial",
@@ -255,7 +255,7 @@ export class PremiumFeatureService {
 
       if (subscription) {
         // Update existing subscription
-        await this.supabase
+        await this.client
           .from("user_subscriptions")
           .update({
             plan_id: newPlanId,
@@ -268,7 +268,7 @@ export class PremiumFeatureService {
         const periodEnd = new Date()
         periodEnd.setMonth(periodEnd.getMonth() + 1)
 
-        await this.supabase.from("user_subscriptions").insert({
+        await this.client.from("user_subscriptions").insert({
           user_id: userId,
           plan_id: newPlanId,
           status: "active",
@@ -280,7 +280,7 @@ export class PremiumFeatureService {
       }
 
       // Log the upgrade
-      await this.supabase.from("subscription_events").insert({
+      await this.client.from("subscription_events").insert({
         user_id: userId,
         event_type: "upgrade",
         from_plan: subscription?.planId || "free",
@@ -303,7 +303,7 @@ export class PremiumFeatureService {
       }
 
       if (immediate) {
-        await this.supabase
+        await this.client
           .from("user_subscriptions")
           .update({
             status: "canceled",
@@ -311,7 +311,7 @@ export class PremiumFeatureService {
           })
           .eq("user_id", userId)
       } else {
-        await this.supabase
+        await this.client
           .from("user_subscriptions")
           .update({
             cancel_at_period_end: true,
@@ -337,8 +337,8 @@ export class PremiumFeatureService {
 
     // Get current usage
     const [savedSpotsResult, apiCallsResult] = await Promise.all([
-      this.supabase.from("user_favorite_spots").select("id", { count: "exact" }).eq("user_id", userId),
-      this.supabase
+      this.client.from("user_favorite_spots").select("id", { count: "exact" }).eq("user_id", userId),
+      this.client
         .from("api_usage")
         .select("calls", { count: "exact" })
         .eq("user_id", userId)

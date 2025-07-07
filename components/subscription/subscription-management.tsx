@@ -99,10 +99,12 @@ export function SubscriptionManagement() {
             <div>
               <h3 className="font-medium">Your Features</h3>
               <ul className="mt-2 space-y-2">
-                {features.items.map((feature: string, index: number) => (
+                {features.items.map((feature, index) => (
                   <li key={index} className="flex items-center gap-2">
-                    <span>✓</span>
-                    <span>{feature}</span>
+                    <span>{feature.included ? "✓" : "✗"}</span>
+                    <span className={feature.included ? "text-green-600" : "text-gray-500"}>
+                      {feature.name} - {feature.description}
+                    </span>
                   </li>
                 ))}
               </ul>

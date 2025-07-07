@@ -21,7 +21,7 @@ export function PricingCard({ plan, showAnnual = false }: PricingCardProps) {
   const handleSubscribe = async () => {
     try {
       setIsLoading(true);
-      await initiateCheckout(plan.id);
+      await initiateCheckout({ planId: plan.stripePriceId });
     } catch (error) {
       console.error('Error initiating checkout:', error);
     } finally {

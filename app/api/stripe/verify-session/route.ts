@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/config/stripe';
-import { subscriptionService } from '@/lib/services/subscription-service';
+import { stripe } from '../../../../lib/config/stripe';
+import { SubscriptionService } from '@/lib/services/subscription-service';
+import { getDirectServerClient } from '@/lib/supabase/server';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
+    const supabase = getDirectServerClient();
+    const subscriptionService = new SubscriptionService(supabase);
     const { sessionId } = await req.json();
 
     if (!sessionId) {
@@ -35,10 +38,13 @@ export async function POST(req: NextRequest) {
         session.subscription as string
       );
 
-      await subscriptionService.handleSubscriptionUpdated(subscription as any);
+      await subscriptionService.updateSubscriptionStatus(
+        subscription.customer as string,
+        subscription.status as any
+      );
     }
 
-    return NextResponse.json({ success: true });
+    return Response.json({ success: true });
   } catch (error) {
     console.error('Error verifying session:', error);
     return NextResponse.json(

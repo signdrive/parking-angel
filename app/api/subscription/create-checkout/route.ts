@@ -1,31 +1,60 @@
-import { NextResponse } from 'next/server';
-import { subscriptionService } from '@/lib/services/subscription-service';
-import { createClient } from '@supabase/supabase-js';
+import { type NextRequest, NextResponse } from "next/server"
+import Stripe from "stripe"
+import { createClient } from "@supabase/supabase-js"
 
-export async function POST(req: Request) {
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error("Missing STRIPE_SECRET_KEY")
+}
+
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  throw new Error("Missing Supabase credentials")
+}
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
+
+export async function POST(request: NextRequest) {
   try {
-    const { planId } = await req.json();
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return new NextResponse('Unauthorized', { status: 401 });
+    // Get the user session
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
-    const returnUrl = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';
-    const checkoutData = await subscriptionService.createCheckoutSession(
-      user.id,
-      planId,
-      returnUrl
-    );
+    // Get request body
+    const { planId } = await request.json()
+    if (!planId) {
+      return NextResponse.json({ error: "Plan ID is required" }, { status: 400 })
+    }
 
-    return NextResponse.json(checkoutData);
+    // Create Stripe checkout session
+    const checkoutSession = await stripe.checkout.sessions.create({
+      customer_email: session.user.email,
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [{
+        price: planId,
+        quantity: 1,
+      }],
+      success_url: `${request.headers.get("origin")}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${request.headers.get("origin")}/plans`,
+      metadata: {
+        userId: session.user.id,
+      },
+    })
+
+    return NextResponse.json({
+      sessionId: checkoutSession.id,
+      url: checkoutSession.url,
+    })
   } catch (error) {
-    console.error('Error creating checkout session:', error);
-    return new NextResponse('Error creating checkout session', { status: 500 });
+    console.error("Checkout session creation failed:", error)
+    return NextResponse.json(
+      { error: "Failed to create checkout session" },
+      { status: 500 }
+    )
   }
 }

@@ -1,159 +1,126 @@
 "use client"
 
-import type React from "react"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
-import type { User, SupabaseClient } from "@supabase/supabase-js"
-import { createBrowserClient } from '@supabase/ssr'
-import { Database } from "../lib/types/database"
-
-// Define a more detailed user type that includes subscription data
-type Subscription = Database['public']['Tables']['user_subscriptions']['Row'];
-// We will alias plan_id to plan for easier use in the app
-export type AuthUser = User & Omit<Subscription, 'id' | 'user_id'> & { plan: string };
-
-interface AuthContextType {
-  user: AuthUser | null
-  loading: boolean
-  signOut: () => Promise<void>
-  error: string | null
-  initialized: boolean
-  forceRefresh: () => Promise<void>
-}
+import { User } from "@supabase/supabase-js"
+import { getBrowserClient } from "../lib/supabase/browser"
+import { 
+  Profile, 
+  StripeSubscriptionWithMetadata,
+  TypedSupabaseClient,
+  AuthContextType 
+} from "../lib/types/supabase-helpers"
+import { useRouter } from "next/navigation"
+import { useToast } from "./use-toast"
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  loading: true,
+  profile: null,
+  subscription: null,
+  isSubscribed: false,
+  signInWithGoogle: async () => {},
   signOut: async () => {},
-  error: null,
-  initialized: false,
-  forceRefresh: async () => {},
+  loading: true,
+  error: null
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [supabase, setSupabase] = useState<SupabaseClient<Database> | null>(null)
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [supabase] = useState<TypedSupabaseClient>(getBrowserClient)
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [subscription, setSubscription] = useState<StripeSubscriptionWithMetadata | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [initialized, setInitialized] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const router = useRouter()
+  const { toast } = useToast()
 
-  const fetchUserSubscription = useCallback(async (supabaseClient: SupabaseClient<Database>, user: User | null): Promise<AuthUser | null> => {
-    if (!user) return null;
-    
+  const fetchUserData = useCallback(async (userId: string) => {
     try {
-      // Fetch user profile data which includes subscription_tier
-      const { data: profile, error } = await supabaseClient
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('subscription_tier, subscription_status, stripe_customer_id, stripe_subscription_id')
-        .eq('id', user.id)
+        .select('*')
+        .eq('id', userId)
         .single();
 
-      if (error || !profile) {
-        // Return basic user with free plan if no profile exists
-        return { ...user, plan: 'free', status: 'inactive' } as AuthUser; 
+      if (profileError) throw profileError;
+
+      const profile = profileData as Profile;
+      setProfile(profile);
+
+      if (profile.stripe_subscription_id) {
+        const response = await fetch('/api/subscription/details', {
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch subscription details');
+
+        const subscriptionData = await response.json();
+        setSubscription(subscriptionData);
       }
-      
-      // Map subscription_tier to plan for backward compatibility
-      const planMapping: Record<string, string> = {
-        'free': 'free',
-        'premium': 'navigator', 
-        'pro': 'pro_parker',
-        'enterprise': 'fleet_manager'
-      };
-      
-      const authUser: AuthUser = {
-        ...user,
-        plan: planMapping[profile.subscription_tier || 'free'] || 'free',
-        status: profile.subscription_status || 'inactive',
-        plan_id: planMapping[profile.subscription_tier || 'free'] || 'free',
-        trial_end: null,
-        cancel_at_period_end: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      return authUser;
-
-    } catch (e) {
-      // Default to free plan on error
-      return { ...user, plan: 'free', status: 'inactive' } as AuthUser;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch user data'));
     }
-  }, []);
+  }, [supabase]);
 
-  const forceRefresh = useCallback(async () => {
-    if (!supabase) return;
-    setLoading(true);
-    const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-    if (sessionError) {
-      setError("Failed to refresh session.");
-      setUser(null);
-    } else if (session) {
-      const refreshedUser = await fetchUserSubscription(supabase, session.user);
-      setUser(refreshedUser);
-    } else {
-      setUser(null);
+  const signInWithGoogle = useCallback(async (returnTo?: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ''}`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
+        }
+      });
+      if (error) throw error;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to sign in with Google'));
+      throw err;
     }
-    setLoading(false);
-  }, [supabase, fetchUserSubscription]);
+  }, [supabase]);
+
+  const signOut = useCallback(async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setUser(null);
+      setProfile(null);
+      setSubscription(null);
+      router.push('/auth/login');
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to sign out'));
+      toast({
+        title: "Error signing out",
+        description: "Please try again",
+        variant: "destructive"
+      });
+    }
+  }, [supabase, router, toast]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    const client = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-    setSupabase(client)
-
-    const updateUserAndSubscription = async (session: any) => {
-      setLoading(true);
+    const {
+      data: { subscription: authSubscription }
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null);
       if (session?.user) {
-        const fullUser = await fetchUserSubscription(client, session.user);
-        setUser(fullUser);
+        await fetchUserData(session.user.id);
       } else {
-        setUser(null);
+        setProfile(null);
+        setSubscription(null);
       }
       setLoading(false);
+    });
+
+    return () => {
+      authSubscription.unsubscribe();
     };
+  }, [supabase, fetchUserData]);
 
-    // Initial session fetch
-    client.auth.getSession().then(({ data: { session } }) => {
-      updateUserAndSubscription(session).finally(() => {
-        setInitialized(true);
-      });
-    }).catch((e) => {
+  const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
 
-      setError("Failed to initialize auth")
-      setLoading(false)
-      setInitialized(true)
-    })
-
-    // Subscribe to auth changes
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-      // On SIGNED_IN or TOKEN_REFRESHED, update the user profile
-      if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED' || _event === 'USER_UPDATED') {
-        updateUserAndSubscription(session);
-      } else if (_event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [fetchUserSubscription])
-
-  const signOut = async () => {
-    if (!supabase) return
-    setLoading(true)
-    try {
-      await supabase.auth.signOut()
-      setUser(null); // Clear user on sign out
-    } catch (e) {
-
-      setError('Failed to sign out')
-    }
-    setLoading(false)
-  }
-
-  // Show loading state only during initial load
-  if (!initialized && loading) {
+  // Only show loading spinner during initial load
+  if (loading && !user && !profile) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -161,29 +128,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           <p className="text-muted-foreground">Initializing authentication...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        signOut,
-        error,
-        initialized,
-        forceRefresh
-      }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      profile,
+      subscription,
+      isSubscribed,
+      signInWithGoogle,
+      signOut,
+      loading,
+      error
+    }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    throw new Error('useAuth must be used within an AuthProvider');
   }
-  return context
-}
+  return context;
+};

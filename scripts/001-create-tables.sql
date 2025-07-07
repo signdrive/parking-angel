@@ -1,7 +1,9 @@
 -- Enable PostGIS extension for geospatial queries
 CREATE EXTENSION IF NOT EXISTS postgis;
 
--- Enable UUID extension
+-- Enable UU-- Note: Subscriptions are now handled by the user_subscriptions table
+-- See migration 20250706000001_cleanup_subscription_tables.sql
+-- No need to create the legacy subscriptions table
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table (extends Supabase auth.users)

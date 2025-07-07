@@ -2,11 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { getBrowserClient } from "@/lib/supabase/browser"
-import { Database } from "@/lib/types/supabase"
 import { toast } from "@/components/ui/use-toast"
-
-type Profile = Database['public']['Tables']['profiles']['Row']
-type ParkingSpot = Database['public']['Tables']['parking_spots']['Row']
+import { Profile, ParkingSpot } from "@/lib/types/supabase-helpers"
 
 interface SpotStatistics {
   total: number

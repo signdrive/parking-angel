@@ -1,23 +1,28 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { subscriptionService } from '@/lib/services/subscription-service';
+import { SubscriptionService } from '@/lib/services/subscription-service';
+import { getDirectServerClient } from '@/lib/supabase/server';
 
 export async function GET(req: Request) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = getDirectServerClient();
+    const subscriptionService = new SubscriptionService(supabase);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const status = await subscriptionService.verifySubscriptionStatus(user.id);
-    return NextResponse.json(status);
+    const subscription = await subscriptionService.getSubscription(session.user.id);
+    
+    return NextResponse.json({
+      isSubscribed: !!subscription,
+      planId: subscription?.metadata?.plan_id,
+      status: subscription?.status,
+      currentPeriodEnd: subscription?.current_period_end,
+    });
   } catch (error) {
     console.error('Error fetching subscription status:', error);
-    return new NextResponse('Error fetching subscription status', { status: 500 });
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

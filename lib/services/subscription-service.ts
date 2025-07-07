@@ -1,161 +1,337 @@
-import { createClient } from '@supabase/supabase-js';
-import { stripe } from '../config/stripe';
-import { Database } from '../types/supabase';
-import { StripeSubscriptionWithMetadata, SubscriptionStatus } from '../types/stripe-types';
-import { PlanFeatures, SubscriptionPlan } from '../types/subscription';
-import { SUBSCRIPTION_PLANS } from '../config/subscription-plans';
-import type Stripe from 'stripe';
+import { TypedSupabaseClient } from '../types/supabase-helpers';
+import { Stripe } from 'stripe';
+import { APIError } from '../api-error';
+
+// Latest supported API version
+export const STRIPE_API_VERSION = '2025-06-30.basil' as const;
+
+export type PlanId = 'free' | 'premium' | 'pro' | 'enterprise';
+export type SubscriptionStatus = 'incomplete' | 'incomplete_expired' | 'active' | 'past_due' | 'canceled' | 'trialing' | 'unpaid';
+
+// Map from Stripe price IDs to subscription plans
+const PLAN_MAPPING: Record<string, PlanId> = {
+  'price_navigator': 'premium',
+  'price_pro_parker': 'pro',
+  'price_fleet_manager': 'enterprise',
+  // Real Stripe price IDs
+  'price_1RdXHnKFfjGfLUIXYKCIZiJ4': 'premium',
+  'price_1RdXJgKFfjGfLUIXqjacyvNE': 'pro',
+  'price_1RdXLYKFfjGfLUIXhkNi0b9c': 'enterprise'
+};
+
+// For development/testing, also accept the full price IDs
+function getPlanFromPrice(priceId: string): PlanId | undefined {
+  // Try direct mapping first
+  if (priceId in PLAN_MAPPING) {
+    return PLAN_MAPPING[priceId];
+  }
+
+  // Try extracting the last part of the price ID (after 'price_')
+  const priceSuffix = priceId.split('_').slice(1).join('_').toLowerCase();
+  for (const [key, value] of Object.entries(PLAN_MAPPING)) {
+    if (key.toLowerCase().includes(priceSuffix) || priceSuffix.includes(key.toLowerCase())) {
+      return value;
+    }
+  }
+
+  // As a fallback, check if the full price ID contains any of our plan names
+  for (const [, plan] of Object.entries(PLAN_MAPPING)) {
+    if (priceId.toLowerCase().includes(plan.toLowerCase())) {
+      return plan;
+    }
+  }
+
+  return undefined;
+}
+
+export interface SubscriptionFeatures {
+  maxSpots: number;
+  allowMultipleHolds: boolean;
+  hasAnalytics: boolean;
+  hasAlerts: boolean;
+  items: Array<{
+    name: string;
+    description: string;
+    included: boolean;
+  }>;
+}
 
 export class SubscriptionService {
-  private supabase;
+  private client: TypedSupabaseClient;
+  private stripe: Stripe;
 
-  constructor() {
-    this.supabase = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+  constructor(client: TypedSupabaseClient) {
+    this.client = client;
+    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: STRIPE_API_VERSION
+    });
   }
 
-  async createCheckoutSession(userId: string, planId: string, returnUrl: string) {
-    try {
-      const plan = SUBSCRIPTION_PLANS.find((p: SubscriptionPlan) => p.id === planId);
-      if (!plan) {
-        throw new Error(`Invalid plan selected: ${planId}`);
-      }
+  private async updateSubscriptionData(subscription: Stripe.Subscription): Promise<void> {
+    // First get the customer to access metadata
+    const customer = await this.stripe.customers.retrieve(subscription.customer as string);
 
-      const { data: { user }, error: authError } = await this.supabase.auth.getUser();
-      if (authError || !user) {
-        throw new Error(authError?.message || 'User not authenticated');
-      }
+    if (!('metadata' in customer)) {
+      throw new APIError('Customer has been deleted', 400, 'customer_not_found');
+    }
 
-      const session = await stripe.checkout.sessions.create({
-        customer_email: user.email,
-        billing_address_collection: 'required',
-        line_items: [
-          {
-            price: plan.stripePriceId,
-            quantity: 1,
-          },
-        ],
-        mode: 'subscription',
-        success_url: `${returnUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnUrl}/plans`,
-        metadata: {
-          user_id: userId,
-          plan_id: planId,
-        },
+    let actualUserId = customer.metadata.supabaseUuid;
+    if (!actualUserId) {
+      // Try to find user by stripe_customer_id in user_subscriptions
+      const { data: subscriptions } = await this.client
+        .from('user_subscriptions')
+        .select('user_id')
+        .eq('stripe_customer_id', customer.id)
+        .limit(1);
+
+      if (!subscriptions || subscriptions.length === 0) {
+        throw new APIError('No Supabase user ID found', 400, 'user_not_found');
+      }
+      actualUserId = subscriptions[0].user_id;
+    }
+
+    let plan: PlanId | undefined;
+
+    if (subscription.items.data?.length > 0) {
+      for (const item of subscription.items.data) {
+        if (item.price) {
+          const priceId = typeof item.price === 'string' ? item.price : item.price.id;
+          if (priceId) {
+            // Try to determine plan from price ID
+            plan = getPlanFromPrice(priceId);
+            if (plan) break;
+
+            // If not found by ID, try the price nickname
+            if (typeof item.price !== 'string' && item.price.nickname) {
+              const nickname = item.price.nickname.toLowerCase();
+              for (const [key, value] of Object.entries(PLAN_MAPPING)) {
+                if (nickname.includes(key.toLowerCase()) || 
+                    nickname.includes(value.toLowerCase())) {
+                  plan = value;
+                  break;
+                }
+              }
+              if (plan) break;
+            }
+          }
+        }
+      }
+    }
+
+    // Debug output if plan not found
+    if (!plan) {
+      console.warn('Price details:', JSON.stringify(subscription.items.data, null, 2));
+      throw new APIError('Could not determine subscription plan', 400, 'invalid_price');
+    }
+
+    // Update the subscription record
+    const { error: subscriptionError } = await this.client
+      .from('user_subscriptions')
+      .upsert({
+        user_id: actualUserId,
+        stripe_customer_id: customer.id,
+        stripe_subscription_id: subscription.id,
+        plan_id: plan,
+        status: subscription.status as SubscriptionStatus,
+        trial_end: subscription.trial_end 
+          ? new Date(subscription.trial_end * 1000).toISOString() 
+          : null,
+        current_period_end: (subscription as any).current_period_end
+          ? new Date((subscription as any).current_period_end * 1000).toISOString()
+          : null,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id',
+        ignoreDuplicates: false
       });
 
-      return { url: session.url, sessionId: session.id };
-    } catch (error) {
-      console.error('Error creating checkout session:', error);
-      throw new Error('Failed to create checkout session');
+    if (subscriptionError) {
+      console.error('Database error details:', subscriptionError);
+      throw new APIError(`Error updating subscription: ${subscriptionError.message}`, 500, 'db_error');
     }
   }
 
-  async verifySubscriptionStatus(userId: string) {
-    try {
-      const { data: subscription, error } = await this.supabase
-        .from('user_subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (error) throw error;
-
-      if (!subscription) {
-        return { isSubscribed: false };
+  async handleWebhookEvent(event: Stripe.Event): Promise<void> {
+    switch (event.type) {
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await this.updateSubscriptionData(subscription);
+        break;
       }
 
-      const stripeSubscription = await stripe.subscriptions.retrieve(subscription.stripe_subscription_id);
-      const currentPeriodEnd = new Date((stripeSubscription as any).current_period_end * 1000);
-      
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customer = await this.stripe.customers.retrieve(subscription.customer as string);
+        
+        if (!('metadata' in customer)) {
+          throw new APIError('Customer has been deleted', 400, 'customer_not_found');
+        }
+
+        // Update subscription status to canceled
+        const { error } = await this.client
+          .from('user_subscriptions')
+          .update({
+            status: 'canceled',
+            updated_at: new Date().toISOString()
+          })
+          .eq('stripe_subscription_id', subscription.id);
+
+        if (error) {
+          throw new APIError('Error updating subscription', 500, 'db_error');
+        }
+        break;
+      }
+    }
+  }
+
+  async getSubscription(userId: string) {
+    const { data, error } = await this.client
+      .from('user_subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !data) return null;
+
+    try {
+      const subscription = await this.stripe.subscriptions.retrieve(data.stripe_subscription_id);
       return {
-        isSubscribed: stripeSubscription.status === 'active',
-        planId: subscription.plan_id,
-        status: stripeSubscription.status as SubscriptionStatus,
-        currentPeriodEnd,
+        ...subscription,
+        metadata: data
       };
     } catch (error) {
-      console.error('Error verifying subscription:', error);
-      throw new Error('Failed to verify subscription status');
+      console.error('Error fetching Stripe subscription:', error);
+      return data;
     }
   }
 
-  async handleSubscriptionUpdated(subscription: StripeSubscriptionWithMetadata) {
-    const { user_id, plan_id } = subscription.metadata;
+  async cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
+    const subscription = await this.stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true
+    });
 
-    try {
-      const { error } = await this.supabase
-        .from('user_subscriptions')
-        .upsert({
-          user_id,
-          plan_id,
-          stripe_subscription_id: subscription.id,
-          status: subscription.status,
-          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          cancel_at_period_end: subscription.cancel_at_period_end,
-        });
+    await this.client
+      .from('user_subscriptions')
+      .update({
+        status: 'canceled',
+        updated_at: new Date().toISOString()
+      })
+      .eq('stripe_subscription_id', subscriptionId);
 
-      if (error) throw error;
-
-      await this.supabase
-        .from('profiles')
-        .update({
-          subscription_status: subscription.status,
-          subscription_plan: plan_id,
-        })
-        .eq('id', user_id);
-
-    } catch (error) {
-      console.error('Error updating subscription:', error);
-      throw new Error('Failed to update subscription information');
-    }
+    return subscription;
   }
 
-  async cancelSubscription(userId: string) {
-    try {
-      const { data: subscription } = await this.supabase
-        .from('user_subscriptions')
-        .select('stripe_subscription_id')
-        .eq('user_id', userId)
-        .single();
+  async createCheckoutSession(options: {
+    userId: string;
+    priceId: string;
+    successUrl: string;
+    cancelUrl: string;
+    trial?: boolean;
+  }): Promise<{ url: string }> {
+    const session = await this.stripe.checkout.sessions.create({
+      customer_email: options.userId,
+      client_reference_id: options.userId,
+      success_url: options.successUrl,
+      cancel_url: options.cancelUrl,
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{ price: options.priceId, quantity: 1 }],
+      subscription_data: options.trial ? {
+        trial_period_days: 14
+      } : undefined,
+      metadata: {
+        supabaseUuid: options.userId
+      }
+    });
 
-      if (!subscription) throw new Error('No active subscription found');
+    return { url: session.url! };
+  }
 
-      await stripe.subscriptions.update(subscription.stripe_subscription_id, {
-        cancel_at_period_end: true,
+  async handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+    const clientRefId = session.client_reference_id;
+    
+    if (!clientRefId) {
+      throw new APIError('No user ID in session', 400, 'missing_user_id');
+    }
+
+    // Get the price from the line items
+    const lineItems = await this.stripe.checkout.sessions.listLineItems(session.id, {
+      expand: ['data.price']
+    });
+
+    const priceData = lineItems.data[0]?.price;
+    if (!priceData) {
+      throw new APIError('No price data found', 400, 'missing_price_data');
+    }
+
+    // Get plan from price ID
+    const plan = Object.entries(PLAN_MAPPING).find(([key]) => 
+      priceData.id.includes(key.toLowerCase())
+    )?.[1];
+
+    if (!plan) {
+      throw new APIError('Invalid price ID', 400, 'invalid_price_id');
+    }
+
+    // Update the user's subscription
+    const { error: updateError } = await this.client
+      .from('user_subscriptions')
+      .upsert({
+        user_id: clientRefId,
+        stripe_customer_id: session.customer as string,
+        stripe_subscription_id: session.subscription as string,
+        plan_id: plan,
+        status: 'active',
+        current_period_end: null, // Will be updated by webhook
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
 
-      await this.supabase
-        .from('user_subscriptions')
-        .update({ cancel_at_period_end: true })
-        .eq('user_id', userId);
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error canceling subscription:', error);
-      throw new Error('Failed to cancel subscription');
+    if (updateError) {
+      throw new APIError('Error updating subscription', 500, 'db_error');
     }
   }
 
-  async getSubscriptionFeatures(userId: string): Promise<PlanFeatures | null> {
-    try {
-      const { data: subscription } = await this.supabase
-        .from('user_subscriptions')
-        .select('plan_id')
-        .eq('user_id', userId)
-        .single();
+  async getPlanFeatures(planId: string): Promise<SubscriptionFeatures> {
+    const product = await this.stripe.products.retrieve(planId);
+    return {
+      maxSpots: parseInt(product.metadata?.maxSpots || '5', 10),
+      allowMultipleHolds: product.metadata?.allowMultipleHolds === 'true',
+      hasAnalytics: product.metadata?.hasAnalytics === 'true',
+      hasAlerts: product.metadata?.hasAlerts === 'true',
+      items: [
+        {
+          name: 'Multiple Spot Holds',
+          description: 'Hold multiple parking spots simultaneously',
+          included: product.metadata?.allowMultipleHolds === 'true'
+        },
+        {
+          name: 'Analytics Dashboard',
+          description: 'Access detailed parking analytics',
+          included: product.metadata?.hasAnalytics === 'true'
+        },
+        {
+          name: 'Smart Alerts',
+          description: 'Receive intelligent parking notifications',
+          included: product.metadata?.hasAlerts === 'true'
+        }
+      ]
+    };
+  }
 
-      if (!subscription) return null;
+  async updateSubscriptionStatus(userId: string, status: SubscriptionStatus): Promise<void> {
+    const { error } = await this.client
+      .from('user_subscriptions')
+      .update({
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
 
-      const plan = SUBSCRIPTION_PLANS.find((p: SubscriptionPlan) => p.id === subscription.plan_id);
-      return plan?.features || null;
-    } catch (error) {
-      console.error('Error fetching subscription features:', error);
-      return null;
+    if (error) {
+      throw new APIError('Error updating subscription status', 500, 'db_error');
     }
   }
 }
 
-export const subscriptionService = new SubscriptionService();

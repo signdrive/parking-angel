@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getBrowserClient } from "../lib/supabase/browser";
-import type { Database } from "../lib/types/supabase";
+import type { Database } from "../lib/types/database";
 
 // Define a more detailed user type that includes subscription data
 type Subscription = Database['public']['Tables']['user_subscriptions']['Row'];
@@ -43,7 +43,8 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 function AuthProviderComponent({ children }: { children: React.ReactNode }) {
-  const [supabase, setSupabase] = useState<SupabaseClient<Database> | null>(null);
+  // State for Supabase client
+  const [supabaseClient, setSupabaseClient] = useState<SupabaseClient<Database> | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,79 +107,70 @@ function AuthProviderComponent({ children }: { children: React.ReactNode }) {
   }, []);
 
   const forceRefresh = useCallback(async () => {
-    if (!supabase) return;
+    if (!supabaseClient) return;
     setLoading(true);
-    const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.refreshSession();
     if (sessionError) {
       setError("Failed to refresh session.");
       setUser(null);
     } else if (session) {
-      const refreshedUser = await fetchUserSubscription(supabase, session.user);
+      const refreshedUser = await fetchUserSubscription(supabaseClient, session.user);
       setUser(refreshedUser);
     } else {
       setUser(null);
     }
     setLoading(false);
-  }, [supabase, fetchUserSubscription]);
+  }, [supabaseClient, fetchUserSubscription]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    // Initialize Supabase client
+    const client = getBrowserClient();
+    setSupabaseClient(client);
+  }, []);
 
-    try {
-      console.log('Initializing Supabase client...');
-      const client = getBrowserClient();
-      setSupabase(client);
+  useEffect(() => {
+    if (!supabaseClient) return;
 
-      const updateUserAndSubscription = async (session: any) => {
-        console.log('Updating user and subscription...', { hasSession: !!session });
-        setLoading(true);
-        if (session?.user) {
-          const fullUser = await fetchUserSubscription(client, session.user);
-          console.log('User subscription fetched:', { hasUser: !!fullUser });
-          setUser(fullUser);
-        } else {
-          setUser(null);
-        }
-        setLoading(false);
-      };
+    const updateUserAndSubscription = async (session: any) => {
+      setLoading(true);
+      if (session?.user) {
+        const fullUser = await fetchUserSubscription(supabaseClient, session.user);
+        setUser(fullUser);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    };
 
-      // Initial session fetch
-      client.auth.getSession().then(({ data: { session } }) => {
-        console.log('Initial session fetch:', { hasSession: !!session });
-        updateUserAndSubscription(session).finally(() => {
-          setInitialized(true);
-        });
-      }).catch((e) => {
-        console.error('Failed to initialize auth:', e);
-        setError("Failed to initialize auth");
-        setLoading(false);
+    // Initial session fetch
+    supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      updateUserAndSubscription(session).finally(() => {
         setInitialized(true);
       });
-
-      // Subscribe to auth changes
-      const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-        console.log('Auth state change:', { event: _event, hasSession: !!session });
-        if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED' || _event === 'USER_UPDATED') {
-          updateUserAndSubscription(session);
-        } else if (_event === 'SIGNED_OUT') {
-          setUser(null);
-        }
-      });
-
-      return () => subscription.unsubscribe();
-    } catch (error) {
-      console.error('AuthProvider initialization error:', error);
-      setError('Failed to initialize authentication');
+    }).catch((e) => {
+      console.error('Failed to initialize auth:', e);
+      setError("Failed to initialize auth");
       setLoading(false);
       setInitialized(true);
-    }
-  }, [fetchUserSubscription]);
+    });
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED' || _event === 'USER_UPDATED') {
+        updateUserAndSubscription(session);
+      } else if (_event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabaseClient, fetchUserSubscription]);
 
   const signOut = async () => {
-    if (!supabase) return;
+    if (!supabaseClient) return;
     setLoading(true);
     try {
-      await supabase.auth.signOut();
+      await supabaseClient.auth.signOut();
       setUser(null); // Clear user on sign out
     } catch (e) {
       setError('Failed to sign out');
@@ -188,7 +180,6 @@ function AuthProviderComponent({ children }: { children: React.ReactNode }) {
 
   // Show loading state only during initial load
   if (!initialized && loading) {
-    console.log('Showing loading state:', { initialized, loading });
     return (
       <div className="min-h-screen w-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

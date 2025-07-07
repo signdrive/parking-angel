@@ -1,3 +1,26 @@
 {
-    "github.copilot.nextEditSuggestions.enabled": true
+    "github.copilot.nextEditSuggestions.enabled": true,
+    "css.customData": [".vscode/css-custom-data.json"],
+    "css.lint.unknownAtRules": "ignore",
+    "scss.lint.unknownAtRules": "ignore",
+    "css.validate": true,
+    "less.validate": false,
+    "scss.validate": false,
+    "stylelint.validate": ["css"],
+    "editor.quickSuggestions": {
+        "strings": true
+    },
+    "tailwindCSS.includeLanguages": {
+        "javascript": "javascript",
+        "typescript": "typescript",
+        "javascriptreact": "html",
+        "typescriptreact": "html"
+    },
+    "tailwindCSS.experimental.classRegex": [
+        ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+        ["cn\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+    ],
+    "files.associations": {
+        "*.css": "css"
+    }
 }

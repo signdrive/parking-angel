@@ -9,9 +9,14 @@ import { useGeolocation } from "@/hooks/use-geolocation"
 import { Button } from "@/components/ui/button"
 import { MapPin, Plus } from "lucide-react"
 import { SpotReportDialog } from "./spot-report-dialog"
+import { ParkingSpot } from "@/lib/types/supabase-helpers"
 
 interface ParkingMapProps {
   onSpotSelect?: (spotId: string) => void
+}
+
+interface MarkerWithSpot extends mapboxgl.Marker {
+  spotData?: ParkingSpot;
 }
 
 export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
@@ -20,6 +25,7 @@ export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
   
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
+  const markers = useRef<MarkerWithSpot[]>([])
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportLocation, setReportLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [mapboxError, setMapboxError] = useState<string | null>(null)
@@ -118,46 +124,34 @@ export function ParkingMap({ onSpotSelect }: ParkingMapProps) {
   useEffect(() => {
     if (!map.current || spotsLoading) return
 
-    const existingMarkers = document.querySelectorAll(".parking-spot-marker")
-    existingMarkers.forEach((marker) => marker.remove())
+    // Remove existing markers
+    markers.current.forEach(marker => marker.remove());
+    markers.current = [];
 
-    spots.forEach((spot) => {
-      const el = document.createElement("div")
-      el.className = "parking-spot-marker"
-      const markerHtml = `
-        <div class="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:bg-green-600 transition-colors">
-          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-          </svg>
-        </div>
-      `
-      el.innerHTML = markerHtml
+    // Add new markers
+    spots.forEach(spot => {
+      if (!spot.latitude || !spot.longitude) return;
 
-      const popupHtml = `
-        <div class="p-2">
-          <h3 class="font-semibold">${spot.spot_type ? spot.spot_type.charAt(0).toUpperCase() + spot.spot_type.slice(1) : 'Unknown'} Parking</h3>
-          <p class="text-sm text-gray-600">${spot.name || "Location not available"}</p>
-          <p class="text-xs text-gray-500">Created: ${new Date(spot.created_at).toLocaleTimeString()}</p>
-          <p class="text-xs text-green-600">Confidence: ${spot.confidence_score ?? 0}%</p>
-        </div>
-      `
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(popupHtml)
+      const markerColor = spot.is_available ? '#4CAF50' : '#FF5252';
+      const markerElement = document.createElement('div');
+      markerElement.className = 'spot-marker';
+      markerElement.style.backgroundColor = markerColor;
 
-      // Add type guard before using coordinates
-      if (!spot.latitude || !spot.longitude) {
-        console.warn(`Skipping spot ${spot.id} due to missing coordinates`)
-        return
-      }
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([spot.longitude, spot.latitude])
-        .setPopup(popup)
-        .addTo(map.current!)
-
-      el.addEventListener("click", () => {
-        onSpotSelect?.(spot.id)
+      const marker = new mapboxgl.Marker({
+        element: markerElement,
+        anchor: 'bottom',
       })
-    })
+        .setLngLat([spot.longitude, spot.latitude])
+        .addTo(map.current!);
+
+      (marker as MarkerWithSpot).spotData = spot;
+      
+      marker.getElement().addEventListener('click', () => {
+        if (onSpotSelect) onSpotSelect(spot.id);
+      });
+
+      markers.current.push(marker as MarkerWithSpot);
+    });
   }, [spots, spotsLoading, onSpotSelect])
 
   if (mapboxError) {

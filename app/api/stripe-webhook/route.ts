@@ -1,262 +1,156 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/supabase/server-utils';
-import { APIError, handleAPIError } from '@/lib/api-error';
-import type { Database } from '@/lib/types/supabase';
-import Stripe from 'stripe';
+import { createServiceClient } from '@/lib/supabase/server';
+import { APIError } from '@/lib/api-error';
+import { stripe } from '@/lib/config/stripe';
+import type Stripe from 'stripe';
+import { SubscriptionService } from '@/lib/services/subscription-service';
 
-type SubscriptionTier = Database['public']['Enums']['subscription_tier'];
+/**
+ * Primary Stripe webhook handler for the Parking Angel application.
+ * 
+ * This endpoint processes all Stripe webhook events related to subscriptions,
+ * including subscription creation, updates, deletion, and checkout completion.
+ * It uses Supabase with service role access to update the database.
+ * 
+ * Supported Events:
+ * - customer.subscription.created
+ * - customer.subscription.updated
+ * - customer.subscription.deleted
+ * - checkout.session.completed
+ * 
+ * Security:
+ * - Verifies Stripe signature on all requests
+ * - Uses Supabase service role for database access
+ * - Logs all operations for audit purposes
+ * 
+ * Error Handling:
+ * - Invalid signatures return 400 status
+ * - Database errors include detailed error codes
+ * - All errors are logged with context
+ * 
+ * @see /docs/WEBHOOK_SETUP.md for complete documentation
+ */
 
-// Initialize Stripe with optimized settings
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-06-30.basil',
-  timeout: 5000 // Add timeout to prevent long-hanging requests
-});
-
-// Map from Stripe price ID tiers to Supabase subscription_tier enum values
-const TIER_MAPPING: Record<string, SubscriptionTier> = {
-  'navigator': 'premium',
-  'pro_parker': 'pro',
-  'fleet_manager': 'enterprise'
-};
+// Get webhook secret from environment variable
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+if (!webhookSecret) {
+  throw new Error('STRIPE_WEBHOOK_SECRET environment variable is not set');
+}
+// TypeScript helper to ensure webhookSecret is never undefined
+const WEBHOOK_SECRET: string = webhookSecret;
 
 export async function POST(req: Request) {
   const startTime = Date.now();
-  
+  let eventId: string | undefined;
+  let eventType: string | undefined;
+  let userId: string | undefined;
+
   try {
-    // Parse the request body first
-    const body = await req.text();
-    const headerList = await headers();
-    const signature = headerList.get('stripe-signature');
-    
-    // Prepare some reusable function-level variables
-    let userId: string | undefined;
-    let eventId: string | undefined;
-    let eventType: string | undefined;
-    
+    // Clone the request to ensure we're reading the raw body
+    const clonedRequest = req.clone();
+    const rawBody = await clonedRequest.arrayBuffer();
+    const body = Buffer.from(rawBody);
+
+    const headersList = await headers();
+    const signature = headersList.get('stripe-signature');
+
     if (!signature) {
-      throw new APIError('No Stripe signature found', 400, 'missing_signature');
+      return new NextResponse(
+        JSON.stringify({
+          error: 'No signature found',
+          error_code: 'missing_signature',
+          msg: 'Stripe signature header is missing'
+        }),
+        { 
+          status: 400, 
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    // Verify and construct the event
-    let event;
+    let event: Stripe.Event;
+
     try {
-      event = stripe.webhooks.constructEvent(
-        body,
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET!
-      );
-      
-      // Store these values for logging context
+      event = stripe.webhooks.constructEvent(body, signature, WEBHOOK_SECRET);
       eventId = event.id;
       eventType = event.type;
     } catch (err) {
-      throw new APIError('Signature verification failed', 400, 'invalid_signature');
+      console.error('Webhook signature verification failed:', err);
+      if (err instanceof Error) {
+        console.debug('Raw body (length):', body.length);
+        console.debug('Signature (length):', signature.length);
+        console.debug('Webhook secret length:', WEBHOOK_SECRET.length);
+      }
+      return new NextResponse(
+        JSON.stringify({
+          error: 'Signature verification failed',
+          error_code: 'invalid_signature',
+          msg: err instanceof Error ? err.message : 'Invalid signature'
+        }),
+        { 
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    // Initialize Supabase client early to detect connection issues
-    const supabase = await getServerClient();
-    
-    // Process the event based on its type
+    // Initialize Supabase client with service role
+    const supabase = createServiceClient();
+    const subscriptionService = new SubscriptionService(supabase);
+
     switch (event.type) {
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted': {
+        await subscriptionService.handleWebhookEvent(event);
+        break;
+      }
+
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        const customerId = session.customer as string;
-        userId = session.metadata?.userId;
-        const tier = session.metadata?.tier;
+        const clientRefId = session.client_reference_id;
 
-        if (!userId) {
-          throw new APIError('No user ID in session metadata', 400, 'missing_user_id');
+        if (!clientRefId) {
+          throw new APIError('No user ID in session', 400, 'missing_user_id');
         }
 
-        // Map the tier from Stripe to the subscription_tier enum in the database
-        // Use a safe default if tier is missing
-        const subscriptionTier = tier ? (TIER_MAPPING[tier] || 'premium') : 'premium';
-
-        try {
-          // Check if profile exists before attempting update
-          const { data: existingProfile, error: profileCheckError } = await supabase
-            .from('profiles')
-            .select('id, subscription_tier, subscription_status')
-            .eq('id', userId)
-            .single();
-            
-          if (profileCheckError) {
-            // This is not a fatal error, as the user might be new.
-            // We can proceed with the upsert.
-          }
-
-          // Prepare update data
-          const updateData = {
-            updated_at: new Date().toISOString(),
-            stripe_customer_id: customerId,
-            subscription_status: 'active',
-            subscription_tier: subscriptionTier
-          };
-
-          // Try the update with multiple retries
-          let updateError = null;
-          let updateResult = null;
-
-          for (let attempt = 0; attempt < 3; attempt++) {
-            // Use select() after update to verify changes
-            const result = await supabase
-              .from('profiles')
-              .update(updateData)
-              .eq('id', userId)
-              .select('id, subscription_tier, subscription_status')
-              .single();
-            
-            updateError = result.error;
-            updateResult = result.data;
-            
-            if (!updateError) {
-              break; // Success, exit retry loop
-            }
-            
-            // Short delay before retry
-            if (attempt < 2) await new Promise(r => setTimeout(r, 300));
-          }
-
-          if (updateError) {
-            // Log error to the events table
-            await supabase.from('subscription_events').insert({
-              user_id: userId,
-              event_type: 'update_error',
-              tier: tier || 'unknown',
-              stripe_event_id: event.id,
-              event_data: {
-                error: updateError,
-                updateData,
-                timestamp: new Date().toISOString(),
-                elapsed: Date.now() - startTime
-              }
-            });
-
-            // Try a fallback update with direct field updates only
-            const { error: fallbackError, data: fallbackData } = await supabase
-              .from('profiles')
-              .update({
-                stripe_customer_id: customerId,
-                subscription_status: 'active',
-                subscription_tier: subscriptionTier,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', userId)
-              .select('id, subscription_tier, subscription_status');
-
-            if (fallbackError) {
-              // Last resort: try updating only the essential fields
-              const { error: lastResortError, data: lastResortData } = await supabase
-                .from('profiles')
-                .update({ 
-                  subscription_status: 'active',
-                  subscription_tier: subscriptionTier 
-                })
-                .eq('id', userId)
-                .select('id, subscription_tier, subscription_status');
-                
-              if (lastResortError) {
-                throw new APIError('Failed to update subscription status', 500, 'update_failed');
-              } else {
-                updateResult = lastResortData;
-              }
-            } else {
-              updateResult = fallbackData;
-            }
-          }
-
-          // Log successful update to the events table
-          await supabase.from('subscription_events').insert({
-            user_id: userId,
-            event_type: 'subscription_active',
-            tier: tier || 'unknown',
-            stripe_event_id: event.id,
-            event_data: {
-              stripeCustomerId: customerId,
-              subscriptionTier: subscriptionTier,
-              timestamp: new Date().toISOString(),
-              elapsed: Date.now() - startTime,
-              result: updateResult
-            }
-          });
-          
-        } catch (updateException) {
-          throw new APIError('Failed to update subscription status', 500, 'update_failed');
-        }
+        userId = clientRefId;
+        await subscriptionService.handleCheckoutCompleted(session);
         break;
       }
 
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
-
-        const { error: userError, data: userData } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('stripe_customer_id', customerId)
-          .single();
-
-        if (userError || !userData) {
-          throw new APIError('User not found', 404, 'user_not_found');
-        }
-
-        userId = userData.id;
-
-        // Reset subscription status
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({
-            subscription_status: 'inactive',
-            subscription_tier: 'free',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userData.id);
-
-        if (updateError) {
-          throw new APIError('Failed to update subscription status', 500, 'update_failed');
-        }
-        break;
-      }
       default:
-        // Do nothing for unhandled events
-        break;
+        console.log(`Unhandled event type: ${event.type}`);
     }
 
-    const totalTime = Date.now() - startTime;
+    // Calculate and log processing time
+    const processingTime = Date.now() - startTime;
+    console.log(
+      `Webhook processed successfully in ${processingTime}ms`,
+      {
+        eventId,
+        eventType,
+        userId,
+        processingTime,
+      }
+    );
 
-    return NextResponse.json({ 
-      received: true,
-      processedIn: totalTime,
-      eventType: eventType,
-      eventId: eventId,
-      userId: userId
-    });
-  } catch (error: any) {
-    const totalTime = Date.now() - startTime;
+    return NextResponse.json({ received: true });
+  } catch (err) {
+    console.error('Error processing webhook:', err);
+    const error = err as Error | APIError;
     
-    // Log an event to subscription_events table to track failures
-    try {
-      const supabase = await getServerClient();
-      await supabase.from('subscription_events').insert({
-        user_id: 'system', // Use a special ID for system events
-        event_type: 'webhook_error',
-        tier: 'system',
-        stripe_event_id: `error_${Date.now()}`,
-        event_data: {
-          error: error.message,
-          timestamp: new Date().toISOString(),
-          errorDetails: {
-            code: error.code,
-            name: error.name
-          },
-          processedIn: totalTime
-        }
-      });
-    } catch (logError) {
-
-    }
-    
-    return handleAPIError(error);
+    return new NextResponse(
+      JSON.stringify({
+        error: error instanceof APIError ? error.message : 'Server error',
+        error_code: error instanceof APIError ? error.errorCode : 'server_error',
+        msg: error.message
+      }),
+      { 
+        status: error instanceof APIError ? error.statusCode : 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   }
 }
