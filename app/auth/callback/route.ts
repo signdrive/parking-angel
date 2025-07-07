@@ -19,8 +19,6 @@ const ALLOWED_REDIRECT_PATHS = [
 
 const MAX_RETURN_URL_LENGTH = 500
 const DEFAULT_REDIRECT = '/dashboard'
-const PKCE_CODE_VERIFIER = 'pkce-verifier' // Supabase's PKCE cookie name
-const SUPABASE_AUTH_CODE_VERIFIER = 'code_verifier' // Browser's PKCE cookie name
 
 // Utility function to validate return URLs
 function isValidReturnUrl(returnUrl: string, origin: string): boolean {
@@ -72,63 +70,89 @@ export async function GET(request: NextRequest) {
     const returnTo = requestUrl.searchParams.get('return_to')
     const plan = requestUrl.searchParams.get('plan')
 
-    // Get both PKCE verifier cookies
-    const cookieStore = await cookies()
-    const pkceVerifier = cookieStore.get(PKCE_CODE_VERIFIER)?.value
-    const authVerifier = cookieStore.get(SUPABASE_AUTH_CODE_VERIFIER)?.value
-    const verifier = pkceVerifier || authVerifier
-
-    // Debug logging
-    console.log('Auth callback params:', {
-      code: code ? 'present' : 'missing',
+    // Debug incoming parameters
+    console.log('Auth callback received:', {
+      hasCode: !!code,
       returnTo: returnTo || 'none',
-      plan: plan || 'none',
-      pkceVerifier: pkceVerifier ? 'present' : 'missing',
-      authVerifier: authVerifier ? 'present' : 'missing'
+      plan: plan || 'none'
+    })
+
+    // Get PKCE code verifier from cookies
+    const cookieStore = await cookies()
+    const verifier = cookieStore.get('code_verifier')?.value
+
+    // Debug cookie state
+    console.log('Cookie state:', {
+      hasVerifier: !!verifier,
+      cookieNames: Array.from(cookieStore.getAll()).map(cookie => cookie.name)
     })
 
     if (!code) {
-      console.error('No code in callback')
-      return NextResponse.redirect(new URL('/auth/error?error=no_code', requestUrl.origin))
+      console.error('No authorization code in callback')
+      return NextResponse.redirect(
+        new URL('/auth/error?error=no_code', requestUrl.origin)
+      )
     }
 
     if (!verifier) {
-      console.error('No PKCE verifier in cookies')
-      return NextResponse.redirect(new URL('/auth/error?error=no_verifier', requestUrl.origin))
+      console.error('No PKCE code verifier in cookies')
+      return NextResponse.redirect(
+        new URL('/auth/error?error=no_verifier', requestUrl.origin)
+      )
     }
 
+    // Initialize Supabase client
     const supabase = createRouteHandlerClient({ cookies })
 
-    // Exchange code with both verifiers
+    // Exchange code for session using code verifier
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
-      console.error('Error exchanging code:', error)
-      const errorUrl = new URL('/auth/error', requestUrl.origin)
-      errorUrl.searchParams.set('error', error.message)
-      return NextResponse.redirect(errorUrl)
+      console.error('Session exchange error:', error)
+      return NextResponse.redirect(
+        new URL(`/auth/error?error=${encodeURIComponent(error.message)}`, requestUrl.origin)
+      )
     }
 
-    // Clean up cookies after successful exchange
-    const response = returnTo && isValidReturnUrl(returnTo, requestUrl.origin)
-      ? NextResponse.redirect(new URL(returnTo, requestUrl.origin))
-      : NextResponse.redirect(new URL(DEFAULT_REDIRECT, requestUrl.origin))
+    // Determine redirect URL (returnTo if valid, or default)
+    const redirectTo = returnTo && isValidReturnUrl(returnTo, requestUrl.origin)
+      ? returnTo 
+      : DEFAULT_REDIRECT
 
-    // Copy access token to cookie for client-side access
-    response.cookies.set('sb-access-token', data.session.access_token, {
-      path: '/',
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax'
-    })
+    // Add plan parameter if present
+    const finalRedirectUrl = new URL(
+      redirectTo.startsWith('http') ? redirectTo : redirectTo,
+      requestUrl.origin
+    )
+    if (plan) {
+      finalRedirectUrl.searchParams.set('plan', plan)
+    }
 
-    // Delete PKCE verifier cookies
-    response.cookies.delete(PKCE_CODE_VERIFIER)
-    response.cookies.delete(SUPABASE_AUTH_CODE_VERIFIER)
+    // Create response with redirect
+    const response = NextResponse.redirect(finalRedirectUrl)
+
+    // Clean up all possible PKCE cookies
+    response.cookies.delete('code_verifier')
+    response.cookies.delete('pkce-verifier')
+    response.cookies.delete('supabase-auth-token')
+
+    // Copy the session token to a secure cookie for client access
+    if (data?.session) {
+      response.cookies.set({
+        name: 'sb-auth-token',
+        value: data.session.access_token,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7 // 1 week
+      })
+    }
 
     return response
   } catch (error) {
     console.error('Callback error:', error)
-    return NextResponse.redirect(new URL('/auth/error?error=callback_failed', request.url))
+    return NextResponse.redirect(
+      new URL('/auth/error?error=callback_failed', request.url)
+    )
   }
 }

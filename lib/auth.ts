@@ -27,6 +27,9 @@ export async function signInWithGoogle(
         ? redirectTo 
         : `${baseUrl}${redirectTo}`
 
+    // Generate PKCE code verifier and challenge
+    const { data: { code_verifier, code_challenge } } = await supabase.auth.generatePKCEVerifier()
+
     // Configure OAuth with PKCE
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -37,8 +40,13 @@ export async function signInWithGoogle(
           access_type: 'offline',
           prompt: 'select_account',
           response_type: 'code',
-          code_challenge_method: 'S256' // Enable PKCE with SHA-256
-        }
+          code_challenge: code_challenge,
+          code_challenge_method: 'S256'
+        },
+        // Pass code verifier to be stored in cookie
+        codeVerifier: code_verifier,
+        // Always use PKCE
+        flowType: 'pkce'
       }
     })
 
