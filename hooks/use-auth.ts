@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { User, createClient } from '@supabase/supabase-js';
 import { Database } from '@/lib/types/supabase';
+import { useRouter } from 'next/navigation';
 
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,6 +13,7 @@ const supabase = createClient<Database>(
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const initAuth = async () => {
@@ -38,5 +40,65 @@ export function useAuth() {
     };
   }, []);
 
-  return { user, loading } as const;
+  const signInWithGoogle = useCallback(async (redirectTo: string = '/dashboard') => {
+    try {
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_APP_URL;
+
+      // Generate PKCE verifier and challenge
+      const verifier = generatePKCEVerifier();
+      const challenge = await generatePKCEChallenge(verifier);
+
+      // Store verifier in secure cookie
+      document.cookie = `my-code-verifier=${verifier}; path=/auth; secure; samesite=lax; max-age=300`;
+      document.cookie = `code_verifier=${verifier}; path=/auth; secure; samesite=lax; max-age=300`;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${baseUrl}${redirectTo}`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+            code_challenge: challenge,
+            code_challenge_method: 'S256'
+          }
+        }
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      throw error;
+    }
+  }, []);
+
+  return { 
+    user, 
+    loading,
+    signInWithGoogle 
+  } as const;
+}
+
+// PKCE Helper Functions
+function generatePKCEVerifier() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return base64URLEncode(array);
+}
+
+async function generatePKCEChallenge(verifier: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return base64URLEncode(new Uint8Array(hash));
+}
+
+function base64URLEncode(buffer: Uint8Array) {
+  const base64 = btoa(String.fromCharCode.apply(null, [...buffer]));
+  return base64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }

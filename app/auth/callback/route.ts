@@ -77,13 +77,16 @@ export async function GET(request: NextRequest) {
       plan: plan || 'none'
     })
 
-    // Get PKCE code verifier from cookies
+    // Get PKCE code verifier from cookies (try both names)
     const cookieStore = await cookies()
-    const verifier = cookieStore.get('code_verifier')?.value
+    const legacyVerifier = cookieStore.get('code_verifier')?.value
+    const newVerifier = cookieStore.get('my-code-verifier')?.value
+    const verifier = newVerifier || legacyVerifier
 
     // Debug cookie state
     console.log('Cookie state:', {
-      hasVerifier: !!verifier,
+      hasLegacyVerifier: !!legacyVerifier,
+      hasNewVerifier: !!newVerifier,
       cookieNames: Array.from(cookieStore.getAll()).map(cookie => cookie.name)
     })
 
@@ -95,60 +98,56 @@ export async function GET(request: NextRequest) {
     }
 
     if (!verifier) {
-      console.error('No PKCE code verifier in cookies')
+      console.error('No PKCE code verifier in cookies', {
+        cookieNames: Array.from(cookieStore.getAll()).map(cookie => cookie.name),
+        legacyVerifierExists: !!legacyVerifier,
+        newVerifierExists: !!newVerifier
+      })
       return NextResponse.redirect(
         new URL('/auth/error?error=no_verifier', requestUrl.origin)
       )
     }
 
-    // Initialize Supabase client
+    // Create Supabase client with enhanced logging
     const supabase = createRouteHandlerClient({ cookies })
 
-    // Exchange code for session using code verifier
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    try {
+      // Exchange code for session
+      const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+      
+      if (exchangeError) {
+        console.error('Failed to exchange code for session:', exchangeError)
+        return NextResponse.redirect(
+          new URL(`/auth/error?error=exchange_failed&message=${encodeURIComponent(exchangeError.message)}`, requestUrl.origin)
+        )
+      }
 
-    if (error) {
-      console.error('Session exchange error:', error)
+      // Validate and clean return URL
+      let redirectUrl = returnTo || DEFAULT_REDIRECT
+      if (!isValidReturnUrl(redirectUrl, requestUrl.origin)) {
+        console.warn('Invalid return URL, using default:', redirectUrl)
+        redirectUrl = DEFAULT_REDIRECT
+      }
+
+      // Clean up PKCE cookies
+      const response = NextResponse.redirect(new URL(redirectUrl, requestUrl.origin))
+      response.cookies.delete('code_verifier')
+      response.cookies.delete('my-code-verifier')
+
+      // Add plan parameter if present
+      if (plan) {
+        const redirectUrlObj = new URL(redirectUrl, requestUrl.origin)
+        redirectUrlObj.searchParams.set('plan', plan)
+        return NextResponse.redirect(redirectUrlObj)
+      }
+
+      return response
+    } catch (error) {
+      console.error('Unexpected error in auth callback:', error)
       return NextResponse.redirect(
-        new URL(`/auth/error?error=${encodeURIComponent(error.message)}`, requestUrl.origin)
+        new URL('/auth/error?error=unexpected', requestUrl.origin)
       )
     }
-
-    // Determine redirect URL (returnTo if valid, or default)
-    const redirectTo = returnTo && isValidReturnUrl(returnTo, requestUrl.origin)
-      ? returnTo 
-      : DEFAULT_REDIRECT
-
-    // Add plan parameter if present
-    const finalRedirectUrl = new URL(
-      redirectTo.startsWith('http') ? redirectTo : redirectTo,
-      requestUrl.origin
-    )
-    if (plan) {
-      finalRedirectUrl.searchParams.set('plan', plan)
-    }
-
-    // Create response with redirect
-    const response = NextResponse.redirect(finalRedirectUrl)
-
-    // Clean up all possible PKCE cookies
-    response.cookies.delete('code_verifier')
-    response.cookies.delete('pkce-verifier')
-    response.cookies.delete('supabase-auth-token')
-
-    // Copy the session token to a secure cookie for client access
-    if (data?.session) {
-      response.cookies.set({
-        name: 'sb-auth-token',
-        value: data.session.access_token,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7 // 1 week
-      })
-    }
-
-    return response
   } catch (error) {
     console.error('Callback error:', error)
     return NextResponse.redirect(

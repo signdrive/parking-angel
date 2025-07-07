@@ -18,9 +18,11 @@ const nextConfig = {
       'https://*.googletagmanager.com',
       'https://analytics.google.com',
       'https://region1.google-analytics.com',
+      'https://region1.analytics.google.com', // Add region1 analytics
       'https://www.google-analytics.com',
       'https://ssl.google-analytics.com',
-      'https://stats.g.doubleclick.net'
+      'https://stats.g.doubleclick.net',
+      'https://www.googletagmanager.com'
     ];
 
     const cspDirectives = {
@@ -88,7 +90,8 @@ const nextConfig = {
         'https://accounts.google.com'
       ],
       'worker-src': ["'self'", 'blob:'],
-      'manifest-src': ["'self'"]
+      'manifest-src': ["'self'"],
+      'report-uri': ["'self'"] // Add CSP reporting
     };
 
     // Build CSP string from directives

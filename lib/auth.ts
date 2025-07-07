@@ -27,8 +27,14 @@ export async function signInWithGoogle(
         ? redirectTo 
         : `${baseUrl}${redirectTo}`
 
-    // Generate PKCE code verifier and challenge
-    const { data: { code_verifier, code_challenge } } = await supabase.auth.generatePKCEVerifier()
+    // Generate random verifier
+    const verifier = generateCodeVerifier()
+    const challenge = await generateCodeChallenge(verifier)
+
+    // Store verifier in secure cookie
+    document.cookie = `my-code-verifier=${verifier}; path=/auth; secure; samesite=lax; max-age=300`
+    // Also try storing in the legacy cookie name for compatibility 
+    document.cookie = `code_verifier=${verifier}; path=/auth; secure; samesite=lax; max-age=300`
 
     // Configure OAuth with PKCE
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -40,13 +46,9 @@ export async function signInWithGoogle(
           access_type: 'offline',
           prompt: 'select_account',
           response_type: 'code',
-          code_challenge: code_challenge,
+          code_challenge: challenge,
           code_challenge_method: 'S256'
-        },
-        // Pass code verifier to be stored in cookie
-        codeVerifier: code_verifier,
-        // Always use PKCE
-        flowType: 'pkce'
+        }
       }
     })
 
@@ -217,4 +219,26 @@ export async function initAuth() {
   } catch (error) {
     console.warn('Auth initialization error:', error)
   }
+}
+
+// PKCE Helper Functions
+function generateCodeVerifier() {
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  return base64URLEncode(array)
+}
+
+async function generateCodeChallenge(verifier: string) {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(verifier)
+  const hash = await crypto.subtle.digest('SHA-256', data)
+  return base64URLEncode(new Uint8Array(hash))
+}
+
+function base64URLEncode(buffer: Uint8Array) {
+  const base64 = btoa(String.fromCharCode.apply(null, [...buffer]))
+  return base64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
 }

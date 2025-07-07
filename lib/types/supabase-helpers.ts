@@ -103,7 +103,7 @@ export interface AuthContextType {
   profile: Profile | null;
   subscription: StripeSubscriptionWithMetadata | null;
   isSubscribed: boolean;
-  signInWithGoogle: (returnTo?: string) => Promise<void>;
+  signInWithGoogle: (redirectTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
   loading: boolean;
   error: Error | null;

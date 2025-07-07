@@ -15,6 +15,10 @@ function getErrorMessage(error: string | null, description?: string | null): str
       return description || 'There was a problem with your login session.'
     case 'no_code':
       return 'No authentication code received. Please try again.'
+    case 'no_verifier':
+      return 'PKCE verification failed. Please try signing in again.'
+    case 'exchange_failed':
+      return description || 'Failed to exchange the authentication code. Please try again.'
     case 'unexpected':
       return 'An unexpected error occurred. Please try again.'
     default:
@@ -26,7 +30,7 @@ export default function AuthErrorPage() {
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const auth = useAuth()
+  const { signInWithGoogle, loading } = useAuth()
 
   // Get error details from URL
   const error = searchParams?.get('error')
@@ -45,13 +49,10 @@ export default function AuthErrorPage() {
 
   // Function to retry login
   const handleRetry = async () => {
+    if (loading) return // Prevent multiple attempts while loading
+    
     try {
-      const signInWithGoogle = auth.signInWithGoogle
-      if (signInWithGoogle) {
-        await signInWithGoogle('/dashboard')
-      } else {
-        throw new Error('Sign in method not available')
-      }
+      await signInWithGoogle('/dashboard')
     } catch (err) {
       toast({
         variant: "destructive",
@@ -73,12 +74,16 @@ export default function AuthErrorPage() {
           </p>
         </div>
         <div className="grid gap-4">
-          <Button onClick={handleRetry}>
-            Try Again
+          <Button 
+            onClick={handleRetry}
+            disabled={loading}
+          >
+            {loading ? 'Retrying...' : 'Try Again'}
           </Button>
           <Button
             variant="outline"
             onClick={() => router.push('/')}
+            disabled={loading}
           >
             Back to Home
           </Button>

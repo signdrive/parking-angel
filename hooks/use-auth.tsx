@@ -11,6 +11,7 @@ import {
 } from "../lib/types/supabase-helpers"
 import { useRouter } from "next/navigation"
 import { useToast } from "./use-toast"
+import { signInWithGoogle as googleSignIn } from "../lib/auth"
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [subscription, setSubscription] = useState<StripeSubscriptionWithMetadata | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [isSubscribed, setIsSubscribed] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -61,42 +63,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase]);
 
-  const signInWithGoogle = useCallback(async (returnTo?: string) => {
+  const signInWithGoogle = useCallback(async (redirectTo = '/dashboard') => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ''}`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent'
-          }
-        }
-      });
-      if (error) throw error;
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to sign in with Google'));
-      throw err;
+      const result = await googleSignIn(redirectTo)
+      if (result.error) {
+        throw result.error
+      }
+    } catch (error) {
+      setError(error as Error)
+      throw error
     }
-  }, [supabase]);
+  }, [])
 
   const signOut = useCallback(async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      setUser(null);
-      setProfile(null);
-      setSubscription(null);
-      router.push('/auth/login');
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to sign out'));
-      toast({
-        title: "Error signing out",
-        description: "Please try again",
-        variant: "destructive"
-      });
+      await supabase.auth.signOut()
+      router.push('/')
+    } catch (error) {
+      setError(error as Error)
+      throw error
     }
-  }, [supabase, router, toast]);
+  }, [supabase.auth, router])
 
   useEffect(() => {
     const {
@@ -117,40 +104,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase, fetchUserData]);
 
-  const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
-
-  // Only show loading spinner during initial load
-  if (loading && !user && !profile) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-          <p className="text-muted-foreground">Initializing authentication...</p>
-        </div>
-      </div>
-    );
+  // Provide the full context value
+  const value: AuthContextType = {
+    user,
+    profile,
+    subscription,
+    isSubscribed,
+    signInWithGoogle,
+    signOut,
+    loading,
+    error
   }
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      profile,
-      subscription,
-      isSubscribed,
-      signInWithGoogle,
-      signOut,
-      loading,
-      error
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
+export function useAuth() {
+  const context = useContext(AuthContext)
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider')
   }
-  return context;
-};
+  return context
+}
