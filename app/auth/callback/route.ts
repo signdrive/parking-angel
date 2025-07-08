@@ -68,28 +68,12 @@ export async function GET(request: NextRequest) {
   try {
     const requestUrl = new URL(request.url);
     const code = requestUrl.searchParams.get('code');
-    const returnTo = requestUrl.searchParams.get('redirect_to');
-    const plan = requestUrl.searchParams.get('plan');
+    const returnTo = requestUrl.searchParams.get('return_to') || DEFAULT_REDIRECT;
 
     // Debug incoming parameters
     console.log('Auth callback received:', {
       hasCode: !!code,
-      returnTo: returnTo || 'none',
-      plan: plan || 'none'
-    });
-
-    // Get PKCE code verifier from cookies (try both names)
-    const cookieStore = await cookies();
-    const legacyVerifier = cookieStore.get('code_verifier')?.value;
-    const newVerifier = cookieStore.get('my-code-verifier')?.value;
-    const verifier = newVerifier || legacyVerifier;
-
-    // Debug cookie state
-    const allCookies = cookieStore.getAll();
-    console.log('Cookie state:', {
-      hasLegacyVerifier: !!legacyVerifier,
-      hasNewVerifier: !!newVerifier,
-      cookieNames: allCookies.map((cookie: RequestCookie) => cookie.name)
+      returnTo: returnTo || 'none'
     });
 
     if (!code) {
@@ -99,87 +83,48 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!verifier) {
-      console.error('No PKCE code verifier in cookies', {
-        cookieNames: allCookies.map((cookie: RequestCookie) => cookie.name),
-        cookieValues: allCookies.map((cookie: RequestCookie) => ({
-          name: cookie.name,
-          valueLength: cookie.value?.length || 0
-        })),
-        legacyVerifierExists: !!legacyVerifier,
-        newVerifierExists: !!newVerifier,
-        requestHeaders: Object.fromEntries(request.headers.entries())
-      });
+    // Validate return URL
+    if (!isValidReturnUrl(returnTo, requestUrl.origin)) {
+      console.warn('Invalid return URL:', returnTo);
       return NextResponse.redirect(
-        new URL('/auth/error?error=no_verifier&debug=true', requestUrl.origin)
+        new URL(DEFAULT_REDIRECT, requestUrl.origin)
       );
     }
 
-    // Create Supabase client
-    const supabase = createRouteHandlerClient({ cookies: () => Promise.resolve(cookieStore) });
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
     try {
-      // Exchange code for session
-      const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
       
-      if (exchangeError) {
-        console.error('Failed to exchange code for session:', exchangeError);
-        return NextResponse.redirect(
-          new URL(`/auth/error?error=exchange_failed&message=${encodeURIComponent(exchangeError.message)}`, requestUrl.origin)
-        );
+      if (sessionError) {
+        console.error('Session exchange error:', sessionError);
+        throw sessionError;
       }
 
-      // Validate and clean return URL
-      let redirectUrl = returnTo || DEFAULT_REDIRECT;
-      if (!isValidReturnUrl(redirectUrl, requestUrl.origin)) {
-        console.warn('Invalid return URL, using default:', redirectUrl);
-        redirectUrl = DEFAULT_REDIRECT;
-      }
-
-      // Clean up PKCE cookies
-      const response = NextResponse.redirect(new URL(redirectUrl, requestUrl.origin));
-      
-      // Properly clear cookies by setting empty value with immediate expiry
+      // Clear PKCE cookies
+      const response = NextResponse.redirect(new URL(returnTo, requestUrl.origin));
       response.cookies.set('code_verifier', '', { 
-        path: '/', 
-        maxAge: 0,
-        expires: new Date(0),
-        sameSite: 'lax',
-        secure: true
+        path: '/',
+        expires: new Date(0)
       });
-      response.cookies.set('my-code-verifier', '', { 
-        path: '/', 
-        maxAge: 0,
-        expires: new Date(0),
-        sameSite: 'lax',
-        secure: true
+      response.cookies.set('my-code-verifier', '', {
+        path: '/',
+        expires: new Date(0)
       });
-
-      // Add debug headers
-      response.headers.set('X-Auth-Debug', JSON.stringify({
-        hadVerifier: !!verifier,
-        verifierLength: verifier?.length,
-        exchangeSuccess: true
-      }));
-
-      // Add plan parameter if present
-      if (plan) {
-        const redirectUrlObj = new URL(redirectUrl, requestUrl.origin);
-        redirectUrlObj.searchParams.set('plan', plan);
-        return NextResponse.redirect(redirectUrlObj);
-      }
-
+      
       return response;
     } catch (error) {
-      console.error('Unexpected error in auth callback:', error);
+      console.error('Auth callback error:', error);
       return NextResponse.redirect(
-        new URL('/auth/error?error=unexpected', requestUrl.origin)
+        new URL('/auth/error?error=session_error', requestUrl.origin)
       );
     }
   } catch (error) {
-    console.error('Callback error:', error);
+    const errorUrl = new URL(request.url);
+    console.error('Unexpected error in auth callback:', error);
     return NextResponse.redirect(
-      new URL('/auth/error?error=callback_failed', request.url)
+      new URL('/auth/error?error=unknown', errorUrl.origin)
     );
   }
 }
