@@ -9,9 +9,7 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['@mui/icons-material'],
-    optimizeCss: true,
-    swcMinify: true,
-    optimizeFonts: true
+    optimizeCss: true
   },
   
   // Configure webpack to properly preload CSS
@@ -21,8 +19,11 @@ const nextConfig = {
       const originalEntry = config.entry;
       config.entry = async () => {
         const entries = await originalEntry();
-        if (entries['main.js'] && !entries['main.js'].includes('client/fast-refresh.js')) {
-          entries['main.js'].unshift(require.resolve('next/dist/client/fast-refresh.js'));
+        if (entries['main.js']) {
+          const fastRefreshPath = await import('next/dist/client/fast-refresh.js').then(m => m.default);
+          if (!entries['main.js'].includes(fastRefreshPath)) {
+            entries['main.js'].unshift(fastRefreshPath);
+          }
         }
         return entries;
       };
@@ -34,9 +35,6 @@ const nextConfig = {
   poweredByHeader: false,
   generateEtags: true,
   compress: true,
-
-  // Optimize CSS loading
-  optimizeFonts: true,
   assetPrefix: process.env.NODE_ENV === 'production' ? 'https://parkalgo.com' : '',
   async headers() {
     const googleAnalyticsDomains = [
