@@ -54,42 +54,25 @@ const nextConfig = {
     ];
 
     const cspDirectives = {
-      'default-src': ["'self'", 'https://*.parkalgo.com'],
+      'default-src': ["'self'", 'https://*.parkalgo.com', 'https://parkalgo.com'],
       'script-src': [
         "'self'",
         "'unsafe-inline'",
         "'unsafe-eval'",
+        'https://*.parkalgo.com',
+        'https://parkalgo.com',
         ...googleAnalyticsDomains,
         'https://js.stripe.com',
         'https://checkout.stripe.com',
         'https://maps.googleapis.com',
         'https://apis.google.com',
-        'https://accounts.google.com',
-        'https://*.parkalgo.com'
-      ],
-      'script-src-elem': [
-        "'self'",
-        "'unsafe-inline'",
-        ...googleAnalyticsDomains,
-        'https://js.stripe.com',
-        'https://checkout.stripe.com',
-        'https://maps.googleapis.com',
-        'https://apis.google.com',
-        'https://accounts.google.com',
-        'https://*.parkalgo.com'
+        'https://accounts.google.com'
       ],
       'style-src': [
         "'self'",
         "'unsafe-inline'",
         'https://*.parkalgo.com',
-        'https://api.mapbox.com',
-        'https://checkout.stripe.com',
-        'https://fonts.googleapis.com'
-      ],
-      'style-src-elem': [
-        "'self'",
-        "'unsafe-inline'",
-        'https://*.parkalgo.com',
+        'https://parkalgo.com',
         'https://api.mapbox.com',
         'https://checkout.stripe.com',
         'https://fonts.googleapis.com'
@@ -99,13 +82,16 @@ const nextConfig = {
         'data:',
         'blob:',
         'https:',
+        'https://*.parkalgo.com',
+        'https://parkalgo.com',
         ...googleAnalyticsDomains,
         'https://*.googleusercontent.com',
-        'https://*.stripe.com',
-        'https://*.parkalgo.com'
+        'https://*.stripe.com'
       ],
       'connect-src': [
         "'self'",
+        'https://*.parkalgo.com',
+        'https://parkalgo.com',
         ...googleAnalyticsDomains,
         'https://js.stripe.com',
         'https://api.stripe.com',
@@ -118,20 +104,13 @@ const nextConfig = {
         'https://maps.googleapis.com',
         'https://places.googleapis.com',
         'https://*.googleapis.com',
-        'https://lh3.googleusercontent.com',
-        'https://*.parkalgo.com'
+        'https://lh3.googleusercontent.com'
       ],
       'font-src': [
         "'self'",
         'data:',
         'https://*.parkalgo.com',
-        'https://checkout.stripe.com',
-        'https://fonts.gstatic.com'
-      ],
-      'font-src-elem': [
-        "'self'",
-        'data:',
-        'https://*.parkalgo.com',
+        'https://parkalgo.com',
         'https://checkout.stripe.com',
         'https://fonts.gstatic.com'
       ],
