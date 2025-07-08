@@ -70,6 +70,9 @@ export async function GET(request: NextRequest) {
     const returnTo = requestUrl.searchParams.get('return_to') || DEFAULT_REDIRECT;
     const error = requestUrl.searchParams.get('error');
 
+    // Create response early to set cookies
+    const response = NextResponse.redirect(new URL(returnTo, requestUrl.origin));
+    
     // Debug incoming parameters
     console.log('Auth callback received:', {
       hasCode: !!code,
@@ -107,11 +110,6 @@ export async function GET(request: NextRequest) {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
       
-      console.log('Auth state:', {
-        hasSession: !!session,
-        returnTo
-      });
-      
       if (sessionError) {
         console.error('Session exchange error:', {
           error: sessionError,
@@ -132,8 +130,30 @@ export async function GET(request: NextRequest) {
         returnTo
       });
 
+      // Set session cookie
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token
+      });
+
+      // Set secure session cookies
+      response.cookies.set('sb-access-token', session.access_token, {
+        path: '/',
+        secure: true,
+        sameSite: 'lax',
+        httpOnly: true,
+        maxAge: 60 * 60 * 24 * 7 // 1 week
+      });
+
+      response.cookies.set('sb-refresh-token', session.refresh_token, {
+        path: '/',
+        secure: true,
+        sameSite: 'lax',
+        httpOnly: true,
+        maxAge: 60 * 60 * 24 * 7 // 1 week
+      });
+
       // Clear PKCE cookies
-      const response = NextResponse.redirect(new URL(returnTo, requestUrl.origin));
       response.cookies.set('code_verifier', '', { 
         path: '/',
         expires: new Date(0),

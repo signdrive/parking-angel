@@ -9,11 +9,35 @@ export async function middleware(request: NextRequest) {
     res,
   });
 
-  // Refresh session if expired and get the session - this is critical for SSR
-  const { data: { session }, error } = await supabase.auth.getSession();
-  
-  if (error) {
-    console.error('Session refresh error:', error);
+  try {
+    // Get current session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      return res;
+    }
+
+    // If we have a session, refresh it
+    if (session) {
+      const { data: { session: refreshedSession }, error: refreshError } = 
+        await supabase.auth.refreshSession();
+      
+      if (refreshError) {
+        console.error('Session refresh error:', refreshError);
+        return res;
+      }
+
+      if (refreshedSession) {
+        // Set refreshed session
+        await supabase.auth.setSession({
+          access_token: refreshedSession.access_token,
+          refresh_token: refreshedSession.refresh_token!
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Middleware session error:', error);
   }
 
   return res;
