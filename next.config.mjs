@@ -15,9 +15,10 @@ const nextConfig = {
   // Configure webpack for production optimizations
   webpack: (config, { dev, isServer }) => {
     if (!dev && !isServer) {
-      // Optimize CSS chunks
-      if (config.optimization) {
-        config.optimization.splitChunks = {
+      // Optimize chunks
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
           chunks: 'all',
           minSize: 20000,
           maxSize: 244000,
@@ -32,9 +33,25 @@ const nextConfig = {
               enforce: true,
               priority: 10,
             },
+            fonts: {
+              name: 'fonts',
+              test: /\.(woff|woff2|eot|ttf|otf)$/,
+              chunks: 'all',
+              enforce: true,
+              priority: 20,
+            },
           },
-        };
-      }
+        },
+      };
+
+      // Add asset handling rules
+      config.module.rules.push({
+        test: /\.(woff|woff2|eot|ttf|otf)$/i,
+        type: 'asset/resource',
+        generator: {
+          filename: 'static/media/[name][ext]',
+        },
+      });
     }
     return config;
   },
@@ -54,11 +71,23 @@ const nextConfig = {
     ];
 
     const cspDirectives = {
-      'default-src': ["'self'"],
+      'default-src': ["'self'", 'https://*.parkalgo.com'],
       'script-src': [
         "'self'",
         "'unsafe-inline'",
         "'unsafe-eval'",
+        'https://*.parkalgo.com',
+        ...googleAnalyticsDomains,
+        'https://js.stripe.com',
+        'https://checkout.stripe.com',
+        'https://maps.googleapis.com',
+        'https://apis.google.com',
+        'https://accounts.google.com'
+      ],
+      'script-src-elem': [
+        "'self'",
+        "'unsafe-inline'",
+        'https://*.parkalgo.com',
         ...googleAnalyticsDomains,
         'https://js.stripe.com',
         'https://checkout.stripe.com',
@@ -69,6 +98,15 @@ const nextConfig = {
       'style-src': [
         "'self'",
         "'unsafe-inline'",
+        'https://*.parkalgo.com',
+        'https://api.mapbox.com',
+        'https://checkout.stripe.com',
+        'https://fonts.googleapis.com'
+      ],
+      'style-src-elem': [
+        "'self'",
+        "'unsafe-inline'",
+        'https://*.parkalgo.com',
         'https://api.mapbox.com',
         'https://checkout.stripe.com',
         'https://fonts.googleapis.com'
@@ -101,6 +139,14 @@ const nextConfig = {
       'font-src': [
         "'self'",
         'data:',
+        'https://*.parkalgo.com',
+        'https://checkout.stripe.com',
+        'https://fonts.gstatic.com'
+      ],
+      'font-src-elem': [
+        "'self'",
+        'data:',
+        'https://*.parkalgo.com',
         'https://checkout.stripe.com',
         'https://fonts.gstatic.com'
       ],
