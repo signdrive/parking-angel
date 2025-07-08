@@ -12,21 +12,29 @@ const nextConfig = {
     optimizeCss: true
   },
   
-  // Configure webpack to properly preload CSS
+  // Configure webpack for production optimizations
   webpack: (config, { dev, isServer }) => {
     if (!dev && !isServer) {
-      // Update the preload plugin configuration
-      const originalEntry = config.entry;
-      config.entry = async () => {
-        const entries = await originalEntry();
-        if (entries['main.js']) {
-          const fastRefreshPath = await import('next/dist/client/fast-refresh.js').then(m => m.default);
-          if (!entries['main.js'].includes(fastRefreshPath)) {
-            entries['main.js'].unshift(fastRefreshPath);
-          }
-        }
-        return entries;
-      };
+      // Optimize CSS chunks
+      if (config.optimization) {
+        config.optimization.splitChunks = {
+          chunks: 'all',
+          minSize: 20000,
+          maxSize: 244000,
+          minChunks: 1,
+          maxAsyncRequests: 30,
+          maxInitialRequests: 30,
+          cacheGroups: {
+            styles: {
+              name: 'styles',
+              test: /\.(css|scss)$/,
+              chunks: 'all',
+              enforce: true,
+              priority: 10,
+            },
+          },
+        };
+      }
     }
     return config;
   },
@@ -36,6 +44,7 @@ const nextConfig = {
   generateEtags: true,
   compress: true,
   assetPrefix: process.env.NODE_ENV === 'production' ? 'https://parkalgo.com' : '',
+
   async headers() {
     const googleAnalyticsDomains = [
       'https://*.google-analytics.com',
@@ -110,11 +119,9 @@ const nextConfig = {
         'https://accounts.google.com'
       ],
       'worker-src': ["'self'", 'blob:'],
-      'manifest-src': ["'self'"],
-      'report-uri': ["'self'"] // Add CSP reporting
+      'manifest-src': ["'self'"]
     };
 
-    // Build CSP string from directives
     const csp = Object.entries(cspDirectives)
       .map(([key, values]) => `${key} ${values.join(' ')}`)
       .join('; ');
@@ -151,6 +158,7 @@ const nextConfig = {
       },
     ]
   },
+
   async redirects() {
     return [
       {
@@ -171,6 +179,7 @@ const nextConfig = {
       },
     ]
   },
+
   env: {
     GA4_API_SECRET: process.env.GA4_API_SECRET,
   },
