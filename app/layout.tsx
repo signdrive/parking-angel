@@ -16,6 +16,7 @@ import { FloatingAIChat } from "@/components/ai/floating-ai-chat"
 import Loading from "./loading"
 import { ConsentProvider } from "@/hooks/use-consent"
 import { ConsentScreen } from "@/components/consent/consent-screen"
+import { ServiceWorkerInit } from "@/components/pwa/service-worker-init"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -88,6 +89,7 @@ export default function RootLayout({
                         {children}
                         <FloatingAIChat />
                         <ConsentScreen />
+                        <ServiceWorkerInit />
                       </Suspense>
                     </SupabaseBoundary>
                   </AIAssistantProvider>

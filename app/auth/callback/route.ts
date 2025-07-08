@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import type { RequestCookie } from 'next/dist/compiled/@edge-runtime/cookies';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -84,10 +85,11 @@ export async function GET(request: NextRequest) {
     const verifier = newVerifier || legacyVerifier;
 
     // Debug cookie state
+    const allCookies = cookieStore.getAll();
     console.log('Cookie state:', {
       hasLegacyVerifier: !!legacyVerifier,
       hasNewVerifier: !!newVerifier,
-      cookieNames: cookieStore.getAll().map((cookie: { name: string }) => cookie.name)
+      cookieNames: allCookies.map((cookie: RequestCookie) => cookie.name)
     });
 
     if (!code) {
@@ -98,10 +100,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (!verifier) {
-      const allCookies = cookieStore.getAll();
       console.error('No PKCE code verifier in cookies', {
-        cookieNames: allCookies.map((cookie: { name: string }) => cookie.name),
-        cookieValues: allCookies.map((cookie: { name: string, value: string }) => ({
+        cookieNames: allCookies.map((cookie: RequestCookie) => cookie.name),
+        cookieValues: allCookies.map((cookie: RequestCookie) => ({
           name: cookie.name,
           valueLength: cookie.value?.length || 0
         })),
@@ -114,8 +115,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create Supabase client with enhanced logging
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    // Create Supabase client
+    const supabase = createRouteHandlerClient({ cookies: () => Promise.resolve(cookieStore) });
 
     try {
       // Exchange code for session
@@ -135,12 +136,26 @@ export async function GET(request: NextRequest) {
         redirectUrl = DEFAULT_REDIRECT;
       }
 
-      // Clean up PKCE cookies with correct path
+      // Clean up PKCE cookies
       const response = NextResponse.redirect(new URL(redirectUrl, requestUrl.origin));
-      response.cookies.delete('code_verifier', { path: '/' });
-      response.cookies.delete('my-code-verifier', { path: '/' });
       
-      // Add debug headers to trace PKCE flow
+      // Properly clear cookies by setting empty value with immediate expiry
+      response.cookies.set('code_verifier', '', { 
+        path: '/', 
+        maxAge: 0,
+        expires: new Date(0),
+        sameSite: 'lax',
+        secure: true
+      });
+      response.cookies.set('my-code-verifier', '', { 
+        path: '/', 
+        maxAge: 0,
+        expires: new Date(0),
+        sameSite: 'lax',
+        secure: true
+      });
+
+      // Add debug headers
       response.headers.set('X-Auth-Debug', JSON.stringify({
         hadVerifier: !!verifier,
         verifierLength: verifier?.length,

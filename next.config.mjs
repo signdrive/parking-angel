@@ -9,8 +9,35 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['@mui/icons-material'],
-    optimizeCss: true // Enable CSS optimization
+    optimizeCss: true,
+    swcMinify: true,
+    optimizeFonts: true
   },
+  
+  // Configure webpack to properly preload CSS
+  webpack: (config, { dev, isServer }) => {
+    if (!dev && !isServer) {
+      // Update the preload plugin configuration
+      const originalEntry = config.entry;
+      config.entry = async () => {
+        const entries = await originalEntry();
+        if (entries['main.js'] && !entries['main.js'].includes('client/fast-refresh.js')) {
+          entries['main.js'].unshift(require.resolve('next/dist/client/fast-refresh.js'));
+        }
+        return entries;
+      };
+    }
+    return config;
+  },
+
+  // Configure resource loading
+  poweredByHeader: false,
+  generateEtags: true,
+  compress: true,
+
+  // Optimize CSS loading
+  optimizeFonts: true,
+  assetPrefix: process.env.NODE_ENV === 'production' ? 'https://parkalgo.com' : '',
   async headers() {
     const googleAnalyticsDomains = [
       'https://*.google-analytics.com',
