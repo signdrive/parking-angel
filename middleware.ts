@@ -9,10 +9,12 @@ export async function middleware(request: NextRequest) {
     res,
   });
 
-  // Refresh session if expired - this will apply to every server component
-  // and server-side logic, ensuring session data is fresh.
-  // This is the core of session management with Supabase SSR.
-  await supabase.auth.getUser();
+  // Refresh session if expired and get the session - this is critical for SSR
+  const { data: { session }, error } = await supabase.auth.getSession();
+  
+  if (error) {
+    console.error('Session refresh error:', error);
+  }
 
   return res;
 }

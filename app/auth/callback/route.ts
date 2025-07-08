@@ -105,15 +105,12 @@ export async function GET(request: NextRequest) {
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
     try {
-      // Get all cookies and find code verifier
-      const codeVerifier = cookieStore.get('code_verifier');
+      const { data: { session }, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
       
       console.log('Auth state:', {
-        hasCodeVerifier: !!codeVerifier,
+        hasSession: !!session,
         returnTo
       });
-
-      const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
       
       if (sessionError) {
         console.error('Session exchange error:', {
@@ -125,13 +122,13 @@ export async function GET(request: NextRequest) {
         throw sessionError;
       }
 
-      if (!sessionData?.session) {
+      if (!session) {
         console.error('No session data received');
         throw new Error('No session data');
       }
 
       console.log('Auth success:', {
-        hasSession: !!sessionData.session,
+        hasSession: !!session,
         returnTo
       });
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, createClient } from '@supabase/supabase-js';
+import { User } from '@supabase/supabase-js';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/lib/types/supabase';
 import { useRouter } from 'next/navigation';
 
@@ -12,10 +13,7 @@ export interface AuthContextType {
   error: Error | null;
 }
 
-const supabase = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClientComponentClient<Database>();
 
 export function useAuth(): AuthContextType {
   const [user, setUser] = useState<User | null>(null);
@@ -79,16 +77,18 @@ export function useAuth(): AuthContextType {
         hasCookies: document.cookie.includes('code_verifier')
       });
 
+      // Start OAuth flow with proper return_to parameter
       const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`,
+          redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',
             code_challenge: challenge,
             code_challenge_method: 'S256',
-            response_type: 'code'
+            response_type: 'code',
+            return_to: redirectTo // Pass return_to as a query param
           }
         }
       });
