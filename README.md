@@ -99,6 +99,17 @@ cp .env.example .env.local
 npm run dev
 \`\`\`
 
+### VS Code Extensions
+
+This project includes recommended VS Code extensions for optimal development experience:
+
+- **GitHub Copilot** - AI-powered code completion
+- **GitHub Copilot Chat** - AI-powered code assistance and chat
+- **Tailwind CSS IntelliSense** - Enhanced CSS support
+- **Other AI tools** - Additional AI-powered development tools
+
+When opening the project in VS Code, you'll be prompted to install the recommended extensions.
+
 ### Docker Development
 
 \`\`\`bash
