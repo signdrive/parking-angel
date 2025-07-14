@@ -1,5 +1,7 @@
 {
     "recommendations": [
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
         "kingleo.qwen",
         "wassimdev.wassimdev-vscode-deepseek"
     ]
