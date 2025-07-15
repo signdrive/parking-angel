@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complete Storage Cleanup</title>
+</head>
+<body>
+    <h1>Clearing All Browser Storage...</h1>
+    <p id="status">Clearing storage...</p>
+    
+    <script>
+        async function completeCleanup() {
+            try {
+                console.log('Starting complete cleanup...');
+                
+                // Clear all localStorage
+                localStorage.clear();
+                console.log('localStorage cleared');
+                
+                // Clear all sessionStorage  
+                sessionStorage.clear();
+                console.log('sessionStorage cleared');
+                
+                // Clear all cookies for this domain
+                document.cookie.split(";").forEach(function(c) { 
+                    const cookie = c.replace(/^ +/, "");
+                    const eqPos = cookie.indexOf("=");
+                    const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+                    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+                    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
+                    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + window.location.hostname;
+                });
+                console.log('Cookies cleared');
+                
+                // Clear IndexedDB
+                if ('databases' in indexedDB) {
+                    const databases = await indexedDB.databases();
+                    await Promise.all(
+                        databases.map(db => new Promise((resolve, reject) => {
+                            console.log('Deleting database:', db.name);
+                            const deleteReq = indexedDB.deleteDatabase(db.name);
+                            deleteReq.onsuccess = () => resolve();
+                            deleteReq.onerror = () => reject(deleteReq.error);
+                        }))
+                    );
+                    console.log('IndexedDB cleared');
+                }
+                
+                // Clear service worker registrations
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map(registration => registration.unregister()));
+                    console.log('Service workers cleared');
+                }
+                
+                document.getElementById('status').innerHTML = `
+                    <h2>✅ Complete cleanup successful!</h2>
+                    <p>All storage has been cleared:</p>
+                    <ul>
+                        <li>✅ localStorage</li>
+                        <li>✅ sessionStorage</li>
+                        <li>✅ Cookies</li>
+                        <li>✅ IndexedDB</li>
+                        <li>✅ Service Workers</li>
+                    </ul>
+                    <p><strong>Redirecting to home page in 3 seconds...</strong></p>
+                `;
+                
+                // Redirect after delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error during cleanup:', error);
+                document.getElementById('status').innerHTML = `
+                    <h2>⚠️ Cleanup completed with some errors</h2>
+                    <p>Error: ${error.message}</p>
+                    <p>Please manually clear your browser cache and data.</p>
+                `;
+            }
+        }
+        
+        // Start cleanup immediately
+        completeCleanup();
+    </script>
+</body>
+</html>

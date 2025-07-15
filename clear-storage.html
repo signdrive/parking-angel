@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Browser Storage</title>
+</head>
+<body>
+    <h1>Clearing Browser Storage...</h1>
+    <p id="status">Clearing...</p>
+    
+    <script>
+        async function clearAllStorage() {
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear IndexedDB
+                if ('databases' in indexedDB) {
+                    const databases = await indexedDB.databases();
+                    await Promise.all(
+                        databases.map(db => new Promise((resolve, reject) => {
+                            const deleteReq = indexedDB.deleteDatabase(db.name);
+                            deleteReq.onsuccess = () => resolve();
+                            deleteReq.onerror = () => reject(deleteReq.error);
+                        }))
+                    );
+                }
+                
+                // Clear cookies
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                
+                document.getElementById('status').textContent = 'Storage cleared! You can close this tab.';
+                
+                // Redirect back to app after a delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error clearing storage:', error);
+                document.getElementById('status').textContent = 'Error clearing storage: ' + error.message;
+            }
+        }
+        
+        clearAllStorage();
+    </script>
+</body>
+</html>

@@ -10,6 +10,10 @@ import { FloatingAIChat } from "@/components/ai/floating-ai-chat"
 import { UserProfileEnhanced } from "@/components/dashboard/user-profile-enhanced"
 import { ParkingHistory } from "@/components/dashboard/parking-history"
 import { SmartAssistant } from "@/components/ai/smart-assistant"
+import { CommunityReports } from "@/components/features/community-reports"
+import { SmartAlerts } from "@/components/features/smart-alerts"
+import { VehicleSearch } from "@/components/features/vehicle-search"
+import { Gamification } from "@/components/features/gamification"
 import { MapPin } from "lucide-react"
 import { PWADebug } from "@/components/pwa/pwa-debug"
 import { usePersistentState } from "@/hooks/use-persistent-state"
@@ -19,25 +23,28 @@ export default function DashboardPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
 
-  // Persistent states
+  // Persistent states - Always call hooks before any early returns
   const [activeTab, setActiveTab] = usePersistentState("dashboardActiveTab", "map")
   const [showDebug, setShowDebug] = usePersistentState("showDebug", false)
   const [rightPanelCollapsed, setRightPanelCollapsed] = usePersistentState("rightPanelCollapsed", false)
   const [liveDataPanelCollapsed, setLiveDataPanelCollapsed] = usePersistentState("liveDataPanelCollapsed", false)
 
-  // Non-persistent states (live data)
+  // Non-persistent states (live data) - Always call hooks before any early returns
   const [selectedSpot, setSelectedSpot] = useState<any>(null)
   const [spotsCount, setSpotsCount] = useState(0)
   const [providersCount, setProvidersCount] = useState(0)
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [areaAnalysis, setAreaAnalysis] = useState<any>(null)
   const [mapLoading, setMapLoading] = useState(false)
+
+  // Always call useEffect hooks before any early returns
   useEffect(() => {
     if (!isLoading && !user) {
       router.push("/")
     }
   }, [user, isLoading, router])
 
+  // Now we can do early returns after all hooks are called
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
@@ -50,7 +57,14 @@ export default function DashboardPage() {
   }
 
   if (!user) {
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-center">
+          <MapPin className="w-12 h-12 text-blue-400 mx-auto mb-4" />
+          <p className="text-gray-300">Redirecting to login...</p>
+        </div>
+      </div>
+    )
   }
 
   const renderMainContent = () => {
@@ -83,6 +97,58 @@ export default function DashboardPage() {
                 mapInitialized={true} // You may want to wire this to actual map state
                 onCollapseChange={setRightPanelCollapsed}
               />
+            </div>
+          </div>
+        )
+
+      case "reports":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">Community Reports</h1>
+                <span className="ml-3 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold">NEW</span>
+              </div>
+              <CommunityReports />
+            </div>
+          </div>
+        )
+
+      case "alerts":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">Smart Alerts</h1>
+                <span className="ml-3 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold">NEW</span>
+              </div>
+              <SmartAlerts />
+            </div>
+          </div>
+        )
+
+      case "vehicle":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">Vehicle-Specific Search</h1>
+                <span className="ml-3 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold">NEW</span>
+              </div>
+              <VehicleSearch />
+            </div>
+          </div>
+        )
+
+      case "gamification":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">Rewards & Achievements</h1>
+                <span className="ml-3 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold">NEW</span>
+              </div>
+              <Gamification />
             </div>
           </div>
         )

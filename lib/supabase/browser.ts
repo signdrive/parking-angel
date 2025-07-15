@@ -2,24 +2,27 @@
 
 import { createBrowserClient } from '@supabase/ssr'
 import { Database } from '../types/database'
-import { CookieOptions } from '@supabase/ssr'
 
-// No longer a singleton. A new client is created on each call.
-// This ensures that the latest cookie state is always used, which is
-// crucial for the PKCE flow to succeed.
+// Global singleton client to prevent multiple instances
+let _browserClient: ReturnType<typeof createBrowserClient<Database>> | null = null;
+let _isInitializing = false;
+
+// Simple browser client using PKCE flow (most secure)
 export function getBrowserClient() {
-  return createBrowserClient<Database>(
+  // If already created, return it
+  if (_browserClient) return _browserClient;
+  
+  // Prevent multiple simultaneous initializations
+  if (_isInitializing) {
+    throw new Error('Supabase client is already being initialized');
+  }
+  
+  _isInitializing = true;
+  
+  _browserClient = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookieOptions: {
-        name: 'sb-auth-token',
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : 'parkalgo.com',
-        path: '/',
-        sameSite: 'lax',
-        secure: true,
-        httpOnly: true
-      },
       auth: {
         flowType: 'pkce',
         detectSessionInUrl: true,
@@ -28,18 +31,21 @@ export function getBrowserClient() {
         storage: {
           getItem: (key: string): string | null => {
             if (typeof window === 'undefined') return null;
-            return window.localStorage.getItem(key);
+            return localStorage.getItem(key);
           },
           setItem: (key: string, value: string): void => {
             if (typeof window === 'undefined') return;
-            window.localStorage.setItem(key, value);
+            localStorage.setItem(key, value);
           },
           removeItem: (key: string): void => {
             if (typeof window === 'undefined') return;
-            window.localStorage.removeItem(key);
+            localStorage.removeItem(key);
           },
         },
       },
     }
-  )
+  );
+  
+  _isInitializing = false;
+  return _browserClient;
 }

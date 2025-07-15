@@ -1,4 +1,4 @@
-export type PlanId = 'free' | 'basic' | 'premium' | 'enterprise';
+export type PlanId = 'free' | 'basic' | 'premium' | 'enterprise' | 'navigator' | 'pro_parker' | 'fleet_manager';
 
 export interface PlanFeatures {
   items: string[];

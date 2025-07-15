@@ -57,14 +57,14 @@ export function PaymentModal({ open, onOpenChange, plan, amount, priceId }: {
           </DialogDescription>
         </DialogHeader>
         
-        {/* Test Mode Notice */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-          <div className="flex items-center space-x-2 text-amber-800">
+        {/* Early Adopter Notice */}
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center space-x-2 text-emerald-800">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span className="font-medium text-sm">Beta Testing Mode</span>
+            <span className="font-medium text-sm">Early Adopter Benefit</span>
           </div>
-          <p className="text-xs text-amber-700 mt-1">
-            This is a test payment. No actual charges will be processed during our beta phase.
+          <p className="text-xs text-emerald-700 mt-1">
+            🎉 You're getting premium features FREE! Early adopters enjoy exclusive access with no charges.
           </p>
         </div>
         

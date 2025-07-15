@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   description: "Find parking spots in real-time with AI-powered predictions and smart recommendations. Park Algo helps you park smarter!",
   keywords: "parking, AI, real-time, smart parking, machine learning, predictions, park algo",
   generator: "v0.dev",
-  manifest: "/manifest.json",
+  manifest: process.env.NODE_ENV === 'production' ? "/manifest.json" : undefined,
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

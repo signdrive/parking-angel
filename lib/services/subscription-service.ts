@@ -5,7 +5,7 @@ import { APIError } from '../api-error';
 // Latest supported API version
 export const STRIPE_API_VERSION = '2025-06-30.basil' as const;
 
-export type PlanId = 'free' | 'premium' | 'pro' | 'enterprise';
+export type PlanId = 'free' | 'premium' | 'pro' | 'enterprise' | 'navigator' | 'pro_parker' | 'fleet_manager';
 export type SubscriptionStatus = 'incomplete' | 'incomplete_expired' | 'active' | 'past_due' | 'canceled' | 'trialing' | 'unpaid';
 
 // Map from Stripe price IDs to subscription plans
@@ -129,15 +129,10 @@ export class SubscriptionService {
       .from('user_subscriptions')
       .upsert({
         user_id: actualUserId,
-        stripe_customer_id: customer.id,
-        stripe_subscription_id: subscription.id,
         plan_id: plan,
         status: subscription.status as SubscriptionStatus,
         trial_end: subscription.trial_end 
           ? new Date(subscription.trial_end * 1000).toISOString() 
-          : null,
-        current_period_end: (subscription as any).current_period_end
-          ? new Date((subscription as any).current_period_end * 1000).toISOString()
           : null,
         updated_at: new Date().toISOString()
       }, {
@@ -148,6 +143,22 @@ export class SubscriptionService {
     if (subscriptionError) {
       console.error('Database error details:', subscriptionError);
       throw new APIError(`Error updating subscription: ${subscriptionError.message}`, 500, 'db_error');
+    }
+
+    // Also update the user profile plan
+    const { error: profileError } = await this.client
+      .from('profiles')
+      .upsert({
+        id: actualUserId,
+        plan: plan,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'id'
+      });
+
+    if (profileError) {
+      console.error('Error updating profile plan:', profileError);
+      // Don't throw here, subscription update was successful
     }
   }
 

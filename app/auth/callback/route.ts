@@ -1,7 +1,8 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getRedirectUrl } from '@/lib/url-utils';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,8 @@ const ALLOWED_REDIRECT_PATHS = [
   '/pricing',
   '/contact',
   '/account',
-  '/settings'
+  '/settings',
+  '/test-auth'
 ];
 
 const MAX_RETURN_URL_LENGTH = 500;
@@ -28,10 +30,16 @@ function isValidReturnUrl(returnUrl: string, origin: string): boolean {
       const url = new URL(returnUrl);
       const allowedDomains = [
         'localhost:3000',
+        'localhost:3001',
         'parkalgo.com',
-        'www.parkalgo.com'
+        'www.parkalgo.com',
+        'automatic-umbrella-66rqvg9j35545-3000.app.github.dev', // Old Codespace domain
+        'automatic-umbrella-66rqvg9j35545-443.app.github.dev' // New Codespace domain
       ];
-      if (!allowedDomains.some(domain => url.host === domain)) {
+      
+      // Allow any GitHub Codespace domain
+      if (!allowedDomains.some(domain => url.host === domain) && 
+          !url.host.includes('.app.github.dev')) {
         console.warn('Invalid return URL domain:', url.host);
         return false;
       }
@@ -64,51 +72,99 @@ function isValidReturnUrl(returnUrl: string, origin: string): boolean {
 }
 
 export async function GET(request: NextRequest) {
+  const requestUrl = new URL(request.url);
+  
   try {
-    const requestUrl = new URL(request.url);
     const code = requestUrl.searchParams.get('code');
+    const accessToken = requestUrl.searchParams.get('access_token');
     const returnTo = requestUrl.searchParams.get('return_to') || DEFAULT_REDIRECT;
     const error = requestUrl.searchParams.get('error');
+    const errorDescription = requestUrl.searchParams.get('error_description');
 
-    // Create response early to set cookies
-    const response = NextResponse.redirect(new URL(returnTo, requestUrl.origin));
-    
     // Debug incoming parameters
     console.log('Auth callback received:', {
       hasCode: !!code,
+      hasAccessToken: !!accessToken,
       returnTo: returnTo || 'none',
       error: error || 'none',
-      url: request.url
+      errorDescription: errorDescription || 'none',
+      url: request.url,
+      origin: requestUrl.origin,
+      searchParams: Object.fromEntries(requestUrl.searchParams.entries())
     });
 
     // Check for error parameter first
     if (error) {
-      console.error('OAuth error received:', error);
+      console.error('OAuth error received:', { error, errorDescription });
       return NextResponse.redirect(
-        new URL(`/auth/error?error=${encodeURIComponent(error)}`, requestUrl.origin)
+        getRedirectUrl(`/auth/error?error=${encodeURIComponent(error)}&description=${encodeURIComponent(errorDescription || '')}`)
       );
     }
 
+    // Handle implicit flow (access token in URL)
+    if (accessToken && !code) {
+      console.log('✅ Implicit flow detected - access token received');
+      const finalReturnTo = returnTo && isValidReturnUrl(returnTo, requestUrl.origin) 
+        ? returnTo 
+        : DEFAULT_REDIRECT;
+      
+      console.log('Redirecting to:', finalReturnTo);
+      return NextResponse.redirect(getRedirectUrl(finalReturnTo));
+    }
+
+    // Handle PKCE flow (authorization code)
     if (!code) {
-      console.error('No authorization code in callback');
+      console.error('No authorization code or access token in callback');
       return NextResponse.redirect(
-        new URL('/auth/error?error=no_code', requestUrl.origin)
+        getRedirectUrl('/auth/error?error=no_code_or_token')
       );
     }
+
+    // Continue with PKCE flow
+    console.log('🔍 PKCE flow detected - processing authorization code');
 
     // Validate return URL
-    if (!isValidReturnUrl(returnTo, requestUrl.origin)) {
-      console.warn('Invalid return URL:', returnTo);
-      return NextResponse.redirect(
-        new URL(DEFAULT_REDIRECT, requestUrl.origin)
-      );
-    }
+    const finalReturnTo = returnTo && isValidReturnUrl(returnTo, requestUrl.origin) 
+      ? returnTo 
+      : DEFAULT_REDIRECT;
 
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    console.log('Using return URL:', finalReturnTo);
+
+    // Create response early to set cookies
+    const response = NextResponse.redirect(getRedirectUrl(finalReturnTo));
+    
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: any) {
+            response.cookies.set({ name, value, ...options });
+          },
+          remove(name: string, options: any) {
+            response.cookies.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
 
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+      console.log('🔍 Attempting code exchange for session...');
+      
+      // Add timeout to prevent hanging
+      const exchangePromise = supabase.auth.exchangeCodeForSession(code);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Code exchange timeout')), 10000)
+      );
+      
+      const { data: { session }, error: sessionError } = await Promise.race([
+        exchangePromise,
+        timeoutPromise
+      ]) as any;
       
       if (sessionError) {
         console.error('Session exchange error:', {
@@ -117,66 +173,46 @@ export async function GET(request: NextRequest) {
           message: sessionError.message,
           status: sessionError.status
         });
+        
+        // Handle specific error types
+        if (sessionError.message?.includes('PKCE')) {
+          console.error('PKCE verification failed - likely due to missing/invalid code verifier');
+          throw new Error('PKCE verification failed');
+        } else if (sessionError.message?.includes('invalid_grant')) {
+          console.error('Invalid grant - authorization code may be expired or invalid');
+          throw new Error('Invalid or expired authorization code');
+        } else if (sessionError.message?.includes('400')) {
+          console.error('Bad request - possibly invalid callback URL or parameters');
+          throw new Error('Bad request - possibly invalid callback URL');
+        }
+        
         throw sessionError;
       }
 
       if (!session) {
-        console.error('No session data received');
+        console.error('No session data received despite successful code exchange');
         throw new Error('No session data');
       }
 
       console.log('Auth success:', {
         hasSession: !!session,
-        returnTo
+        userId: session.user?.id,
+        userEmail: session.user?.email,
+        returnTo: finalReturnTo,
+        redirectUrl: getRedirectUrl(finalReturnTo)
       });
 
-      // Set session cookie
-      await supabase.auth.setSession({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token
-      });
-
-      // Set secure session cookies
-      response.cookies.set('sb-access-token', session.access_token, {
-        path: '/',
-        secure: true,
-        sameSite: 'lax',
-        httpOnly: true,
-        maxAge: 60 * 60 * 24 * 7 // 1 week
-      });
-
-      response.cookies.set('sb-refresh-token', session.refresh_token, {
-        path: '/',
-        secure: true,
-        sameSite: 'lax',
-        httpOnly: true,
-        maxAge: 60 * 60 * 24 * 7 // 1 week
-      });
-
-      // Clear PKCE cookies
-      response.cookies.set('code_verifier', '', { 
-        path: '/',
-        expires: new Date(0),
-        secure: true,
-        sameSite: 'lax'
-      });
-      response.cookies.set('my-code-verifier', '', {
-        path: '/',
-        expires: new Date(0),
-        secure: true,
-        sameSite: 'lax'
-      });
-      
       return response;
     } catch (error) {
       console.error('Auth callback error:', {
         error,
         code: error instanceof Error ? error.name : 'unknown',
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
       
       return NextResponse.redirect(
-        new URL('/auth/error?error=session_error', requestUrl.origin)
+        getRedirectUrl(`/auth/error?error=session_error&description=${encodeURIComponent(error instanceof Error ? error.message : String(error))}`)
       );
     }
   } catch (error) {
@@ -188,7 +224,7 @@ export async function GET(request: NextRequest) {
     });
     
     return NextResponse.redirect(
-      new URL('/auth/error?error=unknown', new URL(request.url).origin)
+      getRedirectUrl('/auth/error?error=unknown')
     );
   }
 }

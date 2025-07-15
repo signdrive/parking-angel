@@ -107,6 +107,7 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   loading: boolean;
   error: Error | null;
+  refreshProfile: () => Promise<void>;
 }
 
 // Database response types

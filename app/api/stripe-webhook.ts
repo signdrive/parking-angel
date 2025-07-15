@@ -135,24 +135,64 @@ export async function POST(req: Request) {
           }
         }
 
-        // Update user subscription with proper types
-        const subscriptionData: UserSubscriptionRecord = {
-          user_id: userId,
-          stripe_subscription_id: subscriptionId,
-          plan_id: plan,
-          status,
-          updated_at: new Date().toISOString()
-        };
+        // Update user subscription with proper types using the new sync function
+        const { data: syncResult, error: syncError } = await supabase.rpc(
+          'handle_subscription_update_with_profile_sync',
+          {
+            p_user_id: userId,
+            p_stripe_customer_id: session.customer || null,
+            p_stripe_subscription_id: subscriptionId,
+            p_plan_id: plan,
+            p_status: status,
+            p_trial_end: session.trial_end 
+              ? new Date(session.trial_end * 1000).toISOString()
+              : null,
+            p_current_period_end: session.current_period_end
+              ? new Date(session.current_period_end * 1000).toISOString()
+              : null,
+            p_email: session.customer_email || null
+          }
+        );
 
-        const { error: subError } = await supabase
-          .from('user_subscriptions')
-          .upsert(subscriptionData, {
-            onConflict: 'user_id'
-          });
+        if (syncError) {
+          console.error('[Webhook] Failed to sync subscription and profile:', syncError);
+          
+          // Fallback to direct update
+          const subscriptionData: UserSubscriptionRecord = {
+            user_id: userId,
+            stripe_subscription_id: subscriptionId,
+            plan_id: plan,
+            status,
+            updated_at: new Date().toISOString()
+          };
 
-        if (subError) {
-          console.error('[Webhook] Failed to update subscription:', subError);
-          throw new Error(`Failed to update subscription: ${subError.message}`);
+          const { error: subError } = await supabase
+            .from('user_subscriptions')
+            .upsert(subscriptionData, {
+              onConflict: 'user_id'
+            });
+
+          if (subError) {
+            console.error('[Webhook] Failed to update subscription:', subError);
+            throw new Error(`Failed to update subscription: ${subError.message}`);
+          }
+
+          // Also update profile manually
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+              subscription_plan: plan,
+              subscription_status: status,
+              subscription_tier: plan,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+
+          if (profileError) {
+            console.error('[Webhook] Failed to update profile:', profileError);
+          }
+        } else {
+          console.log('[Webhook] Successfully synced subscription and profile:', syncResult);
         }
 
         console.log('[Webhook] Successfully processed event:', {

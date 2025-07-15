@@ -8,14 +8,14 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.TFL_API_KEY
 
     if (!apiKey) {
-
+      console.log("TFL API key not found")
       return NextResponse.json({ spots: [] })
     }
 
     // Use the geographic search endpoint to find car parks near the location
     const url = `${TFL_BASE_URL}?lat=${lat}&lon=${lng}&radius=${radius}&type=CarPark&app_key=${apiKey}`
-
-
+    
+    console.log("Calling TFL API:", url)
 
     const response = await fetch(url, {
       headers: {
@@ -25,17 +25,32 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       console.error("TfL API error:", response.status, response.statusText)
+      const errorText = await response.text()
+      console.error("TfL API error body:", errorText)
       return NextResponse.json({ spots: [] })
     }
 
     const data = await response.json()
-    if (!Array.isArray(data)) {
-      return NextResponse.json({ error: "Invalid response from TfL API" }, { status: 502 })
+    console.log("TFL API response type:", typeof data, "is array:", Array.isArray(data))
+    console.log("TFL API response sample:", JSON.stringify(data).substring(0, 500))
+    
+    // Handle both array and object responses
+    let places = []
+    if (Array.isArray(data)) {
+      places = data
+    } else if (data && data.places && Array.isArray(data.places)) {
+      places = data.places
+    } else if (data && typeof data === 'object') {
+      // Sometimes TFL returns a single object
+      places = [data]
+    } else {
+      console.error("Unexpected TFL API response format:", data)
+      return NextResponse.json({ spots: [] })
     }
 
     // Transform TfL data to our parking spot format
-    const spots = data
-      .filter((place: any) => place.placeType === "CarPark")
+    const spots = places
+      .filter((place: any) => place.placeType === "CarPark" || place.type === "CarPark")
       .map((place: any) => {
         // Extract additional properties
         const properties = place.additionalProperties || []

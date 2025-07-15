@@ -5,6 +5,8 @@ export interface Profile {
   avatar_url?: string;
   status?: 'active' | 'suspended';
   subscription_status?: string;
+  subscription_plan?: string;
+  subscription_tier?: string;
   // ...add all other validated fields from your DB schema here
 }
 

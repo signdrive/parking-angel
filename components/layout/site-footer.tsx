@@ -23,11 +23,11 @@ export function SiteFooter() {
 						</p>
 						<div className="bg-amber-100 border border-amber-300 rounded-lg p-3">
 							<div className="flex items-center space-x-2">
-								<AlertCircle className="w-4 h-4 text-amber-600" />
-								<span className="text-xs font-semibold text-amber-800">BETA TESTING</span>
+								<AlertCircle className="w-4 h-4 text-emerald-600" />
+								<span className="text-xs font-semibold text-emerald-800">EARLY ACCESS</span>
 							</div>
-							<p className="text-xs text-amber-700 mt-1">
-								Currently in test mode - no real payments processed
+							<p className="text-xs text-emerald-700 mt-1">
+								Join now for FREE premium features & exclusive perks!
 							</p>
 						</div>
 					</div>

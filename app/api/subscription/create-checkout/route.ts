@@ -6,21 +6,34 @@ if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("Missing STRIPE_SECRET_KEY")
 }
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  throw new Error("Missing Supabase credentials")
-}
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
 
 export async function POST(request: NextRequest) {
   try {
-    // Get the user session
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    // Get authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
+    }
+
+    const token = authHeader.substring(7); // Remove "Bearer " prefix
+
+    // Create Supabase client with the auth token
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      }
+    );
+
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error || !user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
@@ -32,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     // Create Stripe checkout session
     const checkoutSession = await stripe.checkout.sessions.create({
-      customer_email: session.user.email,
+      customer_email: user.email,
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{
@@ -42,7 +55,7 @@ export async function POST(request: NextRequest) {
       success_url: `${request.headers.get("origin")}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${request.headers.get("origin")}/plans`,
       metadata: {
-        userId: session.user.id,
+        userId: user.id,
       },
     })
 

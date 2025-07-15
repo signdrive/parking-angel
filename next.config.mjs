@@ -43,7 +43,6 @@ const nextConfig = {
   poweredByHeader: false,
   generateEtags: true,
   compress: true,
-  assetPrefix: process.env.NODE_ENV === 'production' ? 'https://parkalgo.com' : '',
 
   async headers() {
     const googleAnalyticsDomains = [
@@ -53,14 +52,23 @@ const nextConfig = {
       'https://stats.g.doubleclick.net'
     ];
 
+    const isDev = process.env.NODE_ENV === 'development';
+    const devDomains = isDev ? [
+      'http://localhost:*',
+      'https://localhost:*',
+      'https://*.app.github.dev',
+      'https://github.dev'
+    ] : [];
+
     const cspDirectives = {
-      'default-src': ["'self'", 'https://*.parkalgo.com', 'https://parkalgo.com'],
+      'default-src': ["'self'", 'https://*.parkalgo.com', 'https://parkalgo.com', ...devDomains],
       'script-src': [
         "'self'",
         "'unsafe-inline'",
         "'unsafe-eval'",
         'https://*.parkalgo.com',
         'https://parkalgo.com',
+        ...devDomains,
         ...googleAnalyticsDomains,
         'https://js.stripe.com',
         'https://checkout.stripe.com',
@@ -73,6 +81,7 @@ const nextConfig = {
         "'unsafe-inline'",
         'https://*.parkalgo.com',
         'https://parkalgo.com',
+        ...devDomains,
         'https://api.mapbox.com',
         'https://checkout.stripe.com',
         'https://fonts.googleapis.com'
@@ -84,6 +93,7 @@ const nextConfig = {
         'https:',
         'https://*.parkalgo.com',
         'https://parkalgo.com',
+        ...devDomains,
         ...googleAnalyticsDomains,
         'https://*.googleusercontent.com',
         'https://*.stripe.com'
@@ -92,6 +102,7 @@ const nextConfig = {
         "'self'",
         'https://*.parkalgo.com',
         'https://parkalgo.com',
+        ...devDomains,
         ...googleAnalyticsDomains,
         'https://js.stripe.com',
         'https://api.stripe.com',
@@ -111,6 +122,7 @@ const nextConfig = {
         'data:',
         'https://*.parkalgo.com',
         'https://parkalgo.com',
+        ...devDomains,
         'https://checkout.stripe.com',
         'https://fonts.gstatic.com'
       ],
@@ -126,10 +138,11 @@ const nextConfig = {
         "'self'",
         'https://checkout.stripe.com',
         'https://*.stripe.com',
-        'https://accounts.google.com'
+        'https://accounts.google.com',
+        ...devDomains
       ],
       'worker-src': ["'self'", 'blob:'],
-      'manifest-src': ["'self'"]
+      'manifest-src': ["'self'", 'data:', 'blob:', ...devDomains]
     };
 
     const csp = Object.entries(cspDirectives)

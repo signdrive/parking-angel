@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './use-auth';
+import { getBrowserClient } from '@/lib/supabase/browser';
 import { 
   SubscriptionFeatures, 
   SubscriptionStatus, 
@@ -68,6 +69,16 @@ const initialState: SubscriptionState = {
 export function useSubscription() {
   const { user, subscription, profile } = useAuth() as AuthContextType;
   const [state, setState] = useState<SubscriptionState>(initialState);
+  const lastCallRef = useRef<number>(0);
+
+  // Reduce logging frequency - only log once per second
+  const now = Date.now();
+  const shouldLog = now - lastCallRef.current > 1000;
+  if (shouldLog) {
+    lastCallRef.current = now;
+    console.log('🚀 useSubscription hook called');
+    console.log('👤 useSubscription: Current user:', user ? { id: user.id, email: user.email } : 'No user');
+  }
 
   useEffect(() => {
     if (!user) {
@@ -77,9 +88,27 @@ export function useSubscription() {
 
     async function fetchSubscriptionData() {
       try {
+        // Get the current session to extract the access token
+        const { data: { session } } = await getBrowserClient().auth.getSession();
+        if (!session?.access_token) {
+          throw new Error('No valid session found');
+        }
+
         const [featuresRes, statusRes] = await Promise.all([
-          fetch('/api/subscription/features'),
-          fetch('/api/subscription/status')
+          fetch('/api/subscription/features', {
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }),
+          fetch('/api/subscription/status', {
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          })
         ]);
 
         if (!featuresRes.ok || !statusRes.ok) {
@@ -125,9 +154,18 @@ export function useSubscription() {
     if (!user) throw new Error('Must be logged in to start checkout');
 
     try {
+      // Get the current session to extract the access token
+      const { data: { session } } = await getBrowserClient().auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
       const response = await fetch('/api/subscription/create-checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify(options),
       });
 
@@ -180,9 +218,74 @@ export function useSubscription() {
     }
   };
 
+  const refreshSubscription = useCallback(async () => {
+    if (!user) return;
+    
+    setState(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      // Get the current session to extract the access token
+      const { data: { session } } = await getBrowserClient().auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
+      const [featuresRes, statusRes] = await Promise.all([
+        fetch('/api/subscription/features', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        }),
+        fetch('/api/subscription/status', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        })
+      ]);
+
+      if (!featuresRes.ok || !statusRes.ok) {
+        throw new Error('Failed to fetch subscription data');
+      }
+
+      const [features, status] = await Promise.all([
+        featuresRes.json() as Promise<SubscriptionFeatures>,
+        statusRes.json() as Promise<{
+          status: SubscriptionStatus;
+          subscription: any;
+          currentPeriodEnd: string;
+          cancelAtPeriodEnd: boolean;
+        }>
+      ]);
+
+      const isActive = status.status === 'active' || status.status === 'trialing';
+      setState(prev => ({
+        ...prev,
+        isActive,
+        isPremium: profile?.subscription_tier === 'premium',
+        hasFeatures: features !== null,
+        isSubscribed: isActive,
+        subscription: status.subscription,
+        features: features || DEFAULT_FEATURES,
+        status: status.status,
+        currentPeriodEnd: status.currentPeriodEnd,
+        cancelAtPeriodEnd: status.cancelAtPeriodEnd,
+        planId: status.subscription?.price?.lookup_key || null,
+        error: null,
+        isLoading: false
+      }));
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error : new Error('Failed to refresh subscription'),
+        isLoading: false
+      }));
+    }
+  }, [user, profile]);
+
   return {
     ...state,
     initiateCheckout,
-    cancelSubscription
+    cancelSubscription,
+    refreshSubscription
   };
 }

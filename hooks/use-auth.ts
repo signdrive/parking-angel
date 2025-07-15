@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/lib/types/supabase';
+import { getBrowserClient } from '@/lib/supabase/browser';
+import type { Database } from '@/lib/types/supabase';
 import { useRouter } from 'next/navigation';
 
 export interface AuthContextType {
@@ -13,7 +13,8 @@ export interface AuthContextType {
   error: Error | null;
 }
 
-const supabase = createClientComponentClient<Database>();
+// Use single client instance
+const supabase = getBrowserClient();
 
 export function useAuth(): AuthContextType {
   const [user, setUser] = useState<User | null>(null);
@@ -51,48 +52,29 @@ export function useAuth(): AuthContextType {
       setLoading(true);
       setError(null);
 
-      // Clear any existing verifier cookies first
-      document.cookie = 'my-code-verifier=; path=/auth; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      document.cookie = 'code_verifier=; path=/auth; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      // Get the base URL without any port issues
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-      // Generate PKCE verifier and challenge
-      const verifier = generatePKCEVerifier();
-      const challenge = await generatePKCEChallenge(verifier);
+      // Ensure the URL doesn't have double ports
+      const cleanBaseUrl = baseUrl.replace(/:3000$/, '');
 
-      // Set cookies with proper attributes - use root path to ensure availability
-      const cookieOptions = 'path=/; secure; samesite=lax; max-age=300';
-      document.cookie = `my-code-verifier=${verifier}; ${cookieOptions}`;
-      document.cookie = `code_verifier=${verifier}; ${cookieOptions}`;
+      console.log('🔍 Starting OAuth with implicit flow');
       
-      // Debug cookie setting
-      console.log('PKCE cookies set:', {
-        verifierLength: verifier.length,
-        cookiePresent: document.cookie.includes('code_verifier'),
-        allCookies: document.cookie
-      });
-
-      // Debug logging
-      console.log('Starting OAuth flow with PKCE', {
-        challenge,
-        hasCookies: document.cookie.includes('code_verifier')
-      });
-
-      // Start OAuth flow with proper return_to parameter
-      const { error: signInError } = await supabase.auth.signInWithOAuth({
+      // Use implicit flow to avoid PKCE completely
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${cleanBaseUrl}/auth/callback-implicit?return_to=${encodeURIComponent(redirectTo)}`,
           queryParams: {
             access_type: 'offline',
-            prompt: 'select_account',
-            code_challenge: challenge,
-            code_challenge_method: 'S256',
-            response_type: 'code',
-            return_to: redirectTo // Pass return_to as a query param
+            prompt: 'select_account'
           }
         }
       });
 
+      console.log('OAuth result:', { data, error: signInError });
       if (signInError) throw signInError;
 
     } catch (err) {
@@ -110,26 +92,4 @@ export function useAuth(): AuthContextType {
     signInWithGoogle,
     error 
   } as const;
-}
-
-// PKCE Helper Functions
-function generatePKCEVerifier() {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return base64URLEncode(array);
-}
-
-async function generatePKCEChallenge(verifier: string) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return base64URLEncode(new Uint8Array(hash));
-}
-
-function base64URLEncode(buffer: Uint8Array) {
-  const base64 = btoa(String.fromCharCode.apply(null, [...buffer]));
-  return base64
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
 }

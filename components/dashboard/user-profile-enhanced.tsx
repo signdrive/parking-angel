@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { MapPin, Star, Clock, Heart, Settings, CreditCard, Award, TrendingUp } from "lucide-react"
+import { useSubscription } from "@/hooks/use-subscription"
 
 interface UserProfileEnhancedProps {
   user: any
@@ -27,16 +30,71 @@ const getPlanDisplayName = (plan: string): string => {
 
 export function UserProfileEnhanced({ user }: UserProfileEnhancedProps) {
   const [activeTab, setActiveTab] = useState("profile")
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({
+    fullName: user?.user_metadata?.full_name || "",
+    phone: user?.user_metadata?.phone || "",
+    location: user?.user_metadata?.location || ""
+  })
+  const router = useRouter()
+  const { planId, status, isSubscribed, isActive, isLoading } = useSubscription();
 
-  // Mock user data
-  const userStats = {
+  const handleSaveProfile = async () => {
+    try {
+      // Here you would typically update the user profile via Supabase
+      // For now, we'll just show a success message and exit edit mode
+      console.log('Saving profile:', editForm)
+      setIsEditing(false)
+      // You can add a toast notification here
+    } catch (error) {
+      console.error('Error saving profile:', error)
+    }
+  }
+
+  const handleInputChange = (field: string, value: string) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Don't render if subscription is still loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mock user data - level could be based on subscription + activity
+  const baseUserStats = {
     spotsReported: 23,
     spotsUsed: 156,
     reputation: 4.8,
-    level: "Gold",
     points: 2340,
     savedSpots: 12,
     totalSavings: 234.5,
+  };
+
+  const getUserLevel = () => {
+    if (planId === 'fleet_manager') return 'Enterprise';
+    if (planId === 'pro_parker') return 'Pro';
+    if (planId === 'navigator') return 'Premium';
+    
+    // For free users, use activity-based levels
+    const { points } = baseUserStats;
+    if (points >= 2000) return 'Gold';
+    if (points >= 1000) return 'Silver';
+    return 'Bronze';
+  };
+
+  const userStats = {
+    ...baseUserStats,
+    level: getUserLevel(),
   }
 
   const recentActivity = [
@@ -79,9 +137,15 @@ export function UserProfileEnhanced({ user }: UserProfileEnhancedProps) {
                 </div>
               </div>
             </div>
-            <Button variant="outline">
+            <Button 
+              variant="outline"
+              onClick={() => {
+                setIsEditing(!isEditing)
+                setActiveTab("profile")
+              }}
+            >
               <Settings className="w-4 h-4 mr-2" />
-              Edit Profile
+              {isEditing ? "Cancel Edit" : "Edit Profile"}
             </Button>
           </div>
         </CardContent>
@@ -158,22 +222,56 @@ export function UserProfileEnhanced({ user }: UserProfileEnhancedProps) {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" defaultValue={user?.user_metadata?.full_name} />
+                  <Input 
+                    id="fullName" 
+                    value={isEditing ? editForm.fullName : user?.user_metadata?.full_name || ""}
+                    onChange={(e) => handleInputChange('fullName', e.target.value)}
+                    disabled={!isEditing}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" defaultValue={user?.email} disabled />
+                  <Input id="email" value={user?.email || ""} disabled />
                 </div>
                 <div>
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" placeholder="+1 (555) 123-4567" />
+                  <Input 
+                    id="phone" 
+                    value={isEditing ? editForm.phone : user?.user_metadata?.phone || ""}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    placeholder="+1 (555) 123-4567"
+                    disabled={!isEditing}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="location">Default Location</Label>
-                  <Input id="location" placeholder="City, State" />
+                  <Input 
+                    id="location" 
+                    value={isEditing ? editForm.location : user?.user_metadata?.location || ""}
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    placeholder="City, State"
+                    disabled={!isEditing}
+                  />
                 </div>
               </div>
-              <Button>Save Changes</Button>
+              {isEditing && (
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveProfile}>Save Changes</Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsEditing(false)
+                      setEditForm({
+                        fullName: user?.user_metadata?.full_name || "",
+                        phone: user?.user_metadata?.phone || "",
+                        location: user?.user_metadata?.location || ""
+                      })
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -293,15 +391,20 @@ export function UserProfileEnhanced({ user }: UserProfileEnhancedProps) {
               <div className="p-4 border rounded-lg bg-blue-50">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Current Plan: {getPlanDisplayName(user?.plan || 'free')}</p>
+                    <p className="font-medium">Current Plan: {getPlanDisplayName(planId || 'free')}</p>
                     <p className="text-sm text-gray-600">
-                      {user?.plan === 'free' ? 'Upgrade to Premium for advanced features' : `Status: ${user?.status || 'Active'}`}
+                      {(planId === 'free' || planId === null || planId === undefined || !planId)
+                        ? 'Upgrade to Premium for advanced features' 
+                        : `Status: ${status || 'Active'}`}
                     </p>
                   </div>
-                  {user?.plan === 'free' && (
-                    <Button onClick={() => window.location.href = '/#pricing'}>
-                      Upgrade
-                    </Button>
+                  {/* Show upgrade button for free users or users without active subscriptions */}
+                  {(planId === 'free' || planId === null || planId === undefined || !planId || !isSubscribed) && (
+                    <Link href="/plans">
+                      <Button>
+                        Upgrade
+                      </Button>
+                    </Link>
                   )}
                 </div>
               </div>
@@ -313,6 +416,19 @@ export function UserProfileEnhanced({ user }: UserProfileEnhancedProps) {
                   <Button variant="outline" className="mt-2">
                     Add Payment Method
                   </Button>
+                </div>
+              </div>
+
+              {/* Always show upgrade option for testing */}
+              <div>
+                <h3 className="font-medium mb-2">Upgrade Options</h3>
+                <div className="border rounded-lg p-4">
+                  <p className="text-gray-600 mb-2">Ready to unlock more features?</p>
+                  <Link href="/plans">
+                    <Button className="w-full">
+                      View All Plans & Upgrade
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </CardContent>

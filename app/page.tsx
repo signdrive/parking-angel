@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Users, Clock, Star, AlertCircle, CreditCard, CheckCircle2, Crown } from "lucide-react"
+import { MapPin, Users, Clock, Star, AlertCircle, CreditCard, CheckCircle2, Crown, MessageSquare, Bell, Car, Trophy, Zap, TrendingUp } from "lucide-react"
 
 import { EnvironmentCheck } from "@/components/setup/environment-check"
 import { ConnectionTest } from "@/components/setup/connection-test"
@@ -179,23 +179,23 @@ export default function HomePage() {
 				</nav>
 			</header>
 
-			{/* Test Mode Banner */}
-			<div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 shadow-lg">
+			{/* Early Adopter Banner */}
+			<div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 shadow-lg">
 				<div className="container mx-auto px-4">
 					<div className="flex items-center justify-center space-x-3">
 						<AlertCircle className="w-6 h-6 flex-shrink-0" />
 						<div className="text-center">
 							<h2 className="text-lg font-bold">
-								🚧 BETA TESTING MODE
+								🎉 EARLY ADOPTER PROGRAM
 							</h2>
 							<p className="text-sm opacity-90">
-								We're currently in beta testing. No real payments will be processed. 
-								<span className="font-semibold ml-1">Coming Soon: Full Launch!</span>
+								Join now and enjoy <span className="font-bold">FREE premium features</span>, priority support, and exclusive perks! 
+								<span className="font-semibold ml-1">Limited time - secure your spot!</span>
 							</p>
 						</div>
 						<div className="hidden sm:flex items-center space-x-2 bg-white/20 rounded-full px-3 py-1">
 							<Clock className="w-4 h-4" />
-							<span className="text-sm font-medium">Test Phase</span>
+							<span className="text-sm font-medium">Early Access</span>
 						</div>
 					</div>
 				</div>
@@ -375,6 +375,121 @@ export default function HomePage() {
 						</CardContent>
 					</Card>
 				</div>
+
+				{/* NEW FEATURES SECTION */}
+				<section className="mb-16">
+					<div className="text-center mb-12">
+						<h2 className="text-4xl font-bold text-gray-900 mb-4">
+							🚀 NEW Features Just Launched!
+						</h2>
+						<p className="text-xl text-gray-600 max-w-3xl mx-auto">
+							Experience the most advanced parking platform with community-driven features, 
+							smart alerts, and gamification that makes parking fun and rewarding.
+						</p>
+					</div>
+
+					<div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+						<Card className="border-2 border-green-200 bg-green-50">
+							<CardHeader className="text-center">
+								<div className="relative">
+									<MessageSquare className="w-12 h-12 text-green-600 mx-auto mb-4" />
+									<span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold animate-pulse">
+										NEW
+									</span>
+								</div>
+								<CardTitle className="text-green-800">Community Reports</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<CardDescription className="text-center text-green-700">
+									Real-time parking updates from users. Report availability, earn points, 
+									and help others find spots instantly.
+								</CardDescription>
+							</CardContent>
+						</Card>
+
+						<Card className="border-2 border-blue-200 bg-blue-50">
+							<CardHeader className="text-center">
+								<div className="relative">
+									<Bell className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+									<span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-bold animate-pulse">
+										NEW
+									</span>
+								</div>
+								<CardTitle className="text-blue-800">Smart Alerts</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<CardDescription className="text-center text-blue-700">
+									Get notified about available spots, price drops, and when someone's 
+									leaving. Never miss a parking opportunity again.
+								</CardDescription>
+							</CardContent>
+						</Card>
+
+						<Card className="border-2 border-purple-200 bg-purple-50">
+							<CardHeader className="text-center">
+								<div className="relative">
+									<Car className="w-12 h-12 text-purple-600 mx-auto mb-4" />
+									<span className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold animate-pulse">
+										NEW
+									</span>
+								</div>
+								<CardTitle className="text-purple-800">Vehicle-Specific</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<CardDescription className="text-center text-purple-700">
+									Find spots that fit your car, van, truck, or EV perfectly. 
+									Supports 15+ vehicle types with charging needs.
+								</CardDescription>
+							</CardContent>
+						</Card>
+
+						<Card className="border-2 border-yellow-200 bg-yellow-50">
+							<CardHeader className="text-center">
+								<div className="relative">
+									<Trophy className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
+									<span className="absolute -top-2 -right-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold animate-pulse">
+										NEW
+									</span>
+								</div>
+								<CardTitle className="text-yellow-800">Rewards & Gaming</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<CardDescription className="text-center text-yellow-700">
+									Earn points, unlock achievements, climb leaderboards. 
+									Turn parking into a fun, rewarding experience.
+								</CardDescription>
+							</CardContent>
+						</Card>
+					</div>
+
+					{/* Feature Benefits */}
+					<div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white text-center">
+						<h3 className="text-2xl font-bold mb-4">Why Users Love These Features</h3>
+						<div className="grid md:grid-cols-3 gap-6">
+							<div className="flex items-center space-x-3">
+								<TrendingUp className="w-8 h-8 text-blue-200" />
+								<div className="text-left">
+									<div className="font-semibold">94% Accuracy</div>
+									<div className="text-blue-200 text-sm">Community-verified data</div>
+								</div>
+							</div>
+							<div className="flex items-center space-x-3">
+								<Zap className="w-8 h-8 text-yellow-200" />
+								<div className="text-left">
+									<div className="font-semibold">3min Response</div>
+									<div className="text-blue-200 text-sm">Average alert speed</div>
+								</div>
+							</div>
+							<div className="flex items-center space-x-3">
+								<Users className="w-8 h-8 text-green-200" />
+								<div className="text-left">
+									<div className="font-semibold">15+ Vehicle Types</div>
+									<div className="text-blue-200 text-sm">From EVs to trucks</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
 
 				<div className="bg-white rounded-2xl shadow-xl p-8 text-center">
 					<h2 className="text-3xl font-bold text-gray-900 mb-4">

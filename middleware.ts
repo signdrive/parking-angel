@@ -1,46 +1,38 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  const res = NextResponse.next();
-  
-  const supabase = createMiddlewareClient({
-    req: request,
-    res,
+  const response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
   });
 
-  try {
-    // Get current session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-    if (sessionError) {
-      console.error('Session error:', sessionError);
-      return res;
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
     }
+  );
 
-    // If we have a session, refresh it
-    if (session) {
-      const { data: { session: refreshedSession }, error: refreshError } = 
-        await supabase.auth.refreshSession();
-      
-      if (refreshError) {
-        console.error('Session refresh error:', refreshError);
-        return res;
-      }
+  // Get user session
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-      if (refreshedSession) {
-        // Set refreshed session
-        await supabase.auth.setSession({
-          access_token: refreshedSession.access_token,
-          refresh_token: refreshedSession.refresh_token!
-        });
-      }
-    }
-  } catch (error) {
-    console.error('Middleware session error:', error);
+  if (error) {
+    console.log('Middleware auth error:', error.message);
   }
 
-  return res;
+  return response;
 }
 
 // Ensure the middleware is only called for relevant paths.
@@ -52,7 +44,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - /auth/callback (the auth callback route, to avoid interference)
+     * - /auth/error (the auth error page)
      */
-    '/((?!_next/static|_next/image|favicon.ico|auth/callback).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|auth/error).*)',
   ],
 };

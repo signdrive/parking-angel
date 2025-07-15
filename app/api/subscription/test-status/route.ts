@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
 import { SubscriptionService } from '@/lib/services/subscription-service';
-import { getDirectServerClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 
 export async function GET(req: Request) {
   try {
-    const supabase = getDirectServerClient();
-    const subscriptionService = new SubscriptionService(supabase);
-    
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
+    // Get authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({
         status: 'error',
         message: 'Not authenticated',
@@ -17,7 +14,34 @@ export async function GET(req: Request) {
       });
     }
 
-    const subscription = await subscriptionService.getSubscription(session.user.id);
+    const token = authHeader.substring(7); // Remove "Bearer " prefix
+
+    // Create Supabase client with the auth token
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      }
+    );
+
+    const subscriptionService = new SubscriptionService(supabase);
+    
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (!user || error) {
+      return NextResponse.json({
+        status: 'error',
+        message: 'Not authenticated',
+        isSubscribed: false,
+      });
+    }
+
+    const subscription = await subscriptionService.getSubscription(user.id);
     
     return NextResponse.json({
       status: 'success',
@@ -27,7 +51,7 @@ export async function GET(req: Request) {
         planId: subscription.metadata?.plan_id,
         currentPeriodEnd: subscription.current_period_end,
       } : null,
-      userId: session.user.id,
+      userId: user.id,
     });
   } catch (error) {
     console.error('Error in test-status:', error);

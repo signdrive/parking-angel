@@ -70,6 +70,8 @@ export function EnhancedParkingMap({
   // Add state for better error management
   const [isMapReady, setIsMapReady] = useState(false)
   const [initializationTimeout, setInitializationTimeout] = useState(false)
+  const [tileErrorCount, setTileErrorCount] = useState(0)
+  const [maxTileErrors] = useState(5) // Threshold for tile errors
 
   const { latitude, longitude, error: locationError, requestGeolocation } = useGeolocation()
   const parkingService = ParkingDataService.getInstance()
@@ -146,11 +148,20 @@ export function EnhancedParkingMap({
       // Note: Mapbox GL may generate console warnings about non-passive touchmove listeners
       // and requestAnimationFrame performance. These are internal to Mapbox GL and cannot be 
       // easily resolved at the application level without significant workarounds.
+      
+      // Try a simpler style first if we've had tile errors before
+      const mapStyle = tileErrorCount > 0 
+        ? "mapbox://styles/mapbox/streets-v11" // Fallback to older, more compatible style
+        : "mapbox://styles/mapbox/streets-v12";
+      
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: "mapbox://styles/mapbox/streets-v12",
+        style: mapStyle,
         center: [-122.4194, 37.7749],
         zoom: 15,
+        // Add error handling configuration
+        failIfMajorPerformanceCaveat: false, // Don't fail on performance issues
+        preserveDrawingBuffer: true, // Help with rendering issues
       })
 
       map.current.addControl(
@@ -178,7 +189,36 @@ export function EnhancedParkingMap({
 
       map.current.on("error", (e) => {
         console.error("Mapbox error:", e)
-        setMapboxError("Map failed to load. Using fallback view.")
+        
+        // Handle different types of map errors
+        const error = e.error as any;
+        if (error && error.status) {
+          const status = error.status;
+          if (status === 403) {
+            setMapboxError("Map tiles unavailable (limited access). Using fallback view.")
+            console.warn("⚠️ Mapbox token has limited tile access permissions")
+          } else if (status === 401) {
+            setMapboxError("Map authentication failed. Please check token.")
+          } else {
+            setMapboxError(`Map error (${status}). Using fallback view.`)
+          }
+        } else {
+          // Handle tile errors specifically
+          const mapEvent = e as any;
+          if (mapEvent.type === 'error' && mapEvent.tile) {
+            setTileErrorCount(prev => {
+              const newCount = prev + 1;
+              if (newCount >= maxTileErrors) {
+                console.warn(`⚠️ Too many tile errors (${newCount}). Map may have limited functionality.`)
+                setMapboxError("Map tiles loading slowly. Limited tile access detected.")
+              }
+              return newCount;
+            })
+          } else {
+            setMapboxError("Map failed to load. Using fallback view.")
+          }
+        }
+        
         setIsMapReady(true) // Still set ready to show fallback
       })
     } catch (error) {

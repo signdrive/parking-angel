@@ -520,8 +520,8 @@ async function testWebhook() {
 
     // Test each endpoint
     const endpoints = [
-      'http://localhost:3000/api/stripe-webhook',
-      'http://localhost:3000/api/stripe/webhook'
+      'http://localhost:3001/api/stripe-webhook',
+      'http://localhost:3001/api/stripe/webhook'
     ];
 
     console.log('\nPreparing webhook event payload...');

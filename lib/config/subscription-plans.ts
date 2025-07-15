@@ -33,6 +33,109 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     },
   },
   {
+    id: 'navigator',
+    name: 'Navigator',
+    description: 'Enhanced parking features for regular users',
+    price: 9.99,
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID || '',
+    features: {
+      items: [
+        'All Free features',
+        'Real-time parking updates',
+        'Parking history',
+        'Priority support',
+      ],
+      details: [
+        {
+          name: 'Real-time Updates',
+          description: 'Get real-time parking availability',
+          included: true,
+        },
+        {
+          name: 'Parking History',
+          description: 'Track your parking history',
+          included: true,
+        },
+        {
+          name: 'Priority Support',
+          description: 'Faster response times',
+          included: true,
+        },
+      ],
+    },
+  },
+  {
+    id: 'pro_parker',
+    name: 'Pro Parker',
+    description: 'Professional features for frequent parkers',
+    price: 19.99,
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID || '',
+    features: {
+      items: [
+        'All Navigator features',
+        'AI parking predictions',
+        'Reserved spots',
+        'Premium support',
+      ],
+      details: [
+        {
+          name: 'AI Predictions',
+          description: 'Smart parking availability predictions',
+          included: true,
+        },
+        {
+          name: 'Reserved Spots',
+          description: 'Reserve parking spots in advance',
+          included: true,
+        },
+        {
+          name: 'Premium Support',
+          description: '24/7 premium support',
+          included: true,
+        },
+      ],
+    },
+  },
+  {
+    id: 'fleet_manager',
+    name: 'Fleet Manager',
+    description: 'Complete solution for fleet management',
+    price: 49.99,
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_FLEET_MANAGER_PRICE_ID || '',
+    features: {
+      items: [
+        'All Pro Parker features',
+        'Fleet management dashboard',
+        'Multi-vehicle tracking',
+        'Advanced analytics',
+        'Dedicated support',
+      ],
+      details: [
+        {
+          name: 'Fleet Dashboard',
+          description: 'Manage multiple vehicles from one dashboard',
+          included: true,
+        },
+        {
+          name: 'Multi-vehicle Tracking',
+          description: 'Track parking for entire fleet',
+          included: true,
+        },
+        {
+          name: 'Advanced Analytics',
+          description: 'Detailed parking analytics and reports',
+          included: true,
+        },
+        {
+          name: 'Dedicated Support',
+          description: 'Dedicated account manager',
+          included: true,
+        },
+      ],
+    },
+  },
+  // Legacy plan IDs for backward compatibility
+  {
     id: 'basic',
     name: 'Basic',
     description: 'Enhanced parking features for regular users',

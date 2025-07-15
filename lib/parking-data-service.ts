@@ -85,20 +85,39 @@ export class ParkingDataService {
       // Determine location and fetch appropriate data
       const isLondon = this.isInLondon(latitude, longitude)
 
-      // Fetch from multiple providers in parallel
-      const providers = await Promise.allSettled([
-        this.fetchGooglePlacesParking(latitude, longitude, radius),
+      // Fetch from multiple providers in parallel - FREE SOURCES FIRST!
+      const freeProviders = await Promise.allSettled([
+        // 🆓 FREE SOURCES (prioritized to reduce costs)
+        this.fetchFreeSourcesParking(latitude, longitude, radius),
         this.fetchOpenStreetMapParking(latitude, longitude, radius),
         ...(isLondon ? [this.fetchTfLParking(latitude, longitude, radius)] : []),
         this.fetchCityAPIData(latitude, longitude, radius),
-        // Add other providers as needed
       ])
 
-      providers.forEach((result) => {
+      // Collect free results first
+      freeProviders.forEach((result) => {
         if (result.status === "fulfilled") {
           allSpots.push(...result.value)
         }
       })
+
+      console.log(`🆓 Free sources found ${allSpots.length} spots`)
+
+      // Only use paid sources if we have insufficient data from free sources
+      if (allSpots.length < 5) {
+        console.log("💰 Using paid sources as fallback...")
+        const paidProviders = await Promise.allSettled([
+          this.fetchGooglePlacesParking(latitude, longitude, radius)
+        ])
+
+        paidProviders.forEach((result) => {
+          if (result.status === "fulfilled") {
+            allSpots.push(...result.value)
+          }
+        })
+      } else {
+        console.log("✅ Sufficient free data found, skipping paid APIs")
+      }
 
       // Remove duplicates based on location proximity
       const uniqueSpots = this.removeDuplicateSpots(allSpots)
@@ -140,7 +159,15 @@ export class ParkingDataService {
 
       if (!response.ok) throw new Error("TfL API failed")
       const data = await response.json()
-      return data.spots || []
+      const spots = data.spots || []
+      
+      // Validate and filter TfL data
+      return spots.filter((spot: any) => {
+        if (!spot || typeof spot !== 'object') return false
+        if (!spot.latitude || !spot.longitude || isNaN(spot.latitude) || isNaN(spot.longitude)) return false
+        if (!spot.provider || !spot.provider_id) return false
+        return true
+      })
     } catch (error) {
       console.error("TfL parking fetch failed:", error)
       return []
@@ -157,7 +184,15 @@ export class ParkingDataService {
 
       if (!response.ok) throw new Error("Google Places API failed")
       const data = await response.json()
-      return data.spots || []
+      const spots = data.spots || []
+      
+      // Validate and filter Google Places data
+      return spots.filter((spot: any) => {
+        if (!spot || typeof spot !== 'object') return false
+        if (!spot.latitude || !spot.longitude || isNaN(spot.latitude) || isNaN(spot.longitude)) return false
+        if (!spot.provider || !spot.provider_id) return false
+        return true
+      })
     } catch (error) {
       console.error("Google Places parking fetch failed:", error)
       return []
@@ -185,26 +220,46 @@ export class ParkingDataService {
       if (!response.ok) throw new Error("OpenStreetMap API failed")
       const data = await response.json()
 
-      return data.elements.map((element: any) => ({
-        id: `osm_${element.id}`,
-        name: element.tags?.name || "Parking Area",
-        latitude: element.lat || element.center?.lat,
-        longitude: element.lon || element.center?.lon,
-        address: this.buildAddress(element.tags),
-        spot_type: this.mapOSMParkingType(element.tags),
-        is_available: true,
-        total_spaces: element.tags?.capacity ? Number.parseInt(element.tags.capacity) : undefined,
-        price_per_hour: element.tags?.fee === "yes" ? undefined : 0,
-        restrictions: this.parseOSMRestrictions(element.tags),
-        accessibility: element.tags?.wheelchair === "yes",
-        covered: element.tags?.covered === "yes",
-        security: element.tags?.supervised === "yes",
-        provider: PARKING_PROVIDERS.OPENSTREETMAP,
-        provider_id: element.id.toString(),
-        real_time_data: false,
-        last_updated: new Date().toISOString(), // Fixed: Use string directly
-        opening_hours: this.parseOpeningHours(element.tags?.opening_hours),
-      }))
+      return data.elements
+        .filter((element: any) => {
+          // Filter out invalid elements
+          const lat = element.lat || element.center?.lat;
+          const lon = element.lon || element.center?.lon;
+          
+          // Must have valid coordinates
+          if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
+            console.warn(`Skipping OSM element ${element.id} - invalid coordinates:`, { lat, lon });
+            return false;
+          }
+          
+          // Must have a valid ID
+          if (!element.id) {
+            console.warn(`Skipping OSM element - missing ID`);
+            return false;
+          }
+          
+          return true;
+        })
+        .map((element: any) => ({
+          id: `osm_${element.id}`,
+          name: element.tags?.name || "Parking Area",
+          latitude: element.lat || element.center?.lat,
+          longitude: element.lon || element.center?.lon,
+          address: this.buildAddress(element.tags),
+          spot_type: this.mapOSMParkingType(element.tags),
+          is_available: true,
+          total_spaces: element.tags?.capacity ? Number.parseInt(element.tags.capacity) : undefined,
+          price_per_hour: element.tags?.fee === "yes" ? undefined : 0,
+          restrictions: this.parseOSMRestrictions(element.tags),
+          accessibility: element.tags?.wheelchair === "yes",
+          covered: element.tags?.covered === "yes",
+          security: element.tags?.supervised === "yes",
+          provider: PARKING_PROVIDERS.OPENSTREETMAP,
+          provider_id: element.id.toString(),
+          real_time_data: false,
+          last_updated: new Date().toISOString(), // Fixed: Use string directly
+          opening_hours: this.parseOpeningHours(element.tags?.opening_hours),
+        }))
     } catch (error) {
       console.error("OpenStreetMap parking fetch failed:", error)
       return []
@@ -221,9 +276,45 @@ export class ParkingDataService {
 
       if (!response.ok) throw new Error("City API failed")
       const data = await response.json()
-      return data.spots || []
+      const spots = data.spots || []
+      
+      // Validate and filter city API data
+      return spots.filter((spot: any) => {
+        if (!spot || typeof spot !== 'object') return false
+        if (!spot.latitude || !spot.longitude || isNaN(spot.latitude) || isNaN(spot.longitude)) return false
+        if (!spot.provider || !spot.provider_id) return false
+        return true
+      })
     } catch (error) {
       console.error("City API parking fetch failed:", error)
+      return []
+    }
+  }
+
+  private async fetchFreeSourcesParking(lat: number, lng: number, radius: number): Promise<RealParkingSpot[]> {
+    try {
+      console.log("🆓 Fetching from multiple free sources...")
+      const response = await fetch(`/api/parking/free-sources`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng, radius }),
+      })
+
+      if (!response.ok) throw new Error("Free sources API failed")
+      const data = await response.json()
+      const spots = data.spots || []
+      
+      console.log(`✅ Free sources returned ${spots.length} spots`)
+      
+      // Validate and filter free sources data
+      return spots.filter((spot: any) => {
+        if (!spot || typeof spot !== 'object') return false
+        if (!spot.latitude || !spot.longitude || isNaN(spot.latitude) || isNaN(spot.longitude)) return false
+        if (!spot.provider || !spot.provider_id) return false
+        return true
+      })
+    } catch (error) {
+      console.error("Free sources parking fetch failed:", error)
       return []
     }
   }
@@ -276,43 +367,105 @@ export class ParkingDataService {
 
   private async storeRealParkingData(spots: RealParkingSpot[]): Promise<void> {
     try {
-      for (const spot of spots) {
-        // Fix for last_updated - ensure it's a string
-        const lastUpdated =
-          typeof spot.last_updated === "object" && spot.last_updated instanceof Date
-            ? spot.last_updated.toISOString()
-            : typeof spot.last_updated === "string"
-              ? spot.last_updated
-              : new Date().toISOString()
+      // Filter out invalid spots before processing
+      const validSpots = spots.filter(spot => this.validateParkingSpot(spot));
+      
+      if (validSpots.length !== spots.length) {
+        console.log(`🔍 Filtered out ${spots.length - validSpots.length} invalid spots, processing ${validSpots.length} valid spots`);
+      }
 
-        await getSupabase().from("real_parking_spots").upsert(
-          {
-            provider_id: spot.provider_id,
-            provider: spot.provider,
-            name: spot.name,
-            latitude: spot.latitude,
-            longitude: spot.longitude,
-            address: spot.address,
-            spot_type: spot.spot_type,
-            price_per_hour: spot.price_per_hour,
-            is_available: spot.is_available,
-            total_spaces: spot.total_spaces,
-            available_spaces: spot.available_spaces,
-            real_time_data: spot.real_time_data,
-            last_updated: lastUpdated, // Fixed: Use the processed value
-            metadata: {
-              restrictions: spot.restrictions,
-              payment_methods: spot.payment_methods,
-              accessibility: spot.accessibility,
-              covered: spot.covered,
-              security: spot.security,
-              ev_charging: spot.ev_charging,
-              opening_hours: spot.opening_hours,
-              contact_info: spot.contact_info,
-            },
-          },
-          { onConflict: "provider,provider_id" },
-        )
+      // Process spots in batches to avoid overwhelming the database
+      const batchSize = 10;
+      for (let i = 0; i < validSpots.length; i += batchSize) {
+        const batch = validSpots.slice(i, i + batchSize);
+        
+        try {
+          const batchData = batch.map(spot => {
+            // Fix for last_updated - ensure it's a string
+            const lastUpdated =
+              typeof spot.last_updated === "object" && spot.last_updated instanceof Date
+                ? spot.last_updated.toISOString()
+                : typeof spot.last_updated === "string"
+                  ? spot.last_updated
+                  : new Date().toISOString()
+
+            // Validate spot_type before sending to database
+            const validSpotTypes = ['street', 'garage', 'lot', 'meter', 'private'];
+            if (!validSpotTypes.includes(spot.spot_type)) {
+              console.warn(`Invalid spot_type: ${spot.spot_type} for spot ${spot.provider_id}, using 'lot' as fallback`);
+              spot.spot_type = 'lot' as any; // Fallback to 'lot' type
+            }
+
+            const record = {
+              provider_id: spot.provider_id,
+              provider: spot.provider,
+              name: spot.name,
+              latitude: spot.latitude,
+              longitude: spot.longitude,
+              address: spot.address,
+              spot_type: spot.spot_type,
+              price_per_hour: spot.price_per_hour,
+              is_available: spot.is_available,
+              total_spaces: spot.total_spaces,
+              available_spaces: spot.available_spaces,
+              real_time_data: spot.real_time_data,
+              last_updated: lastUpdated,
+              metadata: {
+                restrictions: spot.restrictions,
+                payment_methods: spot.payment_methods,
+                accessibility: spot.accessibility,
+                covered: spot.covered,
+                security: spot.security,
+                ev_charging: spot.ev_charging,
+                opening_hours: spot.opening_hours,
+                contact_info: spot.contact_info,
+              },
+            };
+
+            // Validate the record before adding to batch
+            if (!record.provider || !record.provider_id || !record.name) {
+              console.warn(`Skipping invalid record for spot ${spot.provider_id}:`, record);
+              return null;
+            }
+
+            return record;
+          }).filter(record => record !== null); // Remove null records
+
+          if (batchData.length === 0) {
+            console.warn(`Skipping empty batch ${Math.floor(i / batchSize) + 1}`);
+            continue;
+          }
+
+          console.log(`📤 Attempting to upsert batch ${Math.floor(i / batchSize) + 1} with ${batchData.length} records`);
+          
+          const { data, error } = await getSupabase()
+            .from("real_parking_spots")
+            .upsert(batchData, { 
+              onConflict: "provider,provider_id",
+              ignoreDuplicates: false 
+            })
+
+          if (error) {
+            console.error(`❌ Supabase error for batch ${Math.floor(i / batchSize) + 1}:`, error);
+            console.error(`❌ Error details:`, error.message, error.details, error.hint);
+            console.error(`❌ Problematic batch data:`, JSON.stringify(batchData, null, 2));
+            throw error;
+          }
+          
+          console.log(`✅ Stored batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(validSpots.length / batchSize)} (${batch.length} spots)`);
+        } catch (batchError) {
+          console.error(`❌ Error storing batch ${Math.floor(i / batchSize) + 1}:`, batchError);
+          
+          // Log the problematic batch data for debugging
+          batch.forEach((spot, index) => {
+            console.log(`Spot ${index + 1}:`, {
+              provider: spot.provider,
+              provider_id: spot.provider_id,
+              spot_type: spot.spot_type,
+              name: spot.name
+            });
+          });
+        }
       }
     } catch (error) {
       console.error("Error storing real parking data:", error)
@@ -348,5 +501,39 @@ export class ParkingDataService {
     if (!hours) return undefined
     // Simple parsing - in production, use a proper opening hours parser
     return { note: hours }
+  }
+
+  private validateParkingSpot(spot: RealParkingSpot): boolean {
+    // Validate required fields
+    if (!spot.provider || !spot.provider_id) {
+      console.warn(`Skipping spot - missing provider info:`, { provider: spot.provider, provider_id: spot.provider_id });
+      return false;
+    }
+
+    // Validate coordinates
+    if (!spot.latitude || !spot.longitude || isNaN(spot.latitude) || isNaN(spot.longitude)) {
+      console.warn(`Skipping spot ${spot.provider_id} - invalid coordinates:`, { lat: spot.latitude, lon: spot.longitude });
+      return false;
+    }
+
+    // Validate spot_type
+    const validSpotTypes = ['street', 'garage', 'lot', 'meter', 'private'];
+    if (!validSpotTypes.includes(spot.spot_type)) {
+      console.warn(`Skipping spot ${spot.provider_id} - invalid spot_type: ${spot.spot_type}`);
+      return false;
+    }
+
+    // Validate latitude/longitude ranges
+    if (spot.latitude < -90 || spot.latitude > 90) {
+      console.warn(`Skipping spot ${spot.provider_id} - invalid latitude: ${spot.latitude}`);
+      return false;
+    }
+
+    if (spot.longitude < -180 || spot.longitude > 180) {
+      console.warn(`Skipping spot ${spot.provider_id} - invalid longitude: ${spot.longitude}`);
+      return false;
+    }
+
+    return true;
   }
 }

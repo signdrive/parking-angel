@@ -31,7 +31,12 @@ export default function PaymentSuccessPage() {
           throw new Error('Payment verification failed');
         }
 
+        console.log('✅ Payment verified successfully, refreshing profile...');
         setVerificationStatus('success');
+        
+        // The useSubscription hook will automatically refresh data
+        // when the component re-renders after payment verification
+        console.log('✅ Profile will be refreshed by useSubscription hook');
         
         // Redirect to dashboard after 3 seconds
         setTimeout(() => {

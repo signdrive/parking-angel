@@ -13,12 +13,16 @@
  * Valid tiers: 'free', 'premium', 'pro', 'enterprise'
  */
 
-require('dotenv').config({ path: '.env.local' });
-const { createClient } = require('@supabase/supabase-js');
-const readline = require('readline');
+import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
+import { createReadStream } from 'fs';
+import { createInterface } from 'readline';
+
+// Load environment variables
+dotenv.config({ path: '.env.local' });
 
 // Create readline interface for confirmation prompts
-const rl = readline.createInterface({
+const rl = createInterface({
   input: process.stdin,
   output: process.stdout
 });

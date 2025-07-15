@@ -1,300 +1,183 @@
-# Park Algo
+# Supabase CLI
 
-An intelligent parking management system with real-time spot detection, AI-powered predictions, and seamless navigation.
+[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
+](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
 
-## 🚀 Features
+[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
 
-- **Real-time Parking Detection** - Live parking spot availability
-- **AI-Powered Predictions** - Smart availability forecasting
-- **Interactive Maps** - Mapbox integration with custom markers
-- **Navigation System** - Turn-by-turn directions to parking spots
-- **Multi-Provider Support** - Google Places, TfL, and custom data sources
-- **Progressive Web App** - Install on mobile devices
-- **Voice Assistant** - AI-powered parking assistant
-- **Analytics Dashboard** - Usage insights and trends
-- **Premium Subscription** - Tiered subscription plans via Stripe
+This repository contains all the functionality for Supabase CLI.
 
-## 📚 Documentation
+- [x] Running Supabase locally
+- [x] Managing database migrations
+- [x] Creating and deploying Supabase Functions
+- [x] Generating types directly from your database schema
+- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
 
-- [Webhook Setup & Integration](docs/WEBHOOK_SETUP.md) - Complete guide for Stripe webhook handling
-- [Subscription Flow](docs/SUBSCRIPTION_FLOW_STATUS.md) - Subscription management workflow
-- [Stripe Test Cards](docs/STRIPE_TEST_CARDS.md) - Test card details for development
+## Getting started
 
-## 🔧 Quick Setup
+### Install the CLI
 
-### 1. Deploy to Vercel
+Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/parkalgo/parking-angel)
+```bash
+npm i supabase --save-dev
+```
 
-### 2. Add Integrations
+To install the beta release channel:
 
-- **Supabase** - Database and authentication
-- **Vercel Blob** - File storage
-- **Stripe** - Payment processing for subscriptions
+```bash
+npm i supabase@beta --save-dev
+```
 
-### 3. Configure Environment Variables
+When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
 
-#### Required (Server-side only - secure)
-\`\`\`bash
-# API Keys - Never expose these client-side
-GOOGLE_MAPS_API_KEY=your_google_maps_key
-MAPBOX_ACCESS_TOKEN=your_mapbox_token
-GROQ_API_KEY=your_groq_key
+```
+NODE_OPTIONS=--no-experimental-fetch yarn add supabase
+```
 
-# OAuth
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
+> **Note**
+For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
 
-# Stripe (Server-side only)
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-\`\`\`
+<details>
+  <summary><b>macOS</b></summary>
 
-#### Public (Client-side - safe to expose)
-\`\`\`bash
-# Supabase (with proper RLS policies)
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+  Available via [Homebrew](https://brew.sh). To install:
 
-# App URLs
-NEXT_PUBLIC_APP_URL=https://www.parkalgo.com
+  ```sh
+  brew install supabase/tap/supabase
+  ```
 
-# Stripe (Public)
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-\`\`\`
+  To install the beta release channel:
+  
+  ```sh
+  brew install supabase/tap/supabase-beta
+  brew link --overwrite supabase-beta
+  ```
+  
+  To upgrade:
 
-### 4. Run Database Scripts
+  ```sh
+  brew upgrade supabase
+  ```
+</details>
 
-Execute the SQL scripts in order:
-1. `scripts/001-create-tables.sql`
-2. `scripts/002-create-functions.sql`
-3. `scripts/003-seed-data.sql`
+<details>
+  <summary><b>Windows</b></summary>
 
-## 🔒 Security
+  Available via [Scoop](https://scoop.sh). To install:
 
-This application follows security best practices:
+  ```powershell
+  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+  scoop install supabase
+  ```
 
-- **API keys are server-side only** - No sensitive keys exposed to the client
-- **Secure API proxying** - All external API calls go through server routes
-- **Environment variable validation** - Built-in checks for proper configuration
-- **Row Level Security** - Supabase RLS policies protect user data
+  To upgrade:
 
-## 🛠️ Development
+  ```powershell
+  scoop update supabase
+  ```
+</details>
 
-### Local Development
+<details>
+  <summary><b>Linux</b></summary>
 
-\`\`\`bash
-# Clone the repository
-git clone https://github.com/parkalgo/parking-angel.git
-cd parking-angel
+  Available via [Homebrew](https://brew.sh) and Linux packages.
 
-# Install dependencies
-npm install
+  #### via Homebrew
 
-# Copy environment variables
-cp .env.example .env.local
+  To install:
 
-# Start development server
-npm run dev
-\`\`\`
+  ```sh
+  brew install supabase/tap/supabase
+  ```
 
-### Docker Development
+  To upgrade:
 
-\`\`\`bash
-# Build and run with Docker
-make dev
+  ```sh
+  brew upgrade supabase
+  ```
 
-# Or manually
-docker-compose -f docker-compose.dev.yml up --build
-\`\`\`
+  #### via Linux packages
 
-## 📱 Progressive Web App
+  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
 
-Parking Angel is a full PWA with:
+  ```sh
+  sudo apk add --allow-untrusted <...>.apk
+  ```
 
-- **Offline support** - Works without internet connection
-- **Push notifications** - Real-time parking alerts
-- **Install prompt** - Add to home screen
-- **Background sync** - Sync data when connection returns
+  ```sh
+  sudo dpkg -i <...>.deb
+  ```
 
-## 🤖 AI Features
+  ```sh
+  sudo rpm -i <...>.rpm
+  ```
 
-- **Smart Predictions** - ML-powered availability forecasting
-- **Voice Assistant** - Natural language parking queries
-- **Route Optimization** - AI-optimized parking recommendations
-- **Demand Analysis** - Real-time demand level calculations
+  ```sh
+  sudo pacman -U <...>.pkg.tar.zst
+  ```
+</details>
 
-## 🗺️ Supported Data Sources
+<details>
+  <summary><b>Other Platforms</b></summary>
 
-- **Google Places API** - Commercial parking locations
-- **Transport for London (TfL)** - London parking data
-- **Mapbox** - Map rendering and navigation
-- **User Reports** - Community-driven spot reporting
+  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
 
-## 📊 Analytics
+  ```sh
+  go install github.com/supabase/cli@latest
+  ```
 
-Built-in analytics track:
+  Add a symlink to the binary in `$PATH` for easier access:
 
-- Parking spot usage patterns
-- User behavior and preferences
-- API performance and costs
-- Real-time system health
+  ```sh
+  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
+  ```
 
-## 🔧 Configuration
+  This works on other non-standard Linux distros.
+</details>
 
-### API Key Setup
+<details>
+  <summary><b>Community Maintained Packages</b></summary>
 
-1. **Google Maps API**
-   - Enable Maps JavaScript API, Places API
-   - Set domain restrictions
-   - Configure usage quotas
+  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
+  To install in your working directory:
 
-2. **Mapbox**
-   - Create access token
-   - Set URL restrictions
-   - Configure scopes
+  ```bash
+  pkgx install supabase
+  ```
 
-3. **Supabase**
-   - Set up database
-   - Configure RLS policies
-   - Enable real-time subscriptions
+  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
+</details>
 
-### Environment Validation
+### Run the CLI
 
-Visit `/debug-supabase` to validate your configuration and test all integrations.
+```bash
+supabase bootstrap
+```
 
-## 🚀 Deployment
+Or using npx:
 
-### Vercel (Recommended)
+```bash
+npx supabase bootstrap
+```
 
-1. Connect your GitHub repository
-2. Add environment variables
-3. Deploy automatically on push
+The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
 
-### Docker
+## Docs
 
-\`\`\`bash
-# Production build
-docker-compose up --build
+Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
 
-# With custom environment
-docker-compose -f docker-compose.prod.yml up
-\`\`\`
+## Breaking changes
 
-## 📝 Subscription Management
+We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
 
-### Testing Subscriptions
+However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
 
-We provide several scripts to help test and manage the subscription flow:
+## Developing
 
-#### 1. Update User Subscription
+To run from source:
 
-\`\`\`bash
-# Check and update a user's subscription (defaults to premium tier)
-node test-subscription-update.js USER_ID
-
-# Specify a different tier (free, premium, pro, enterprise)
-node test-subscription-update.js USER_ID pro
-\`\`\`
-
-#### 2. Verify Webhook Configuration
-
-\`\`\`bash
-# Check Stripe webhook configuration and recent events
-node test-live-webhook.js
-\`\`\`
-
-#### 3. System Health Check
-
-\`\`\`bash
-# Perform a complete subscription system health check
-node verify-subscription-health.js
-\`\`\`
-
-#### 4. Full Documentation
-
-For complete testing procedures, see:
-- [Live Testing Guide](LIVE_TESTING_GUIDE.md)
-- [Webhook Debug Guide](WEBHOOK_DEBUG_GUIDE.md)
-- [Final Verification](FINAL_VERIFICATION.md)
-
-### Stripe Product Configuration
-
-The subscription system expects the following products in your Stripe account:
-
-| Plan Name      | Stripe Product ID | Metadata: plan_id  | Tier in Database |
-|----------------|-------------------|-------------------|------------------|
-| Navigator      | prod_xxx          | navigator         | premium          |
-| Pro Parker     | prod_xxx          | pro_parker        | pro              |
-| Fleet Manager  | prod_xxx          | fleet_manager     | enterprise       |
-
-## 📚 API Documentation
-
-### Parking Spots
-
-\`\`\`typescript
-// Get nearby spots
-GET /api/spots/nearby?lat=51.5074&lng=-0.1278&radius=1000
-
-// Report new spot
-POST /api/spots/report
-{
-  "latitude": 51.5074,
-  "longitude": -0.1278,
-  "spotType": "street",
-  "confidence": 85
-}
-\`\`\`
-
-### Navigation
-
-\`\`\`typescript
-// Calculate route
-POST /api/navigation/calculate-route
-{
-  "origin": [lng, lat],
-  "destination": [lng, lat],
-  "options": { "avoidTraffic": true }
-}
-\`\`\`
-
-### Subscription
-
-\`\`\`typescript
-// Create checkout session
-POST /api/stripe/create-checkout-session
-{
-  "tier": "navigator" // Or "pro_parker", "fleet_manager"
-}
-
-// Verify payment
-GET /api/stripe/verify-session?session_id=cs_test_xxx
-
-// Webhook (Stripe POST callback)
-POST /api/stripe-webhook
-// Stripe signature required in headers
-\`\`\`
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## 🆘 Support
-
-- **Documentation**: Check the `/docs` folder
-- **Issues**: Create a GitHub issue
-- **Discussions**: Use GitHub Discussions
-- **Email**: support@parkalgo.com
-
----
-
-Built with ❤️ using Next.js, Supabase, and Mapbox
+```sh
+# Go >= 1.22
+go run . help
+```

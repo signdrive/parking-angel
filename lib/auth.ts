@@ -1,6 +1,7 @@
 'use client'
 
 import { getBrowserClient } from '@/lib/supabase/browser'
+import { normalizeUrl, getBaseUrl } from '@/lib/url-utils'
 import type { User, AuthError, Session } from '@supabase/supabase-js'
 
 interface AuthResult<T> {
@@ -14,29 +15,21 @@ export async function signInWithGoogle(
   try {
     const supabase = getBrowserClient()
     
-    // Make sure redirectTo is absolute
-    const baseUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
-      : process.env.NEXT_PUBLIC_APP_URL
+    // Get the base URL using the utility function
+    const baseUrl = getBaseUrl();
+    
+    // Construct the final redirect URL
+    const finalRedirectTo = redirectTo.startsWith('http') 
+      ? redirectTo 
+      : `${baseUrl}${redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`}`;
 
-    // Force localhost in development
-    const devBaseUrl = 'http://localhost:3000'
-    const finalRedirectTo = process.env.NODE_ENV === 'development'
-      ? `${devBaseUrl}${redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`}`
-      : redirectTo.startsWith('http') 
-        ? redirectTo 
-        : `${baseUrl}${redirectTo}`
+    console.log('Google sign-in redirect configuration:', {
+      baseUrl,
+      redirectTo,
+      finalRedirectTo
+    });
 
-    // Generate random verifier
-    const verifier = generateCodeVerifier()
-    const challenge = await generateCodeChallenge(verifier)
-
-    // Store verifier in secure cookie
-    document.cookie = `my-code-verifier=${verifier}; path=/auth; secure; samesite=lax; max-age=300`
-    // Also try storing in the legacy cookie name for compatibility 
-    document.cookie = `code_verifier=${verifier}; path=/auth; secure; samesite=lax; max-age=300`
-
-    // Configure OAuth with PKCE
+    // Configure OAuth - let Supabase handle PKCE automatically
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -44,10 +37,7 @@ export async function signInWithGoogle(
         skipBrowserRedirect: false,
         queryParams: {
           access_type: 'offline',
-          prompt: 'select_account',
-          response_type: 'code',
-          code_challenge: challenge,
-          code_challenge_method: 'S256'
+          prompt: 'select_account'
         }
       }
     })

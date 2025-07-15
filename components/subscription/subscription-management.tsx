@@ -29,6 +29,15 @@ export function SubscriptionManagement() {
 
   const [isCanceling, setIsCanceling] = useState(false);
 
+  // Debug logging
+  console.log('🔍 SubscriptionManagement component data:', {
+    isSubscribed,
+    planId,
+    status,
+    currentPeriodEnd,
+    isLoading
+  });
+
   if (isLoading) {
     return (
       <Card>
@@ -42,6 +51,13 @@ export function SubscriptionManagement() {
   }
 
   const currentPlan = SUBSCRIPTION_PLANS.find((p) => p.id === planId);
+
+  // Debug logging
+  console.log('🎯 Current plan lookup:', {
+    planId,
+    currentPlan: currentPlan ? currentPlan.name : 'Not found',
+    availablePlans: SUBSCRIPTION_PLANS.map(p => ({ id: p.id, name: p.name }))
+  });
 
   const handleCancel = async () => {
     try {

@@ -199,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
 
-      router.push('/auth/login')
+      router.push('/')
       router.refresh()
     } catch (error) {
 
@@ -241,11 +241,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // Using Promise to make the flow faster
+      // Get the base URL without any port issues
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+      // Ensure the URL doesn't have double ports
+      const cleanBaseUrl = baseUrl.replace(/:3000$/, '');
+      
+      // Use implicit flow to avoid PKCE completely
       const signInPromise = supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?return_to=${encodeURIComponent(returnTo)}`,
+          redirectTo: `${cleanBaseUrl}/auth/callback-implicit?return_to=${encodeURIComponent(returnTo)}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',

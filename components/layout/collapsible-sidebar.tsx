@@ -1,7 +1,7 @@
 "use client"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { MapPin, Bookmark, History, Settings, Bot, ChevronLeft, ChevronRight, LogOut, User, Shield } from "lucide-react"
+import { MapPin, Bookmark, History, Settings, Bot, ChevronLeft, ChevronRight, LogOut, User, Shield, MessageSquare, Bell, Car, Trophy } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useMemo } from "react"
@@ -18,6 +18,34 @@ const sidebarItems = [
     label: "Live Map",
     description: "Real-time parking view",
     icon: MapPin,
+  },
+  {
+    id: "reports",
+    label: "Community Reports",
+    description: "Real-time user updates",
+    icon: MessageSquare,
+    isNew: true,
+  },
+  {
+    id: "alerts",
+    label: "Smart Alerts",
+    description: "Parking notifications",
+    icon: Bell,
+    isNew: true,
+  },
+  {
+    id: "vehicle",
+    label: "Vehicle Search",
+    description: "Car-specific parking",
+    icon: Car,
+    isNew: true,
+  },
+  {
+    id: "gamification",
+    label: "Rewards",
+    description: "Points & achievements",
+    icon: Trophy,
+    isNew: true,
   },
   {
     id: "saved",
@@ -119,7 +147,7 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
               variant="ghost"
               onClick={() => onTabChangeAction(item.id)}
               className={cn(
-                "w-full justify-start text-left transition-colors",
+                "w-full justify-start text-left transition-colors relative",
                 isActive
                   ? "bg-blue-600 text-white hover:bg-blue-700"
                   : "text-gray-300 hover:text-white hover:bg-gray-800",
@@ -129,12 +157,22 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
               <Icon className={cn("w-5 h-5", isCollapsed ? "mx-auto" : "mr-3")} />
               {!isCollapsed && (
                 <div className="flex-1">
-                  <div className="font-medium">{item.label}</div>
+                  <div className="font-medium flex items-center">
+                    {item.label}
+                    {item.isNew && (
+                      <span className="ml-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full font-bold animate-pulse">
+                        NEW
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs opacity-70">{item.description}</div>
                 </div>
               )}
               {isActive && item.id === "ai" && !isCollapsed && (
                 <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+              )}
+              {item.isNew && isCollapsed && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
               )}
             </Button>
           )
