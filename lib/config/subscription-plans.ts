@@ -33,7 +33,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     },
   },
   {
-    id: 'premium',
+    id: 'navigator',
     name: 'Navigator',
     description: 'Enhanced parking features for regular users',
     price: 9.99,
