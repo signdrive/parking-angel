@@ -59,6 +59,15 @@ export function SubscriptionManagement() {
     availablePlans: SUBSCRIPTION_PLANS.map(p => ({ id: p.id, name: p.name }))
   });
 
+  // Additional debug for the actual plan display
+  console.log('🎯 Plan display logic:', {
+    planId,
+    foundPlan: currentPlan,
+    planName: currentPlan?.name,
+    willShowAsSubscribed: isSubscribed,
+    subscriptionStatus: status
+  });
+
   const handleCancel = async () => {
     try {
       setIsCanceling(true);

@@ -88,6 +88,8 @@ export function useSubscription() {
 
     async function fetchSubscriptionData() {
       try {
+        console.log('🔍 [USE-SUBSCRIPTION] Fetching subscription data for user:', user?.id);
+        
         // Get the current session to extract the access token
         const { data: { session } } = await getBrowserClient().auth.getSession();
         if (!session?.access_token) {
@@ -111,6 +113,9 @@ export function useSubscription() {
           })
         ]);
 
+        console.log('🔍 [USE-SUBSCRIPTION] Features response status:', featuresRes.status);
+        console.log('🔍 [USE-SUBSCRIPTION] Status response status:', statusRes.status);
+
         if (!featuresRes.ok || !statusRes.ok) {
           throw new Error('Failed to fetch subscription data');
         }
@@ -122,27 +127,42 @@ export function useSubscription() {
             subscription: any;
             currentPeriodEnd: string;
             cancelAtPeriodEnd: boolean;
+            planId: string;
           }>
         ]);
 
+        console.log('🔍 [USE-SUBSCRIPTION] Features data:', features);
+        console.log('🔍 [USE-SUBSCRIPTION] Status data:', status);
+        console.log('🔍 [USE-SUBSCRIPTION] Plan ID from API:', status.planId);
+
         const isActive = status.status === 'active' || status.status === 'trialing';
-        setState(prev => ({
-          ...prev,
-          isActive,
-          isPremium: profile?.subscription_tier === 'premium',
-          hasFeatures: features !== null,
-          isSubscribed: isActive,
-          subscription: status.subscription,
-          features: features || DEFAULT_FEATURES,
-          status: status.status,
-          currentPeriodEnd: status.currentPeriodEnd,
-          cancelAtPeriodEnd: status.cancelAtPeriodEnd,
-          error: null
-        }));
+        
+        setState(prev => {
+          const newState = {
+            ...prev,
+            isActive,
+            isPremium: status.planId === 'navigator' || status.planId === 'premium',
+            hasFeatures: features !== null,
+            isSubscribed: isActive,
+            subscription: status.subscription,
+            features: features || DEFAULT_FEATURES,
+            status: status.status,
+            planId: status.planId,
+            currentPeriodEnd: status.currentPeriodEnd,
+            cancelAtPeriodEnd: status.cancelAtPeriodEnd,
+            error: null,
+            isLoading: false
+          };
+          
+          console.log('🔍 [USE-SUBSCRIPTION] New state:', newState);
+          return newState;
+        });
       } catch (error) {
+        console.error('❌ [USE-SUBSCRIPTION] Error:', error);
         setState(prev => ({
           ...prev,
-          error: error instanceof Error ? error : new Error('Failed to fetch subscription data')
+          error: error instanceof Error ? error : new Error('Failed to fetch subscription data'),
+          isLoading: false
         }));
       }
     }
