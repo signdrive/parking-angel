@@ -23,8 +23,12 @@ const SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
 const PLAN_MAPPING: Record<string, PlanType> = {
   'free': 'free',
   'basic': 'basic',
-  'premium': 'premium',
-  'enterprise': 'enterprise'
+  'premium': 'navigator',
+  'enterprise': 'fleet_manager',
+  'pro': 'pro_parker',
+  'navigator': 'navigator',
+  'pro_parker': 'pro_parker',
+  'fleet_manager': 'fleet_manager'
 };
 
 // Initialize Stripe and Supabase
@@ -97,7 +101,7 @@ export async function POST(req: Request) {
         const tier = metadata.tier;
         const plan: PlanType = tier && tier in PLAN_MAPPING 
           ? PLAN_MAPPING[tier as keyof typeof PLAN_MAPPING] 
-          : 'premium';
+          : 'navigator'; // Default to navigator instead of premium
 
         // Log to subscription_events with proper type casting
         const eventData: SubscriptionEventRecord = {

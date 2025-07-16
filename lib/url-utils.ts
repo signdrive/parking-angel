@@ -28,7 +28,6 @@ export function getBaseUrl(): string {
     return normalizeUrl(siteUrl);
   }
   
-  // Default fallback - support both localhost and 127.0.0.1
   return 'http://localhost:3000';
 }
 

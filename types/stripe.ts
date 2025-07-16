@@ -1,6 +1,6 @@
 import { Json } from './supabase';
 
-export type PlanType = 'free' | 'basic' | 'premium' | 'enterprise';
+export type PlanType = 'free' | 'basic' | 'premium' | 'enterprise' | 'navigator' | 'pro_parker' | 'fleet_manager';
 export type SubscriptionStatus = 'active' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'past_due' | 'trialing' | 'unpaid';
 
 export interface StripeMetadata {

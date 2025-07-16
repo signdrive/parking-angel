@@ -10,13 +10,17 @@ export type SubscriptionStatus = 'incomplete' | 'incomplete_expired' | 'active' 
 
 // Map from Stripe price IDs to subscription plans
 const PLAN_MAPPING: Record<string, PlanId> = {
-  'price_navigator': 'premium',
-  'price_pro_parker': 'pro',
-  'price_fleet_manager': 'enterprise',
+  'price_navigator': 'navigator',
+  'price_pro_parker': 'pro_parker',
+  'price_fleet_manager': 'fleet_manager',
   // Real Stripe price IDs
-  'price_1RdXHnKFfjGfLUIXYKCIZiJ4': 'premium',
-  'price_1RdXJgKFfjGfLUIXqjacyvNE': 'pro',
-  'price_1RdXLYKFfjGfLUIXhkNi0b9c': 'enterprise'
+  'price_1RdXHnKFfjGfLUIXYKCIZiJ4': 'navigator',
+  'price_1RdXJgKFfjGfLUIXqjacyvNE': 'pro_parker',
+  'price_1RdXLYKFfjGfLUIXhkNi0b9c': 'fleet_manager',
+  // Legacy mappings for backwards compatibility
+  'premium': 'navigator',
+  'pro': 'pro_parker',
+  'enterprise': 'fleet_manager'
 };
 
 // For development/testing, also accept the full price IDs
@@ -205,16 +209,9 @@ export class SubscriptionService {
 
     if (error || !data) return null;
 
-    try {
-      const subscription = await this.stripe.subscriptions.retrieve(data.stripe_subscription_id);
-      return {
-        ...subscription,
-        metadata: data
-      };
-    } catch (error) {
-      console.error('Error fetching Stripe subscription:', error);
-      return data;
-    }
+    // Always return the database record as it has all the info we need
+    console.log('📊 Returning subscription data:', data);
+    return data;
   }
 
   async cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
