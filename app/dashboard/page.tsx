@@ -18,6 +18,7 @@ import { MapPin } from "lucide-react"
 import { PWADebug } from "@/components/pwa/pwa-debug"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { SubscriptionManagement } from "@/components/subscription/subscription-management"
+import { trackPageView, trackUserInteraction } from "@/components/analytics/google-analytics-provider"
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth()
@@ -43,6 +44,19 @@ export default function DashboardPage() {
       router.push("/")
     }
   }, [user, isLoading, router])
+
+  // Track dashboard page view
+  useEffect(() => {
+    if (user) {
+      trackPageView('/dashboard', 'Dashboard - Park Algo');
+    }
+  }, [user]);
+
+  // Track tab changes
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    trackUserInteraction('dashboard_tab', `switch_to_${tab}`);
+  };
 
   // Now we can do early returns after all hooks are called
   if (isLoading) {

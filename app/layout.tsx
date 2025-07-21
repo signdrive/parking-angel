@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { GoogleAnalytics } from '@next/third-parties/google'
+import { GoogleAnalyticsProvider } from '@/components/analytics/google-analytics-provider'
 import { type PropsWithChildren } from "react"
 import "./globals.css" // This will be automatically optimized by Next.js
 import { AuthProvider } from "@/components/auth/auth-provider"
@@ -70,9 +71,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <GoogleAnalytics gaId="G-XDLGR86H8Q" />
+        {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
+          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
+        )}
       </head>
       <body className={inter.className}>
+        <GoogleAnalyticsProvider />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
