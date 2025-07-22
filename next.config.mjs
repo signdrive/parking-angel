@@ -49,7 +49,13 @@ const nextConfig = {
       'https://*.google-analytics.com',
       'https://*.analytics.google.com',
       'https://*.googletagmanager.com',
-      'https://stats.g.doubleclick.net'
+      'https://stats.g.doubleclick.net',
+      'https://analytics.google.com',
+      'https://region1.analytics.google.com',
+      'https://www.google.be',
+      'https://*.google.be',
+      'https://*.google.com',
+      'https://google.com'
     ];
 
     const isDev = process.env.NODE_ENV === 'development';
@@ -96,7 +102,9 @@ const nextConfig = {
         ...devDomains,
         ...googleAnalyticsDomains,
         'https://*.googleusercontent.com',
-        'https://*.stripe.com'
+        'https://*.stripe.com',
+        'https://*.google.com',
+        'https://google.com'
       ],
       'connect-src': [
         "'self'",
