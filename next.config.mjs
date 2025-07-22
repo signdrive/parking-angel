@@ -158,6 +158,7 @@ const nextConfig = {
       .join('; ');
 
     return [
+      // Headers for all routes
       {
         source: '/:path*',
         headers: [
@@ -187,11 +188,69 @@ const nextConfig = {
           }
         ],
       },
+      // Special headers for favicon and static assets
+      {
+        source: '/favicon.ico',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+          {
+            key: 'Content-Type',
+            value: 'image/x-icon',
+          },
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow',
+          },
+        ],
+      },
+      // Headers for other icons and static assets
+      {
+        source: '/(favicon-.*|icon-.*|apple-touch-icon.*)\.(png|svg|ico)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow',
+          },
+        ],
+      },
     ]
   },
 
   async redirects() {
     return [
+      // Handle www to non-www redirect
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'www.parkalgo.com',
+          },
+        ],
+        destination: 'https://parkalgo.com/:path*',
+        permanent: true,
+      },
+      // Handle trailing slashes
+      {
+        source: '/:path((?!.*\\.).*)',
+        has: [
+          {
+            type: 'header',
+            key: 'x-pathname',
+            value: '(?<pathname>.*?)/$',
+          },
+        ],
+        destination: '/:pathname',
+        permanent: true,
+      },
+      // Original redirects
       {
         source: '/www',
         destination: '/',

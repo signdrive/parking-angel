@@ -23,6 +23,9 @@ export default function robots(): MetadataRoute.Robots {
         disallow: "/",
       },
     ],
-    sitemap: "https://www.parkalgo.com/sitemap.xml",
+    sitemap: [
+      "https://parkalgo.com/sitemap.xml",
+      "https://parkalgo.com/blog/sitemap.xml"
+    ],
   }
 }

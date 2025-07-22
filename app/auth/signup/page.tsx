@@ -1,6 +1,32 @@
 import { SignUpForm } from "@/components/auth/signup-form"
 import Link from "next/link"
 import { MapPin } from "lucide-react"
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Sign Up | Parkalgo - AI Parking Optimization',
+  description: 'Create your free Parkalgo account to access AI-powered parking solutions, smart algorithms, and real-time parking management tools.',
+  keywords: 'Parkalgo signup, create parking account, AI parking registration, smart parking solutions signup',
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: 'https://parkalgo.com/auth/signup'
+  },
+  openGraph: {
+    title: 'Sign Up | Parkalgo - AI Parking Optimization',
+    description: 'Create your free account to access AI-powered parking solutions',
+    url: 'https://parkalgo.com/auth/signup',
+    siteName: 'Parkalgo',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Sign Up | Parkalgo',
+    description: 'Create your free account to access AI-powered parking solutions',
+  },
+}
 
 export default function SignUpPage() {
   return (

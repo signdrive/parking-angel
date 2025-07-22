@@ -42,10 +42,13 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  alternates: {
+    canonical: 'https://parkalgo.com'
+  },
   openGraph: {
     title: "AI Parking Optimization Software | Smart Algorithms | Parkalgo",
     description: "Transform parking efficiency with AI-powered algorithms. Reduce congestion & maximize revenue through automated parking solutions.",
-    url: "https://www.parkalgo.com",
+    url: "https://parkalgo.com",
     siteName: "Parkalgo",
     type: "website",
     images: [
@@ -103,6 +106,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
+        <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
           <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
         )}

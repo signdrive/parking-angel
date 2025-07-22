@@ -1,6 +1,32 @@
 import { LoginForm } from "@/components/auth/login-form"
 import Link from "next/link"
 import { MapPin } from "lucide-react"
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Login | Parkalgo - AI Parking Optimization',
+  description: 'Sign in to your Parkalgo account to access AI-powered parking management dashboard, real-time analytics, and smart parking solutions.',
+  keywords: 'Parkalgo login, parking management login, AI parking dashboard access, smart parking account',
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: 'https://parkalgo.com/auth/login'
+  },
+  openGraph: {
+    title: 'Login | Parkalgo - AI Parking Optimization',
+    description: 'Sign in to access your AI-powered parking management dashboard',
+    url: 'https://parkalgo.com/auth/login',
+    siteName: 'Parkalgo',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Login | Parkalgo',
+    description: 'Sign in to access your AI-powered parking management dashboard',
+  },
+}
 
 export default function LoginPage() {
   return (

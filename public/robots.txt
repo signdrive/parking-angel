@@ -1,0 +1,26 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Allow: /sitemap.xml
+Allow: /favicon.ico
+Allow: /favicon-*.png
+Allow: /icon-*.png
+Allow: /icon-*.svg
+Allow: /apple-touch-icon.png
+
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /auth/callback
+Disallow: /dashboard/settings/
+Disallow: /_next/static/chunks/
+Disallow: /_next/image
+Disallow: /node_modules/
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+Sitemap: https://www.parkalgo.com/sitemap.xml

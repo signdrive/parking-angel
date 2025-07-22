@@ -2,11 +2,32 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  const host = request.headers.get('host') || '';
+
+  // Handle canonical URL redirects
+  // Redirect www to non-www
+  if (host.startsWith('www.')) {
+    const nonWwwUrl = new URL(request.url);
+    nonWwwUrl.host = host.replace('www.', '');
+    return NextResponse.redirect(nonWwwUrl, 301);
+  }
+
+  // Remove trailing slashes (except for root)
+  if (pathname !== '/' && pathname.endsWith('/')) {
+    const cleanUrl = new URL(request.url);
+    cleanUrl.pathname = pathname.slice(0, -1);
+    return NextResponse.redirect(cleanUrl, 301);
+  }
+
   const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
+
+  // Add canonical header for debugging
+  response.headers.set('x-canonical-url', `https://parkalgo.com${pathname}`);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

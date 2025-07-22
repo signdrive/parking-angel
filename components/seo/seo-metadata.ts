@@ -51,7 +51,7 @@ export function generateSEOMetadata({
     openGraph: {
       title: fullTitle,
       description: finalDescription,
-      url: canonicalUrl || 'https://www.parkalgo.com',
+      url: canonicalUrl || 'https://parkalgo.com',
       siteName: 'Parkalgo',
       type: 'website',
       images: [
@@ -83,34 +83,34 @@ export const seoConfigs = {
     title: 'AI Parking Optimization Software | Smart Algorithms',
     description: 'Transform parking efficiency with AI-powered algorithms. Parkalgo\'s smart parking management software reduces congestion & maximizes revenue through automated solutions.',
     keywords: ['best AI for parking lot efficiency', 'cost-effective parking technology', 'cloud-based parking management'],
-    canonicalUrl: 'https://www.parkalgo.com'
+    canonicalUrl: 'https://parkalgo.com'
   }),
 
   dashboard: generateSEOMetadata({
     title: 'Parking Analytics Dashboard | Real-Time Insights',
     description: 'Monitor parking performance with AI-powered analytics. Real-time occupancy tracking, revenue optimization, and predictive insights for smart parking management.',
     keywords: ['parking analytics dashboard', 'real-time parking data', 'parking utilization rates'],
-    canonicalUrl: 'https://www.parkalgo.com/dashboard'
+    canonicalUrl: 'https://parkalgo.com/dashboard'
   }),
 
   pricing: generateSEOMetadata({
     title: 'Dynamic Parking Pricing Solutions | AI-Powered Revenue',
     description: 'Maximize parking revenue with AI-driven dynamic pricing. Smart algorithms adjust rates based on demand, occupancy, and market conditions.',
     keywords: ['dynamic parking pricing', 'parking revenue optimization', 'demand-based parking rates'],
-    canonicalUrl: 'https://www.parkalgo.com/pricing'
+    canonicalUrl: 'https://parkalgo.com/pricing'
   }),
 
   features: generateSEOMetadata({
     title: 'Smart Parking Features | AI Algorithms & Automation',
     description: 'Discover Parkalgo\'s AI-powered parking features: real-time detection, predictive analytics, automated enforcement, and revenue optimization.',
     keywords: ['smart parking features', 'automated parking solutions', 'parking space optimization'],
-    canonicalUrl: 'https://www.parkalgo.com/features'
+    canonicalUrl: 'https://parkalgo.com/features'
   }),
 
   blog: generateSEOMetadata({
     title: 'Parking Technology Blog | AI & Smart City Insights',
     description: 'Learn about AI parking optimization, smart city solutions, and parking industry trends. Expert insights on automated parking technology.',
     keywords: ['parking technology blog', 'smart city parking', 'AI parking insights'],
-    canonicalUrl: 'https://www.parkalgo.com/blog'
+    canonicalUrl: 'https://parkalgo.com/blog'
   })
 }
