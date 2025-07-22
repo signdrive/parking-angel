@@ -58,6 +58,11 @@ export default function DashboardPage() {
     trackUserInteraction('dashboard_tab', `switch_to_${tab}`);
   };
 
+  // Update the onTabChangeAction to use handleTabChange
+  const onTabChangeAction = (tab: string) => {
+    handleTabChange(tab);
+  };
+
   // Now we can do early returns after all hooks are called
   if (isLoading) {
     return (
@@ -280,7 +285,7 @@ export default function DashboardPage() {
   return (
     <div className="h-screen bg-gray-900 flex overflow-hidden">
       {/* Collapsible Sidebar */}
-      <CollapsibleSidebar activeTab={activeTab} onTabChangeAction={setActiveTab} className="flex-shrink-0" />
+      <CollapsibleSidebar activeTab={activeTab} onTabChangeAction={onTabChangeAction} className="flex-shrink-0" />
 
       {/* Main Content - Takes remaining space */}
       <div className="flex-1 relative overflow-hidden">{renderMainContent()}</div>

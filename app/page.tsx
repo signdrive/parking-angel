@@ -12,6 +12,8 @@ import { ComprehensiveTest } from "@/components/setup/comprehensive-test"
 import { useGeolocation } from "@/hooks/use-geolocation"
 import { SiteFooter } from "@/components/layout/site-footer"
 import { useAuth } from "@/components/auth/auth-provider"
+import { StructuredData } from "@/components/seo/structured-data"
+import { trackPageView } from "@/components/analytics/google-analytics-provider"
 
 const STRIPE_NAVIGATOR_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_NAVIGATOR_PRICE_ID || "price_navigator_default";
 const STRIPE_PRO_PARKER_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRO_PARKER_PRICE_ID || "price_pro_parker_default";
@@ -93,6 +95,13 @@ export default function HomePage() {
 		const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 		setShowSetup(!supabaseUrl || !supabaseKey)
 	}, [])
+
+	// Track homepage view
+	useEffect(() => {
+		if (mounted) {
+			trackPageView('/', 'Parkalgo - AI Parking Optimization Software | Smart Algorithms');
+		}
+	}, [mounted]);
 
 	if (!mounted) {
 		return (
@@ -212,12 +221,11 @@ export default function HomePage() {
 				</div>
 				<div className="text-center mb-16">
 					<h1 className="text-5xl font-bold text-gray-900 mb-6">
-						Find Parking Spots with{" "}
-						<span className="text-blue-600">AI Intelligence</span>
+						AI Parking Optimization{" "}
+						<span className="text-blue-600">Smart Algorithms</span>
 					</h1>
 					<p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-						Join thousands of drivers using our AI-powered platform with secure
-						authentication, real-time analytics, and smart notifications.
+						Transform parking efficiency with AI-powered algorithms. Our smart parking management software reduces congestion and maximizes revenue through automated solutions for businesses and cities.
 					</p>
 					<div className="space-x-4">
 						<Link href="/auth/signup">
@@ -515,6 +523,12 @@ export default function HomePage() {
 			</main>
 
 			<SiteFooter />
+
+			{/* Structured Data for SEO */}
+			<StructuredData type="software" />
+			<StructuredData type="organization" />
+			<StructuredData type="website" />
+			<StructuredData type="faq" />
 		</div>
 	)
 }

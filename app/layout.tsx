@@ -29,18 +29,50 @@ if (typeof window !== 'undefined') {
 }
 
 export const metadata: Metadata = {
-  title: "Park Algo - AI-Powered Parking Solutions",
-  description: "Find parking spots in real-time with AI-powered predictions and smart recommendations. Park Algo helps you park smarter!",
-  keywords: "parking, AI, real-time, smart parking, machine learning, predictions, park algo",
-  generator: "v0.dev",
+  title: "AI Parking Optimization Software | Smart Algorithms | Parkalgo",
+  description: "Transform parking efficiency with AI-powered algorithms. Parkalgo's smart parking management software reduces congestion & maximizes revenue through automated solutions.",
+  keywords: "AI parking optimization, smart parking algorithms, parking management software, automated parking solutions, dynamic parking pricing, cost-effective parking technology, cloud-based parking management",
+  generator: "Next.js",
   manifest: process.env.NODE_ENV === 'production' ? "/manifest.json" : undefined,
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Park Algo",
+    title: "Parkalgo - AI Parking",
   },
   formatDetection: {
     telephone: false,
+  },
+  openGraph: {
+    title: "AI Parking Optimization Software | Smart Algorithms | Parkalgo",
+    description: "Transform parking efficiency with AI-powered algorithms. Reduce congestion & maximize revenue through automated parking solutions.",
+    url: "https://www.parkalgo.com",
+    siteName: "Parkalgo",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Parkalgo AI Parking Optimization Platform",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AI Parking Optimization Software | Parkalgo",
+    description: "Smart parking algorithms that reduce congestion & maximize revenue through AI-powered automation.",
+    images: ["/og-image.jpg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
   icons: {
     icon: [
