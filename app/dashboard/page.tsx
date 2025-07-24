@@ -269,6 +269,39 @@ export default function DashboardPage() {
           </div>
         )
 
+      case "blog":
+        return (
+          <div className="p-6 bg-gray-50 h-full overflow-y-auto">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">Blog Management</h1>
+                <a 
+                  href="/admin/blog"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Open Blog Admin
+                </a>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border p-8">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Blog Administration</h3>
+                  <p className="text-gray-600 mb-4">
+                    Manage your blog posts, categories, and tags from the dedicated admin interface.
+                  </p>
+                  <div className="space-y-2 text-sm text-gray-500">
+                    <p>• Create and edit blog posts</p>
+                    <p>• Manage categories and tags</p>
+                    <p>• SEO optimization tools</p>
+                    <p>• Draft and publish workflow</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+
       default:
         return (
           <div className="flex items-center justify-center h-full bg-gray-50">

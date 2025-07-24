@@ -3,7 +3,7 @@
 import Script from 'next/script'
 
 interface StructuredDataProps {
-  type: 'software' | 'faq' | 'organization' | 'website'
+  type: 'software' | 'faq' | 'organization' | 'website' | 'article'
   data?: any
 }
 
@@ -122,6 +122,35 @@ export function StructuredData({ type, data }: StructuredDataProps) {
             "target": "https://www.parkalgo.com/search?q={search_term_string}",
             "query-input": "required name=search_term_string"
           }
+        }
+
+      case 'article':
+        return {
+          "@context": "https://schema.org",
+          "@type": "Article",
+          "headline": data?.headline || "Article",
+          "description": data?.description || "",
+          "author": {
+            "@type": "Person",
+            "name": data?.author || "Parkalgo Team"
+          },
+          "publisher": {
+            "@type": "Organization",
+            "name": "Parkalgo",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://www.parkalgo.com/logo.png"
+            }
+          },
+          "datePublished": data?.datePublished || new Date().toISOString(),
+          "dateModified": data?.dateModified || data?.datePublished || new Date().toISOString(),
+          "image": data?.image || "https://www.parkalgo.com/default-article-image.jpg",
+          "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": typeof window !== 'undefined' ? window.location.href : "https://www.parkalgo.com"
+          },
+          "keywords": data?.keywords || "",
+          "articleSection": "Technology"
         }
 
       default:

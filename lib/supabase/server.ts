@@ -9,15 +9,17 @@ import type { Database } from '../types/database'
 
 // For server components
 export const createClient = () => {
+  const cookieStore = cookies()
   return createServerComponentClient<Database>({
-    cookies,
+    cookies: () => cookieStore,
   })
 }
 
 // For route handlers (API routes)
 export const createRouteHandler = () => {
+  const cookieStore = cookies()
   return createRouteHandlerClient<Database>({
-    cookies,
+    cookies: () => cookieStore,
   })
 }
 

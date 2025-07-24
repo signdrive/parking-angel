@@ -6,27 +6,16 @@ import { usePathname } from 'next/navigation';
 
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
-declare global {
-  interface Window {
-    gtag: (
-      command: 'config' | 'event' | 'js',
-      targetId: string | Date,
-      config?: Record<string, any>
-    ) => void;
-    dataLayer: any[];
-  }
-}
-
 export function GoogleAnalyticsProvider() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!GA_MEASUREMENT_ID || typeof window.gtag !== 'function') {
+    if (!GA_MEASUREMENT_ID || typeof (window as any).gtag !== 'function') {
       return;
     }
 
     // Track page view
-    window.gtag('config', GA_MEASUREMENT_ID, {
+    (window as any).gtag('config', GA_MEASUREMENT_ID, {
       page_path: pathname,
       debug_mode: process.env.NODE_ENV === 'development'
     });
@@ -91,8 +80,8 @@ export function trackEvent(
   eventName: string,
   eventParameters?: Record<string, any>
 ) {
-  if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
-    window.gtag('event', eventName, eventParameters);
+  if (typeof window !== 'undefined' && typeof (window as any).gtag === 'function') {
+    (window as any).gtag('event', eventName, eventParameters);
     console.log('📊 GA4 Event tracked:', eventName, eventParameters);
   }
 }

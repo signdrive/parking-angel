@@ -1,0 +1,515 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        80
+      ],
+      "id": "47102e1b-a216-4739-bd0e-be51148fe5ee"
+    },
+    {
+      "parameters": {
+        "functionCode": "const prefixes = [\"The Ultimate Guide to\", \"Smart\", \"2025 Expert Review of\", \"AI-Powered\", \"Proven Strategies for\"];\nconst categories = [\"Smart Parking\", \"Parking Management\", \"AI Parking Solutions\", \"Urban Mobility\", \"Parking Technology\"];\nconst formats = [\"What Cities Need to Know\", \"For Property Managers\", \"That Actually Work\", \"Backed by Data\"];\n\nif (!prefixes.length || !categories.length || !formats.length) {\n  return [{ json: { error: \"Configuration arrays are empty\", timestamp: new Date().toISOString() } }];\n}\n\nconst seedTopic = `${prefixes[Math.floor(Math.random() * prefixes.length)]} ${categories[Math.floor(Math.random() * categories.length)]} ${formats[Math.floor(Math.random() * formats.length)]}`;\nreturn [{ json: { seed_topic: seedTopic, timestamp: new Date().toISOString() } }];"
+      },
+      "name": "Generate Topic Seed",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -300,
+        -20
+      ],
+      "id": "b5462916-ac01-4b54-915c-1ce5a369adda"
+    },
+    {
+      "parameters": {
+        "prompt": "Generate 3 compelling blog topic titles about smart parking and parking technology based on this concept: {{$json.seed_topic}}\nRequirements:\n- Each title under 65 characters\n- Include primary keyword (smart parking/AI parking/parking management)\n- Add emotional appeal (efficiency, innovation, cost savings)\n- Return as valid JSON array\nExample output:\n[\"5 Smart Parking Tricks for Cities\", \"The Truth About AI Parking Systems\", \"How ParkAlgo Guarantees 50% More Revenue\"]",
+        "options": {
+          "maxTokens": 120,
+          "temperature": 0.8
+        },
+        "requestOptions": {}
+      },
+      "name": "Generate Topic Options",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        80
+      ],
+      "id": "94a51759-5a6c-46f8-a689-1809ba476963",
+      "credentials": {
+        "openAiApi": {
+          "id": "39E4qkgtcaulqnoQ",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "try {\n  const openAiResponse = $input.all()[0].json;\n  \n  let topics = [];\n  if (openAiResponse.choices && openAiResponse.choices[0].message) {\n    try {\n      topics = JSON.parse(openAiResponse.choices[0].message.content);\n    } catch (e) {\n      topics = [openAiResponse.choices[0].message.content];\n    }\n  } else if (openAiResponse.text) {\n    try {\n      topics = JSON.parse(openAiResponse.text);\n    } catch (e) {\n      topics = [openAiResponse.text];\n    }\n  }\n  \n  if (!Array.isArray(topics)) {\n    topics = [topics];\n  }\n  \n  // Select the first topic and clean it up\n  let selectedTopic = topics[0] || \"Natural Health Remedies\";\n  \n  // Clean up the topic if it contains quotes or formatting\n  if (typeof selectedTopic === 'string') {\n    selectedTopic = selectedTopic.replace(/^\"|\"$/g, ''); // Remove surrounding quotes\n    selectedTopic = selectedTopic.replace(/^\\d+\\.\\s*/, ''); // Remove numbering like \"1. \"\n    selectedTopic = selectedTopic.trim();\n  }\n  \n  console.log('Selected topic:', selectedTopic);\n  \n  return [{\n    json: {\n      selected_topic: selectedTopic,\n      all_options: topics,\n      timestamp: new Date().toISOString(),\n      raw_response: openAiResponse\n    }\n  }];\n} catch (error) {\n  return [{\n    json: {\n      error: 'Topic selection failed',\n      details: error.message,\n      fallback_topic: $input.all()[0]?.json?.seed_topic || \"Natural Health Remedies\",\n      timestamp: new Date().toISOString()\n    }\n  }];\n}"
+      },
+      "name": "Select Best Topic",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -20
+      ],
+      "id": "af173702-9725-47ae-acee-97dbeec96e91"
+    },
+    {
+      "parameters": {
+        "prompt": "=Write a comprehensive 700-word blog post about: {{$json.selected_topic || $json.fallback_topic || \"Smart Parking Solutions\"}}\n\nStructure:\n1. Engaging introduction (include a question or surprising fact about parking)\n2. 3-5 key benefits with real-world examples\n3. Practical implementation guide with steps\n4. Common challenges and solutions\n5. Conclusion with call-to-action for ParkAlgo\n\nFormat your response as valid JSON:\n{\n  \"title\": \"Your Blog Post Title Here\",\n  \"content\": \"<h2>Introduction</h2><p>Your introduction here...</p><h2>Benefits</h2><p>Your benefits content...</p><h2>Implementation Guide</h2><p>Your guide content...</p><h2>Challenges & Solutions</h2><p>Your challenges content...</p><h2>Conclusion</h2><p>Your conclusion with ParkAlgo mention...</p>\",\n  \"key_points\": [\"benefit 1\", \"benefit 2\", \"benefit 3\"],\n  \"references\": [\"industry study 1\", \"case study 2\"]\n}\n\nIMPORTANT: Return ONLY the JSON object, no other text.",
+        "options": {
+          "maxTokens": 2000,
+          "temperature": 0.6
+        },
+        "requestOptions": {}
+      },
+      "name": "Generate Blog Content",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        140,
+        80
+      ],
+      "id": "4733ff5c-0fff-4b31-95a2-8c51260069f7",
+      "credentials": {
+        "openAiApi": {
+          "id": "39E4qkgtcaulqnoQ",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "try {\n  const inputs = $input.all();\n  const openAiResponse = inputs[0].json;\n  \n  console.log(\"=== DEBUG: OpenAI Response ===\");\n  console.log(JSON.stringify(openAiResponse, null, 2));\n  \n  // Get topic data from execution context using n8n's built-in functions\n  let selectedTopic = \"\";\n  let seedTopic = \"\";\n  \n  // Try to get data from previous nodes in the execution\n  try {\n    // Access execution data from Select Best Topic node\n    const selectTopicData = $('Select Best Topic').all();\n    if (selectTopicData && selectTopicData.length > 0) {\n      selectedTopic = selectTopicData[0].json.selected_topic || selectTopicData[0].json.fallback_topic || \"\";\n      console.log(\"=== DEBUG: Selected Topic ===\", selectedTopic);\n    }\n    \n    // Access execution data from Generate Topic Seed node\n    const seedData = $('Generate Topic Seed').all();\n    if (seedData && seedData.length > 0) {\n      seedTopic = seedData[0].json.seed_topic || \"\";\n      console.log(\"=== DEBUG: Seed Topic ===\", seedTopic);\n    }\n  } catch (e) {\n    console.log(\"Could not access previous node data:\", e.message);\n  }\n\n  let blogData = {\n    title: selectedTopic || \"Natural Health Remedies Guide\",\n    content: \"<p>No content was generated</p>\",\n    key_points: [],\n    references: [],\n    error: null\n  };\n\n  // Extract content from OpenAI response\n  let content = \"\";\n  if (openAiResponse && openAiResponse.choices && openAiResponse.choices[0]) {\n    content = openAiResponse.choices[0].message?.content || openAiResponse.choices[0].text || \"\";\n  } else if (openAiResponse && openAiResponse.text) {\n    content = openAiResponse.text;\n  }\n  \n  console.log(\"=== DEBUG: Raw Content ===\");\n  console.log(content);\n\n  if (content && content.length > 10) {\n    try {\n      content = content.trim();\n      \n      // Remove markdown code blocks if present\n      content = content.replace(/```json\\s*/, '').replace(/```\\s*$/, '');\n      content = content.replace(/```\\s*/, '').replace(/```\\s*$/, '');\n      \n      console.log(\"=== DEBUG: Cleaned Content ===\");\n      console.log(content);\n      \n      let parsedContent;\n      try {\n        parsedContent = JSON.parse(content);\n        console.log(\"=== DEBUG: Successfully Parsed JSON ===\");\n        console.log(JSON.stringify(parsedContent, null, 2));\n      } catch (parseError) {\n        console.log(\"=== DEBUG: JSON Parse Failed ===\", parseError.message);\n        \n        // Fallback: Try to extract JSON from text\n        const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n        if (jsonMatch) {\n          try {\n            parsedContent = JSON.parse(jsonMatch[0]);\n            console.log(\"=== DEBUG: Extracted JSON Successfully ===\");\n          } catch (e) {\n            console.log(\"=== DEBUG: Extracted JSON Parse Failed ===\", e.message);\n            \n            // Generate fallback content based on topic\n            const fallbackTitle = selectedTopic || seedTopic || \"Smart Parking Solutions\";\n            const fallbackContent = `\n              <h2>Introduction</h2>\n              <p>Welcome to our comprehensive guide on ${fallbackTitle}. In today's rapidly evolving urban landscape, smart parking solutions are revolutionizing how cities and businesses manage their parking infrastructure.</p>\n              \n              <h2>Key Benefits</h2>\n              <p>Smart parking technologies offer numerous advantages including reduced traffic congestion, increased revenue, improved user experience, and data-driven insights for better decision making.</p>\n              \n              <h2>Implementation Guide</h2>\n              <p>Start your smart parking journey by assessing current infrastructure, selecting appropriate technology solutions, and partnering with experienced providers like ParkAlgo for seamless integration.</p>\n              \n              <h2>Common Challenges</h2>\n              <p>Avoid common pitfalls like inadequate planning, choosing incompatible systems, or underestimating maintenance requirements. Professional consultation ensures optimal results.</p>\n              \n              <h2>Conclusion</h2>\n              <p>Smart parking solutions can dramatically improve efficiency and profitability when implemented correctly. Contact ParkAlgo today to discover how AI-powered parking management can transform your operations.</p>\n            `;\n            \n            parsedContent = {\n              title: fallbackTitle,\n              content: fallbackContent,\n              key_points: [\"Reduced traffic congestion\", \"Increased revenue potential\", \"Data-driven insights\"],\n              references: [\"Smart Cities Journal\", \"Urban Mobility Research Institute\"]\n            };\n            console.log(\"=== DEBUG: Using Fallback Content ===\");\n          }\n        } else {\n          console.log(\"=== DEBUG: No JSON found, using raw content ===\");\n          // Use raw content if no JSON structure found\n          parsedContent = {\n            title: selectedTopic || \"Natural Health Guide\",\n            content: content.length > 100 ? content : `<h2>Natural Health Information</h2><p>${content}</p>`,\n            key_points: [],\n            references: []\n          };\n        }\n      }\n\n      // Merge parsed content with defaults\n      blogData = {\n        ...blogData,\n        title: parsedContent.title || blogData.title,\n        content: parsedContent.content || blogData.content,\n        key_points: parsedContent.key_points || [],\n        references: parsedContent.references || []\n      };\n    } catch (e) {\n      console.log(\"=== DEBUG: Processing Error ===\", e.message);\n      blogData.content = content.length > 100 ? content : `<h2>Content Processing Error</h2><p>${content}</p>`;\n      blogData.error = \"Failed to process OpenAI response\";\n    }\n  } else {\n    console.log(\"=== DEBUG: No content received ===\");\n    blogData.error = \"No OpenAI response received\";\n    \n    // Generate emergency fallback content\n    const emergencyTitle = selectedTopic || seedTopic || \"Natural Health Tips\";\n    blogData.title = emergencyTitle;\n    blogData.content = `\n      <h2>Natural Health and Wellness</h2>\n      <p>Discover the power of natural health approaches for better living. This guide covers essential information about ${emergencyTitle.toLowerCase()}.</p>\n      \n      <h2>Benefits of Natural Approaches</h2>\n      <p>Natural health methods offer gentle, effective solutions that work with your body's natural healing processes.</p>\n      \n      <h2>Getting Started</h2>\n      <p>Begin with simple lifestyle changes, proper nutrition, and evidence-based natural remedies under professional guidance.</p>\n      \n      <h2>Important Considerations</h2>\n      <p>Always consult healthcare professionals before making significant changes to your health routine.</p>\n    `;\n    blogData.key_points = [\"Natural healing\", \"Gentle approaches\", \"Professional guidance\"];\n    blogData.references = [\"Natural Health Journal\", \"Wellness Research Institute\"];\n  }\n\n  // Add metadata\n  blogData.timestamp = new Date().toISOString();\n  blogData.selected_topic = selectedTopic;\n  blogData.seed_topic = seedTopic;\n  \n  console.log(\"=== DEBUG: Final Blog Data ===\");\n  console.log(JSON.stringify(blogData, null, 2));\n\n  return [{ json: blogData }];\n} catch (error) {\n  console.log(\"=== DEBUG: Fatal Error ===\", error.message);\n  return [{ json: {\n    error: \"Failed to parse blog content\",\n    details: error.message,\n    title: \"Natural Health Guide\",\n    content: \"<h2>Natural Health Information</h2><p>Learn about natural approaches to health and wellness. Discover gentle, effective methods for better living.</p>\",\n    key_points: [\"Natural methods\", \"Gentle approaches\", \"Better wellness\"],\n    references: [\"Health Research\"],\n    timestamp: new Date().toISOString()\n  } }];\n}"
+      },
+      "name": "Parse Blog Content",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        280,
+        -20
+      ],
+      "id": "5d990117-b65d-44fe-9a1f-c9fc9e0dcda9"
+    },
+    {
+      "parameters": {
+        "prompt": "=Analyze this blog post for SEO:\n\n{{$json.content}}\n\nReturn JSON with:\n{\n  \"primary_keyword\": \"main keyword\",\n  \"secondary_keywords\": [\"kw1\", \"kw2\"],\n  \"meta_description\": \"160 char description\",\n  \"readability_score\": 0-100,\n  \"recommendations\": \"specific improvements\"\n}\n\n\n\n",
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.3
+        },
+        "requestOptions": {}
+      },
+      "name": "SEO Optimization",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        440,
+        100
+      ],
+      "id": "5f510eb6-7a7f-4f2b-b118-2e950df8ed26",
+      "credentials": {
+        "openAiApi": {
+          "id": "39E4qkgtcaulqnoQ",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "\ntry {\n  const inputs = $input.all();\n  const seoResponse = inputs[0].json;\n  \n  // Get blog data from Parse Blog Content node\n  let blogData = {};\n  try {\n    const parseContentData = $('Parse Blog Content').all();\n    if (parseContentData && parseContentData.length > 0) {\n      blogData = parseContentData[0].json;\n    }\n  } catch (e) {\n    console.log(\"Could not access Parse Blog Content data:\", e.message);\n    blogData = inputs[1]?.json || {};\n  }\n\n  // Initialize SEO data with defaults\n  let seoData = {\n    primary_keyword: \"health\",\n    secondary_keywords: [],\n    meta_description: \"Learn about natural health solutions and wellness tips.\",\n    readability_score: 70,\n    recommendations: \"No specific recommendations available\"\n  };\n\n  // Try to extract content from OpenAI-style response\n  if (seoResponse && seoResponse.choices && seoResponse.choices[0]) {\n    try {\n      const content = seoResponse.choices[0].message?.content?.trim() || \"\";\n      \n      // Remove markdown code blocks if present\n      const cleanContent = content.replace(/```json\\s*/, '').replace(/```\\s*$/, '');\n      \n      // Try to parse as JSON\n      const parsedSeo = JSON.parse(cleanContent);\n\n      seoData = {\n        ...seoData,\n        ...parsedSeo\n      };\n    } catch (e) {\n      console.error(\"Failed to parse OpenAI SEO JSON:\", e);\n      seoData.recommendations = \"Parsing failed. Please check the raw SEO response.\";\n    }\n  } \n  // Fallback: Try to parse from plain JSON string (e.g. \"text\" field)\n  else if (seoResponse && seoResponse.text) {\n    try {\n      const content = seoResponse.text.trim();\n      const cleanContent = content.replace(/```json\\s*/, '').replace(/```\\s*$/, '');\n\n      const parsedSeo = JSON.parse(cleanContent);\n      seoData = {\n        ...seoData,\n        ...parsedSeo\n      };\n    } catch (e) {\n      console.error(\"Failed to parse SEO JSON from text field:\", e);\n      seoData.recommendations = \"Parsing failed. Please check the raw SEO response.\";\n    }\n  } \n  // If neither format is valid, use defaults\n  else {\n    console.warn(\"No valid SEO response format detected\");\n  }\n\n  // Merge with blog data\n  const finalData = {\n    ...blogData,\n    seo_data: seoData,\n    final_timestamp: new Date().toISOString()\n  };\n\n  return [{ json: finalData }];\n} catch (error) {\n  console.error(\"Error in Parse SEO Data node:\", error);\n  return [{ json: {\n    error: \"SEO Analysis Failed\",\n    details: error.message,\n    title: \"SEO Processing Error\",\n    content: \"<p>SEO analysis could not be completed</p>\",\n    timestamp: new Date().toISOString()\n  } }];\n}"
+      },
+      "name": "Parse SEO Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        560,
+        -20
+      ],
+      "id": "fde05851-286b-4556-86dd-9e3f625b1479"
+    },
+    {
+      "parameters": {
+        "functionCode": "const inputData = $input.all()[0].json;\n\n// Check for errors\nif (inputData.error) {\n  return [[], [{ json: { ...inputData, should_send: false, validation_error: inputData.error } }]];\n}\n\n// Check content length\nif (!inputData.content || inputData.content.length < 300) {\n  return [[], [{\n    json: {\n      ...inputData,\n      error: \"Content too short\",\n      should_send: false,\n      validation_error: \"Generated content is too short (minimum 300 characters)\",\n      content: inputData.content, // Pass the content for debugging\n      seo_data: inputData.seo_data // Pass the SEO data\n    }\n  }]];\n}\n\n// Check if title is valid\nif (!inputData.title || inputData.title.includes(\"$json\") || inputData.title.includes(\"Untitled\")) {\n  return [[], [{\n    json: {\n      ...inputData,\n      error: \"Invalid title\",\n      should_send: false,\n      validation_error: \"Blog title is missing or contains template variables\"\n    }\n  }]];\n}\n\n// Content is valid\nreturn [[{ json: { ...inputData, should_send: true, validation_status: \"passed\" } }], []];"
+      },
+      "name": "Content Validation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -20
+      ],
+      "id": "8a181343-b151-448c-be0d-5287dd6aba47"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://parkalgo.com/api/blog/posts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.N8N_BLOG_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-n8n-webhook-id",
+              "value": "={{$workflow.id}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify({\n  title: $json.title,\n  content: $json.content,\n  excerpt: $json.content.replace(/<[^>]*>/g, '').substring(0, 200) + '...',\n  category_slug: 'automated-content',\n  tags: ['ai-generated', 'automated', 'n8n'].concat($json.seo_data?.secondary_keywords || []),\n  published: true,\n  featured: false,\n  meta_title: $json.title,\n  meta_description: $json.seo_data?.meta_description || $json.content.replace(/<[^>]*>/g, '').substring(0, 160),\n  featured_image_url: $json.imageBase64 || null\n})}}",
+        "options": {}
+      },
+      "name": "Post to ParkAlgo Blog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        -20
+      ],
+      "id": "cc518bca-96ad-40ca-9caa-b5012f0cccbf"
+    },
+    {
+      "parameters": {
+        "fromEmail": "loan.schulmaier4807@gmail.com",
+        "toEmail": "signdrive@gmail.com",
+        "ccEmail": "loan.schulmaier4807@gmail.com",
+        "subject": "={{\"✅ New ParkAlgo Blog Post Published: \" + ($json.post?.title || $json.title || \"Untitled\")}}",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n    .success-box { background-color: #f0fff4; padding: 20px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #38a169; }\n    h2 { color: #2f855a; }\n    .blog-link { background-color: #4299e1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0; }\n  </style>\n</head>\n<body>\n  <div class=\"success-box\">\n    <h2>🎉 Blog Post Successfully Published!</h2>\n    <p><strong>Title:</strong> ={{$json.post?.title || $json.title}}</p>\n    <p><strong>Slug:</strong> ={{$json.post?.slug || 'auto-generated'}}</p>\n    <p><strong>Published:</strong> ={{$json.post?.published ? 'Yes' : 'No'}}</p>\n    <p><strong>Post URL:</strong> <a href=\"{{$json.post?.url || 'https://parkalgo.com/blog'}}\">{{$json.post?.url || 'https://parkalgo.com/blog'}}</a></p>\n    <p><strong>Admin URL:</strong> <a href=\"https://parkalgo.com/admin/blog\">https://parkalgo.com/admin/blog</a></p>\n    <p><strong>Generated:</strong> ={{new Date().toLocaleString()}}</p>\n    <a href=\"{{$json.post?.url || 'https://parkalgo.com/blog'}}\" class=\"blog-link\">View Published Post</a>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "name": "Success Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        -20
+      ],
+      "id": "aa518bca-96ad-40ca-9caa-b5012f0cccbf",
+      "credentials": {
+        "smtp": {
+          "id": "6B2T9DiemBdMkCqE",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "loan.schulmaier4807@gmail.com",
+        "toEmail": "signdrive@gmail.com",
+        "ccEmail": "loan.schulmaier4807@gmail.com",
+        "subject": "={{\"ParkAlgo Blog Error: \" + ($json.error || \"Unknown Error\")}}",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n    .error-box { background-color: #fff5f5; padding: 20px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #f56565; }\n    h2 { color: #c53030; }\n  </style>\n</head>\n<body>\n  <div class=\"error-box\">\n    <h2>ParkAlgo Blog Generation Failed</h2>\n    <p><strong>Error:</strong> ={{$json.error}}</p>\n    <p><strong>Details:</strong> ={{$json.details}}</p>\n    <p><strong>Validation Error:</strong> ={{$json.validation_error}}</p>\n    <p><strong>Title:</strong> ={{$json.title}}</p>\n    <p><strong>Content Length:</strong> ={{$json.content.length}} characters</p>\n    <p><strong>Timestamp:</strong> ={{$json.timestamp}}</p>\n    <p><strong>Target URL:</strong> https://parkalgo.com/blog</p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        1180,
+        260
+      ],
+      "id": "cb841473-da02-41f7-9322-0fd2f1bae573",
+      "credentials": {
+        "smtp": {
+          "id": "6B2T9DiemBdMkCqE",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputs = $input.all(); console.log('=== Format Email Content (Binary Image Support) ==='); console.log('Total inputs:', inputs.length); let contentData = {}; let imageData = {}; inputs.forEach((input, index) => { const data = input?.json || {}; console.log('Input', index, 'data keys:', Object.keys(data)); if (data.title && data.content && (data.validation_status || data.should_send || data.seo_data)) { contentData = data; console.log('✅ Found CONTENT data at input', index); } else if (data.image_base64 !== undefined || data.image_data !== undefined || data.image_generated !== undefined || data.status) { imageData = data; console.log('✅ Found IMAGE data at input', index); } else if (data.title && data.content && Object.keys(data).length >= 3) { contentData = data; console.log('✅ Found CONTENT data (loose match) at input', index); } }); if (!contentData.title || contentData.title === 'Generated Blog Post') { console.log('⚠️ No valid content found, trying fallbacks'); try { const validationResults = $('Content Validation').all(); if (validationResults && validationResults.length > 0 && validationResults[0].json.title && validationResults[0].json.title !== 'Generated Blog Post') { contentData = validationResults[0].json; console.log('✅ Got content from Content Validation fallback'); } } catch (e) { console.log('Content Validation fallback failed:', e.message); } if (!contentData.title || contentData.title === 'Generated Blog Post') { try { const seoResults = $('Parse SEO Data').all(); if (seoResults && seoResults.length > 0 && seoResults[0].json.title && seoResults[0].json.title !== 'Generated Blog Post') { contentData = seoResults[0].json; console.log('✅ Got content from Parse SEO Data fallback'); } } catch (e) { console.log('Parse SEO Data fallback failed:', e.message); } } if (!contentData.title || contentData.title === 'Generated Blog Post') { try { const parseResults = $('Parse Blog Content').all(); if (parseResults && parseResults.length > 0 && parseResults[0].json.title && parseResults[0].json.title !== 'Generated Blog Post') { contentData = parseResults[0].json; console.log('✅ Got content from Parse Blog Content fallback'); } } catch (e) { console.log('Parse Blog Content fallback failed:', e.message); } } } if (!imageData.image_base64 && !imageData.image_data && imageData.image_generated !== true) { console.log('⚠️ No image found, trying fallback'); try { const imageResults = $('Save Image Data').all(); if (imageResults && imageResults.length > 0) { imageData = imageResults[0].json; console.log('✅ Got image from Save Image Data fallback'); } } catch (e) { console.log('Save Image Data fallback failed:', e.message); } } console.log('Final data status:'); console.log('- Content title:', contentData.title || 'MISSING'); console.log('- Content length:', (contentData.content || '').length); console.log('- Image base64:', imageData.image_base64 ? 'PRESENT' : 'MISSING'); console.log('- Image data:', imageData.image_data ? 'PRESENT' : 'MISSING'); console.log('- Image generated:', imageData.image_generated); const title = contentData.title && contentData.title !== 'Generated Blog Post' ? contentData.title : 'AI-Generated Health Blog Post'; const content = contentData.content && contentData.content !== '<h2>Blog Content</h2><p>Content will appear here.</p>' ? contentData.content : '<h2>Natural Health & Wellness</h2><p>Welcome to your daily dose of natural health insights. Today we explore evidence-based approaches to better living through natural remedies and wellness practices.</p><h2>Key Benefits</h2><p>Natural health methods offer gentle, effective solutions that work with your body\\'s healing processes while minimizing side effects.</p><h2>Getting Started</h2><p>Begin with simple lifestyle changes and consult healthcare professionals for personalized guidance.</p>'; const imageBase64 = imageData.image_base64 || null; const keyPoints = contentData.key_points || ['Natural healing approaches', 'Evidence-based wellness', 'Holistic health benefits']; const references = contentData.references || ['Journal of Natural Medicine', 'Integrative Health Research']; let html = '<h1 style=\"color: #2c3e50; font-family: Arial, sans-serif;\">' + title + '</h1>'; if (imageBase64) { html += '<div style=\"text-align: center; margin: 20px 0;\"><img src=\"' + imageBase64 + '\" alt=\"' + title + '\" style=\"max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);\"/><p style=\"font-size: 12px; color: #666; margin-top: 5px;\">✨ AI-Generated Featured Image (Binary)</p></div>'; console.log('✅ BINARY IMAGE EMBEDDED in HTML'); } else { console.log('❌ NO IMAGE - email will be text only'); } html += '<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\">' + content + '</div>'; if (keyPoints.length > 0) { html += '<div style=\"margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 5px;\"><h3 style=\"color: #2c3e50;\">Key Benefits</h3><ul>' + keyPoints.map(point => '<li>' + point + '</li>').join('') + '</ul></div>'; } if (references.length > 0) { html += '<div style=\"margin-top: 20px; padding: 20px; background-color: #e8f4f8; border-radius: 5px;\"><h3 style=\"color: #2c3e50;\">References</h3><ul>' + references.map(ref => '<li>' + ref + '</li>').join('') + '</ul></div>'; } html += '<div style=\"text-align: center; padding: 20px; background-color: #f1f3f4; margin-top: 30px; border-radius: 5px; font-size: 12px; color: #666;\">🤖 AI-Generated Content | Generated on ' + new Date().toLocaleString() + '<br>' + (imageBase64 ? '📸 Includes AI-generated image (binary)' : '📝 Text-only blog post') + '</div>'; console.log('=== EMAIL HTML GENERATED ==='); console.log('HTML length:', html.length); console.log('Contains embedded image:', html.includes('data:image')); return [{ html: html, title: title, content: content, imageBase64: imageBase64, keyPoints: keyPoints, references: references, debug: { contentFound: !!(contentData.title && contentData.title !== 'Generated Blog Post'), imageFound: !!imageData.image_base64, inputCount: inputs.length, mode: 'binary', contentKeys: Object.keys(contentData), imageKeys: Object.keys(imageData), imageFormat: imageData.format || 'unknown' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -20
+      ],
+      "id": "e788efe8-ef9e-4644-ad44-2a6688355670",
+      "name": "Format Email Content"
+    },
+    {
+      "parameters": {
+        "functionCode": "try {\n  const inputData = $input.all()[0].json;\n  \n  // Extract blog title and content for image prompt generation\n  const title = inputData.title || \"Smart Parking Solutions\";\n  const content = inputData.content || \"\";\n  \n  // Extract key themes from the title and content\n  let themes = [];\n  \n  // Extract themes from title\n  const titleWords = title.toLowerCase();\n  if (titleWords.includes('smart') || titleWords.includes('ai')) themes.push('smart parking technology');\n  if (titleWords.includes('parking') || titleWords.includes('management')) themes.push('parking management');\n  if (titleWords.includes('urban') || titleWords.includes('city')) themes.push('urban mobility');\n  if (titleWords.includes('algorithm') || titleWords.includes('optimization')) themes.push('parking optimization');\n  if (titleWords.includes('revenue') || titleWords.includes('cost')) themes.push('parking economics');\n  if (titleWords.includes('technology') || titleWords.includes('system')) themes.push('parking technology');\n  if (titleWords.includes('guide') || titleWords.includes('solution')) themes.push('parking solutions');\n  \n  // Default theme if none detected\n  if (themes.length === 0) {\n    themes.push('smart parking technology');\n  }\n  \n  // Create a descriptive image prompt\n  const primaryTheme = themes[0];\n  \n  const imagePrompt = `A professional digital illustration representing ${primaryTheme}. The image should feature:\n- Modern urban aesthetic (blues, greens with clean white accents)\n- Parking elements like smart parking lots, sensors, or mobile apps\n- Technology vibe with AI/IoT elements and data visualization\n- Clean, professional look suitable for a parking industry blog\n- Urban setting with cars, parking spaces, or city skylines\n- No text or watermarks\n- High quality, modern vector art or 3D render style\n- Bright, optimistic lighting that conveys efficiency and innovation\n\nStyle: Professional urban tech illustration, modern parking aesthetic, smart city technology focused`;\n\n  console.log('Generated image prompt for:', title);\n  console.log('Primary theme:', primaryTheme);\n  \n  return [{ json: {\n    title: title,\n    image_prompt: imagePrompt,\n    detected_themes: themes,\n    timestamp: new Date().toISOString()\n  } }];\n  \n} catch (error) {\n  console.log('Error generating image prompt:', error.message);\n  return [{ json: {\n    title: \"Smart Parking Solutions\",\n    image_prompt: \"A professional urban scene with smart parking technology, sensors, and modern city elements. Clean tech-inspired aesthetics for parking industry blog.\",\n    detected_themes: [\"smart parking technology\"],\n    error: \"Image prompt generation failed\",\n    timestamp: new Date().toISOString()\n  } }];\n}"
+      },
+      "name": "Generate Image Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        560,
+        220
+      ],
+      "id": "e73ffdf9-1e0b-4ee8-a819-664ec06345ab"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "prompt": "={{$json.image_prompt}}",
+        "model": "dall-e-3",
+        "options": {
+          "quality": "standard",
+          "size": "1024x1024",
+          "style": "natural"
+        },
+        "requestOptions": {}
+      },
+      "name": "Generate Image",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        720,
+        220
+      ],
+      "id": "fd3444c1-4d44-4841-bc87-d0504a070df1",
+      "credentials": {
+        "openAiApi": {
+          "id": "39E4qkgtcaulqnoQ",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "try {\n  const inputs = $input.all();\n  const imageResponse = inputs[0];\n  \n  console.log('=== IMAGE GENERATION COMPLETE (BINARY MODE) ===');\n  console.log('Response type:', typeof imageResponse);\n  console.log('Has binary data:', !!(imageResponse && imageResponse.binary));\n  \n  // Handle binary image data from DALL-E 3\n  let imageData = null;\n  let imageGenerated = false;\n  let base64Image = null;\n  \n  if (imageResponse && imageResponse.binary) {\n    // Convert binary to base64 for email embedding\n    try {\n      const binaryData = imageResponse.binary.data;\n      const mimeType = imageResponse.binary.mimeType || 'image/png';\n      \n      if (binaryData) {\n        // Create data URL for embedding in email\n        base64Image = `data:${mimeType};base64,${binaryData.toString('base64')}`;\n        imageData = {\n          binary: binaryData,\n          mimeType: mimeType,\n          base64: base64Image,\n          size: binaryData.length\n        };\n        imageGenerated = true;\n        console.log('✅ Binary image processed successfully');\n        console.log('- MIME type:', mimeType);\n        console.log('- Size:', binaryData.length, 'bytes');\n      }\n    } catch (conversionError) {\n      console.log('❌ Binary conversion failed:', conversionError.message);\n    }\n  } else if (imageResponse && imageResponse.json && imageResponse.json.data && imageResponse.json.data[0]) {\n    // Fallback: Handle URL format if still present\n    const imageUrl = imageResponse.json.data[0].url;\n    if (imageUrl) {\n      imageData = { url: imageUrl };\n      base64Image = imageUrl; // For backward compatibility\n      imageGenerated = true;\n      console.log('✅ Fallback: Image URL extracted:', imageUrl);\n    }\n  } else {\n    console.log('❌ No image data found in response');\n    console.log('Available fields:', Object.keys(imageResponse || {}));\n  }\n  \n  // Get the original prompt data\n  const promptData = $('Generate Image Prompt').all()[0]?.json || {};\n  \n  const finalData = {\n    title: promptData.title || \"Blog Image\",\n    image_data: imageData,\n    image_base64: base64Image,\n    image_generated: imageGenerated,\n    detected_themes: promptData.detected_themes || [],\n    image_prompt: promptData.image_prompt || \"\",\n    generation_timestamp: new Date().toISOString(),\n    status: imageGenerated ? \"success\" : \"failed\",\n    format: \"binary\"\n  };\n  \n  console.log('Final image data:', {\n    title: finalData.title,\n    image_generated: finalData.image_generated,\n    status: finalData.status,\n    has_base64: !!finalData.image_base64,\n    format: finalData.format\n  });\n  \n  return [{ json: finalData }];\n  \n} catch (error) {\n  console.log('❌ Error in image processing:', error.message);\n  \n  return [{ json: {\n    title: \"Blog Image\",\n    image_data: null,\n    image_base64: null,\n    image_generated: false,\n    error: error.message,\n    status: \"error\",\n    format: \"binary\",\n    generation_timestamp: new Date().toISOString()\n  } }];\n}"
+      },
+      "name": "Save Image Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        880,
+        220
+      ],
+      "id": "e4f00cad-c159-4334-9e69-bcea49956eb7"
+    },
+    {
+      "parameters": {},
+      "name": "Merge Content and Image",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        1060,
+        100
+      ],
+      "id": "f37bf9de-055e-4a72-9b74-99cd9dfd27cb"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Topic Seed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Topic Seed": {
+      "main": [
+        [
+          {
+            "node": "Generate Topic Options",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Topic Options": {
+      "main": [
+        [
+          {
+            "node": "Select Best Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Best Topic": {
+      "main": [
+        [
+          {
+            "node": "Generate Blog Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Blog Content": {
+      "main": [
+        [
+          {
+            "node": "Parse Blog Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Blog Content": {
+      "main": [
+        [
+          {
+            "node": "SEO Optimization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO Optimization": {
+      "main": [
+        [
+          {
+            "node": "Parse SEO Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse SEO Data": {
+      "main": [
+        [
+          {
+            "node": "Content Validation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Image Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content Validation": {
+      "main": [
+        [
+          {
+            "node": "Merge Content and Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email Content": {
+      "main": [
+        [
+          {
+            "node": "Post to ParkAlgo Blog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to ParkAlgo Blog": {
+      "main": [
+        [
+          {
+            "node": "Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Image Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Image": {
+      "main": [
+        [
+          {
+            "node": "Save Image Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Image Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Content and Image",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Content and Image": {
+      "main": [
+        [
+          {
+            "node": "Format Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Error Notification": [
+      {
+        "name": "First item",
+        "code": 1
+      },
+      {
+        "name": "Second item",
+        "code": 2
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9c897bf0d7553d282422bbf41a0a109acea0f30cce57dd11f06a4c7e19d64427"
+  }
+}
