@@ -1,7 +1,7 @@
-"use cli// Force dynamic rendering for admin pages
-export const dynamic = 'force-dynamic'
+"use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'nt"
+// Force dynamic rendering for admin pages
+export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from "react"
 import { AuthContextType } from '@/lib/types/supabase-helpers';
@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { getBrowserClient } from "@/lib/supabase/browser"
 import { Profile, ParkingSpot } from "@/lib/types/supabase-helpers"
 import { AdminUsersList, AdminSpotsTable } from "@/components/admin"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useRouter } from "next/navigation"
 
 export default function AdminPage() {

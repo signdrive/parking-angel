@@ -3,17 +3,8 @@ import { verifyUser } from '@/lib/server-auth';
 import AdminLayout from '@/components/admin/AdminLayout';
 import UserList from '@/components/admin/UserList';
 import { redirect } from 'next/navigation';
-
-// Force dynamic rendering for admin pages
-export const dynamic = 'force-dynamic'
 import type { Database } from '@/lib/types/supabase';
 import type { UserRole, SubscriptionStatus, SubscriptionTier } from '@/components/admin/UserList';
-
-import { getServerClient } from '@/lib/supabase/server-utils';
-import { verifyUser } from '@/lib/server-auth';
-import AdminLayout from '@/components/admin/AdminLayout';
-import UserList from '@/components/admin/UserList';
-import { redirect } from 'next/navigation';
 
 // Force dynamic rendering for admin pages
 export const dynamic = 'force-dynamic'
