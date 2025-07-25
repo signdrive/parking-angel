@@ -6,12 +6,22 @@ import { ExperimentManager } from '@/lib/ab-testing/experiment-manager';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  try {
-    // Only run on actual requests, not during build
-    if (!request) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  // Check if we're in build mode - if so, return early
+  if (!request || typeof window === 'undefined') {
+    try {
+      // Test if cookies are available
+      const testUrl = new URL(request?.url || 'http://localhost:3000');
+    } catch {
+      // If we can't even create a URL, we're likely in build mode
+      return NextResponse.json({ 
+        error: 'Build mode - A/B testing not available',
+        experiments: [],
+        buildMode: true 
+      });
     }
+  }
 
+  try {
     const supabase = await getServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
