@@ -50,8 +50,8 @@ class BlogService {
       .from('blog_posts')
       .select(`
         *,
-        blog_categories!inner(name),
-        profiles!inner(display_name)
+        blog_categories(name),
+        profiles(display_name)
       `)
       .order('published_at', { ascending: false })
 
@@ -79,8 +79,8 @@ class BlogService {
       .from('blog_posts')
       .select(`
         *,
-        blog_categories!inner(name),
-        profiles!inner(display_name)
+        blog_categories(name),
+        profiles(display_name)
       `)
       .eq('id', id)
       .single()

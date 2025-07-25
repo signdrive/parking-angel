@@ -59,7 +59,8 @@ const nextConfig = {
       'https://www.google.com.au',
       'https://*.google.com.au',
       'https://*.doubleclick.net',
-      'https://doubleclick.net'
+      'https://doubleclick.net',
+      'https://www.google.com.au/ads/*'
     ];
 
     const isDev = process.env.NODE_ENV === 'development';
