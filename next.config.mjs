@@ -55,7 +55,11 @@ const nextConfig = {
       'https://www.google.be',
       'https://*.google.be',
       'https://*.google.com',
-      'https://google.com'
+      'https://google.com',
+      'https://www.google.com.au',
+      'https://*.google.com.au',
+      'https://*.doubleclick.net',
+      'https://doubleclick.net'
     ];
 
     const isDev = process.env.NODE_ENV === 'development';
