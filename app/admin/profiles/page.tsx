@@ -2,6 +2,9 @@ import { getServerClient } from '@/lib/supabase/server-utils';
 import { verifyUser } from '@/lib/server-auth';
 import type { Database } from '@/lib/types/supabase';
 
+// Force dynamic rendering for admin pages  
+export const dynamic = 'force-dynamic'
+
 type Profile = {
   id: string;
   email: string;

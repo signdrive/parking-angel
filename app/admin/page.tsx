@@ -1,4 +1,7 @@
-"use client"
+"use cli// Force dynamic rendering for admin pages
+export const dynamic = 'force-dynamic'
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'nt"
 
 import { useEffect, useState, useCallback } from "react"
 import { AuthContextType } from '@/lib/types/supabase-helpers';
