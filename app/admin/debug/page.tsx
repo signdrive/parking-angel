@@ -6,11 +6,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
 export default function AdminDebugPage() {
-  const { user, loading } = useAuth()
-
-  if (loading) {
-    return <div className="p-8">Loading authentication...</div>
-  }
+  const { user } = useAuth()
 
   return (
     <div className="container mx-auto p-8 space-y-6">

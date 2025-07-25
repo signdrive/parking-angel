@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/server-utils';
 import { ExperimentManager } from '@/lib/ab-testing/experiment-manager';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
+    // Only run on actual requests, not during build
+    if (!request) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    }
+
     const supabase = await getServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 

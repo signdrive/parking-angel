@@ -6,6 +6,9 @@ import { CalendarDays, Clock, ArrowLeft, Tag } from 'lucide-react'
 import { StructuredData } from '@/components/seo/structured-data'
 import { serverBlogService } from '@/lib/blog/server-blog-service'
 
+// Force dynamic rendering to avoid build-time cookie issues
+export const dynamic = 'force-dynamic'
+
 interface BlogPostPageProps {
   params: {
     slug: string
