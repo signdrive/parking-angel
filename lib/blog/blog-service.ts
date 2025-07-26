@@ -46,55 +46,58 @@ class BlogService {
 
   // Blog Posts
   async getAllPosts(published = true): Promise<BlogPost[]> {
-    const query = this.supabase
-      .from('blog_posts')
-      .select(`
-        *,
-        blog_categories(name),
-        profiles(display_name)
-      `)
-      .order('published_at', { ascending: false })
+    try {
+      let query = this.supabase
+        .from('blog_posts')
+        .select('*')
+        .order('published_at', { ascending: false })
 
-    if (published) {
-      query.eq('published', true)
-    }
+      if (published) {
+        query = query.eq('published', true)
+      }
 
-    const { data, error } = await query
+      const { data, error } = await query
 
-    if (error) {
-      console.error('Error fetching posts:', error)
+      if (error) {
+        console.error('Error fetching posts:', error)
+        return []
+      }
+
+      // Return posts with default values for missing relationships
+      return (data || []).map((post: any) => ({
+        ...post,
+        category: 'Uncategorized',
+        author_name: 'ParkAlgo Team',
+        tags: post.tags || []
+      }))
+    } catch (error) {
+      console.error('Error in getAllPosts:', error)
       return []
     }
-
-    return (data || []).map((post: any) => ({
-      ...post,
-      category: post.blog_categories?.name || '',
-      author_name: post.profiles?.display_name || '',
-      tags: post.tags || []
-    }))
   }
 
   async getPostById(id: string): Promise<BlogPost | null> {
-    const { data, error } = await this.supabase
-      .from('blog_posts')
-      .select(`
-        *,
-        blog_categories(name),
-        profiles(display_name)
-      `)
-      .eq('id', id)
-      .single()
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_posts')
+        .select('*')
+        .eq('id', id)
+        .single()
 
-    if (error || !data) {
-      console.error('Error fetching post:', error)
+      if (error || !data) {
+        console.error('Error fetching post:', error)
+        return null
+      }
+
+      return {
+        ...data,
+        category: 'Uncategorized',
+        author_name: 'ParkAlgo Team',
+        tags: data.tags || []
+      }
+    } catch (error) {
+      console.error('Error in getPostById:', error)
       return null
-    }
-
-    return {
-      ...data,
-      category: data.blog_categories?.name || '',
-      author_name: data.profiles?.display_name || '',
-      tags: data.tags || []
     }
   }
 
