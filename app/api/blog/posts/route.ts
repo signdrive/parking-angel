@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 
 // Interface for n8n blog post data
 interface N8nBlogPost {
@@ -147,6 +148,16 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create blog post', details: error.message },
         { status: 500 }
       )
+    }
+
+    // Revalidate blog-related pages and sitemaps to include the new post
+    try {
+      revalidatePath('/blog')
+      revalidatePath('/blog/sitemap.xml')
+      revalidatePath('/sitemap.xml')
+    } catch (revalidateError) {
+      console.warn('Failed to revalidate paths:', revalidateError)
+      // Don't fail the request if revalidation fails
     }
 
     // Return success response

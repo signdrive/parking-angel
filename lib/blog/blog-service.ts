@@ -158,17 +158,42 @@ class BlogService {
 
   // Categories
   async getCategories(): Promise<BlogCategory[]> {
-    const { data, error } = await this.supabase
-      .from('blog_categories')
-      .select('*')
-      .order('name')
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_categories')
+        .select('*')
+        .order('name')
 
-    if (error) {
-      console.error('Error fetching categories:', error)
-      return []
+      if (error) {
+        console.error('Error fetching categories (table may not exist):', error)
+        // Return default categories if table doesn't exist
+        return [
+          {
+            id: 'uncategorized',
+            name: 'Uncategorized',
+            slug: 'uncategorized',
+            description: 'Default category',
+            color: '#6B7280',
+            created_at: new Date().toISOString()
+          }
+        ]
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Exception fetching categories:', error)
+      // Return default categories on exception
+      return [
+        {
+          id: 'uncategorized',
+          name: 'Uncategorized',
+          slug: 'uncategorized',
+          description: 'Default category',
+          color: '#6B7280',
+          created_at: new Date().toISOString()
+        }
+      ]
     }
-
-    return data || []
   }
 
   async createCategory(categoryData: Partial<BlogCategory>): Promise<BlogCategory | null> {
@@ -216,17 +241,60 @@ class BlogService {
 
   // Tags
   async getTags(): Promise<BlogTag[]> {
-    const { data, error } = await this.supabase
-      .from('blog_tags')
-      .select('*')
-      .order('name')
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_tags')
+        .select('*')
+        .order('name')
 
-    if (error) {
-      console.error('Error fetching tags:', error)
+      if (error) {
+        console.error('Error fetching tags (table may not exist):', error)
+        // Fallback: extract tags from existing blog posts
+        return this.getTagsFromPosts()
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Exception fetching tags:', error)
+      // Fallback: extract tags from existing blog posts
+      return this.getTagsFromPosts()
+    }
+  }
+
+  private async getTagsFromPosts(): Promise<BlogTag[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_posts')
+        .select('tags')
+        .eq('published', true)
+
+      if (error || !data) {
+        return []
+      }
+
+      // Extract unique tags from all posts
+      const allTags = new Set<string>()
+      data.forEach(post => {
+        if (Array.isArray(post.tags)) {
+          post.tags.forEach(tag => allTags.add(tag))
+        }
+      })
+
+      // Convert to BlogTag objects
+      return Array.from(allTags).map(tag => ({
+        id: tag,
+        name: tag,
+        slug: tag.toLowerCase().replace(/\s+/g, '-'),
+        color: '#3B82F6',
+        usage_count: data.filter(post => 
+          Array.isArray(post.tags) && post.tags.includes(tag)
+        ).length,
+        created_at: new Date().toISOString()
+      }))
+    } catch (error) {
+      console.error('Error extracting tags from posts:', error)
       return []
     }
-
-    return data || []
   }
 
   async createTag(tagData: Partial<BlogTag>): Promise<BlogTag | null> {

@@ -314,9 +314,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isCachedAuthBeingUsed: false
         }))
         
-        // Check for persisted return_to parameter from localStorage
+        // Only redirect if we're on auth-related pages or have a specific return_to
         let returnTo = null;
+        let currentPath = '';
         try {
+          currentPath = window.location.pathname;
           const searchParams = new URLSearchParams(window.location.search);
           returnTo = searchParams.get('return_to') || localStorage.getItem('auth_return_to');
           
@@ -326,11 +328,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         }
         
-        if (returnTo) {
+        // Only redirect if:
+        // 1. We have a specific return_to destination, OR
+        // 2. We're currently on an auth page that should redirect after login
+        const authPages = ['/auth/login', '/auth/signup', '/auth/callback', '/'];
+        const shouldRedirect = returnTo || authPages.includes(currentPath);
+        
+        if (shouldRedirect) {
+          if (returnTo) {
 
-          router.push(returnTo);
-        } else {
-          router.push('/dashboard');
+            router.push(returnTo);
+          } else {
+            router.push('/dashboard');
+          }
         }
       }
     })

@@ -1,69 +1,62 @@
 import { MetadataRoute } from 'next'
+import { serverBlogService } from '@/lib/blog/server-blog-service'
 
-// Blog posts data (should match the data in your blog page)
-const blogPosts = [
-  {
-    id: 'how-ai-reduces-parking-congestion',
-    date: '2024-01-15',
-    category: 'AI Technology',
-  },
-  {
-    id: 'parking-algorithm-case-studies',
-    date: '2024-01-10',
-    category: 'Case Studies',
-  },
-  {
-    id: 'cost-effective-parking-technology',
-    date: '2024-01-08',
-    category: 'Business',
-  },
-  {
-    id: 'smart-parking-algorithms-explained',
-    date: '2024-01-05',
-    category: 'Technology',
-  },
-  {
-    id: 'dynamic-parking-pricing-strategies',
-    date: '2024-01-03',
-    category: 'Revenue Optimization',
-  },
-  {
-    id: 'cloud-based-parking-management',
-    date: '2024-01-01',
-    category: 'Infrastructure',
-  },
-]
+// Revalidate every 3600 seconds (1 hour) to pick up new posts
+export const revalidate = 3600
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://parkalgo.com'
   
-  // Blog main page
-  const blogMainPage = {
-    url: `${baseUrl}/blog`,
-    lastModified: new Date(),
-    changeFrequency: 'daily' as const,
-    priority: 0.8,
-  }
+  try {
+    // Fetch all published blog posts from database
+    const blogPosts = await serverBlogService.getAllPosts(true)
+    
+    // Blog main page
+    const blogMainPage = {
+      url: `${baseUrl}/blog`,
+      lastModified: new Date(),
+      changeFrequency: 'daily' as const,
+      priority: 0.8,
+    }
 
-  // Individual blog posts
-  const blogPostPages = blogPosts.map((post) => ({
-    url: `${baseUrl}/blog/${post.id}`,
-    lastModified: new Date(post.date),
-    changeFrequency: 'monthly' as const,
-    priority: 0.7,
-  }))
+    // Individual blog posts - dynamically generated from database
+    const blogPostPages = blogPosts.map((post) => ({
+      url: `${baseUrl}/blog/${post.slug}`,
+      lastModified: new Date(post.updated_at || post.created_at),
+      changeFrequency: 'monthly' as const,
+      priority: 0.7,
+    }))
 
-  // Blog category pages
-  const categories = [...new Set(blogPosts.map(post => post.category))]
-  const categoryPages = categories.map((category) => {
-    const categorySlug = category.toLowerCase().replace(/ /g, '-').replace(/&/g, 'and')
-    return {
-      url: `${baseUrl}/blog/category/${categorySlug}`,
+    // Get categories from posts (since we don't have a categories table)
+    const categories = await serverBlogService.getCategories()
+    const categoryPages = categories.map((category) => ({
+      url: `${baseUrl}/blog/category/${category.slug}`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.6,
-    }
-  })
+    }))
 
-  return [blogMainPage, ...blogPostPages, ...categoryPages]
+    // Get tags from posts
+    const tags = await serverBlogService.getTags()
+    const tagPages = tags.map((tag) => ({
+      url: `${baseUrl}/blog/tag/${tag.slug}`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.5,
+    }))
+
+    return [blogMainPage, ...blogPostPages, ...categoryPages, ...tagPages]
+  } catch (error) {
+    console.error('Error generating blog sitemap:', error)
+    
+    // Return minimal sitemap if database fails
+    return [
+      {
+        url: `${baseUrl}/blog`,
+        lastModified: new Date(),
+        changeFrequency: 'daily' as const,
+        priority: 0.8,
+      }
+    ]
+  }
 }

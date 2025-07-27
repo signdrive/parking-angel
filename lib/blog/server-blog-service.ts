@@ -86,46 +86,141 @@ export class ServerBlogService {
   }
 
   async getCategories(): Promise<BlogCategory[]> {
-    const { data, error } = await this.supabase
-      .from('blog_categories')
-      .select('*')
-      .order('name')
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_categories')
+        .select('*')
+        .order('name')
 
-    if (error) {
-      console.error('Error fetching categories:', error)
-      return []
+      if (error) {
+        console.error('Error fetching categories (table may not exist):', error)
+        // Return default categories if table doesn't exist
+        return [
+          {
+            id: 'uncategorized',
+            name: 'Uncategorized',
+            slug: 'uncategorized',
+            description: 'Default category',
+            color: '#6B7280',
+            created_at: new Date().toISOString()
+          }
+        ]
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Exception fetching categories:', error)
+      // Return default categories on exception
+      return [
+        {
+          id: 'uncategorized',
+          name: 'Uncategorized',
+          slug: 'uncategorized',
+          description: 'Default category',
+          color: '#6B7280',
+          created_at: new Date().toISOString()
+        }
+      ]
     }
-
-    return data || []
   }
 
   async getCategoryBySlug(slug: string): Promise<BlogCategory | null> {
-    const { data, error } = await this.supabase
-      .from('blog_categories')
-      .select('*')
-      .eq('slug', slug)
-      .single()
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_categories')
+        .select('*')
+        .eq('slug', slug)
+        .single()
 
-    if (error || !data) {
-      console.error('Error fetching category by slug:', error)
+      if (error || !data) {
+        console.error('Error fetching category by slug (table may not exist):', error)
+        // Return default category if requested slug matches
+        if (slug === 'uncategorized') {
+          return {
+            id: 'uncategorized',
+            name: 'Uncategorized',
+            slug: 'uncategorized',
+            description: 'Default category',
+            color: '#6B7280',
+            created_at: new Date().toISOString()
+          }
+        }
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Exception fetching category by slug:', error)
+      // Return default category if requested slug matches
+      if (slug === 'uncategorized') {
+        return {
+          id: 'uncategorized',
+          name: 'Uncategorized',
+          slug: 'uncategorized',
+          description: 'Default category',
+          color: '#6B7280',
+          created_at: new Date().toISOString()
+        }
+      }
       return null
     }
-
-    return data
   }
 
   async getTags(): Promise<BlogTag[]> {
-    const { data, error } = await this.supabase
-      .from('blog_tags')
-      .select('*')
-      .order('name')
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_tags')
+        .select('*')
+        .order('name')
 
-    if (error) {
-      console.error('Error fetching tags:', error)
+      if (error) {
+        console.error('Error fetching tags (table may not exist):', error)
+        // Fallback: extract tags from existing blog posts
+        return this.getTagsFromPosts()
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Exception fetching tags:', error)
+      // Fallback: extract tags from existing blog posts
+      return this.getTagsFromPosts()
+    }
+  }
+
+  private async getTagsFromPosts(): Promise<BlogTag[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_posts')
+        .select('tags')
+        .eq('published', true)
+
+      if (error || !data) {
+        return []
+      }
+
+      // Extract unique tags from all posts
+      const allTags = new Set<string>()
+      data.forEach(post => {
+        if (Array.isArray(post.tags)) {
+          post.tags.forEach(tag => allTags.add(tag))
+        }
+      })
+
+      // Convert to BlogTag objects
+      return Array.from(allTags).map(tag => ({
+        id: tag,
+        name: tag,
+        slug: tag.toLowerCase().replace(/\s+/g, '-'),
+        color: '#3B82F6',
+        usage_count: data.filter(post => 
+          Array.isArray(post.tags) && post.tags.includes(tag)
+        ).length,
+        created_at: new Date().toISOString()
+      }))
+    } catch (error) {
+      console.error('Error extracting tags from posts:', error)
       return []
     }
-
-    return data || []
   }
 
   async getTagBySlug(slug: string): Promise<BlogTag | null> {
@@ -197,32 +292,33 @@ export class ServerBlogService {
   }
 
   async getPostsByTag(tagName: string): Promise<BlogPost[]> {
-    const { data, error } = await this.supabase
-      .from('blog_posts')
-      .select(`
-        *,
-        blog_categories!inner(name),
-        profiles!inner(display_name)
-      `)
-      .eq('published', true)
-      .order('published_at', { ascending: false })
+    try {
+      const { data, error } = await this.supabase
+        .from('blog_posts')
+        .select('*')
+        .eq('published', true)
+        .order('published_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching posts by tag:', error)
+      if (error) {
+        console.error('Error fetching posts by tag:', error)
+        return []
+      }
+
+      // Filter posts that contain the tag
+      const filteredPosts = (data || []).filter((post: any) => 
+        Array.isArray(post.tags) && post.tags.includes(tagName)
+      )
+
+      return filteredPosts.map((post: any) => ({
+        ...post,
+        category: 'Uncategorized',
+        author_name: 'ParkAlgo Team',
+        tags: post.tags || []
+      }))
+    } catch (error) {
+      console.error('Error in getPostsByTag:', error)
       return []
     }
-
-    // Filter posts that contain the tag
-    const filteredPosts = (data || []).filter((post: any) => 
-      Array.isArray(post.tags) && post.tags.includes(tagName)
-    )
-
-    return filteredPosts.map((post: any) => ({
-      ...post,
-      category: post.blog_categories?.name || '',
-      author_name: post.profiles?.display_name || '',
-      tags: post.tags || []
-    }))
   }
 }
 

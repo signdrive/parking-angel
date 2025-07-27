@@ -49,8 +49,12 @@ export async function middleware(request: NextRequest) {
   // Get user session
   const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (error) {
-    console.log('Middleware auth error:', error.message);
+  // Only log auth errors for protected routes, not public pages
+  const protectedRoutes = ['/dashboard', '/admin', '/profile', '/settings'];
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  
+  if (error && isProtectedRoute) {
+    console.log('Middleware auth error on protected route:', error.message);
   }
 
   return response;

@@ -12,8 +12,17 @@ const nextConfig = {
     optimizeCss: true
   },
   
+  // Allow cross-origin requests in development
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
+  
   // Configure webpack for production optimizations
   webpack: (config, { dev, isServer }) => {
+    // Optimize performance for large strings
+    if (config.cache && config.cache.type === 'filesystem') {
+      config.cache.compression = 'gzip'
+      config.cache.maxAge = 5184000000 // 60 days
+    }
+    
     if (!dev && !isServer) {
       // Optimize CSS chunks
       if (config.optimization) {

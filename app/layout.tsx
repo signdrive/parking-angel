@@ -11,6 +11,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { AnalyticsProvider } from "@/components/firebase/analytics-provider"
 import { PWAProvider } from "@/components/pwa/pwa-provider"
 import { SupabaseBoundary } from "@/components/error-boundaries/supabase-boundary"
+import { RSCErrorBoundary } from "@/components/error-boundaries/rsc-error-boundary"
 import { Suspense } from "react"
 import { AIAssistantProvider } from "@/components/ai/ai-assistant-context"
 import { FloatingAIChat } from "@/components/ai/floating-ai-chat"
@@ -19,7 +20,12 @@ import { ConsentProvider } from "@/hooks/use-consent"
 import { ConsentScreen } from "@/components/consent/consent-screen"
 import { ServiceWorkerInit } from "@/components/pwa/service-worker-init"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ 
+  subsets: ["latin"],
+  display: 'swap',
+  preload: true,
+  fallback: ['system-ui', 'arial'],
+})
 
 // Configure Mapbox on app initialization
 if (typeof window !== 'undefined') {
@@ -29,6 +35,7 @@ if (typeof window !== 'undefined') {
 }
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NODE_ENV === 'production' ? 'https://parkalgo.com' : 'http://localhost:3000'),
   title: "AI Parking Optimization Software | Smart Algorithms | Parkalgo",
   description: "Transform parking efficiency with AI-powered algorithms. Parkalgo's smart parking management software reduces congestion & maximizes revenue through automated solutions.",
   keywords: "AI parking optimization, smart parking algorithms, parking management software, automated parking solutions, dynamic parking pricing, cost-effective parking technology, cloud-based parking management",
@@ -110,7 +117,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
         <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
-        {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
+        {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && process.env.NODE_ENV === 'production' && (
           <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
         )}
       </head>
@@ -128,12 +135,14 @@ export default function RootLayout({
                 <PWAProvider>
                   <AIAssistantProvider>
                     <SupabaseBoundary>
-                      <Suspense fallback={<Loading />}>
-                        {children}
-                        <FloatingAIChat />
-                        <ConsentScreen />
-                        <ServiceWorkerInit />
-                      </Suspense>
+                      <RSCErrorBoundary>
+                        <Suspense fallback={<Loading />}>
+                          {children}
+                          <FloatingAIChat />
+                          <ConsentScreen />
+                          <ServiceWorkerInit />
+                        </Suspense>
+                      </RSCErrorBoundary>
                     </SupabaseBoundary>
                   </AIAssistantProvider>
                 </PWAProvider>
