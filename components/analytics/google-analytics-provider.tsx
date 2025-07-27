@@ -4,15 +4,8 @@ import Script from 'next/script';
 
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
-'use client';
-
-import { useEffect } from 'react';
-import Script from 'next/script';
-
-const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
-
 export function GoogleAnalyticsProvider() {
-  // Simple check: only render GA in production
+  // Only render in production and if GA ID is configured
   if (process.env.NODE_ENV !== 'production' || !GA_MEASUREMENT_ID) {
     return null;
   }
@@ -39,82 +32,14 @@ export function GoogleAnalyticsProvider() {
   );
 }
 
-  const pathname = usePathname();
-
-  useEffect(() => {
-    if (!GA_MEASUREMENT_ID || typeof (window as any).gtag !== 'function') {
-      return;
-    }
-
-    // Track page view
-    (window as any).gtag('config', GA_MEASUREMENT_ID, {
-      page_path: pathname,
-      debug_mode: false
-    });
-
-    console.log('📊 GA4 Page view tracked:', pathname);
-  }, [pathname]);
-
-  // Don't render anything if GA ID is not configured
-  if (!GA_MEASUREMENT_ID) {
-    console.warn('⚠️ GA_MEASUREMENT_ID not configured. Add NEXT_PUBLIC_GA_MEASUREMENT_ID to environment variables.');
-    return null;
-  }
-
-  return (
-    <>
-      {/* Google tag (gtag.js) */}
-      <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-        strategy="afterInteractive"
-        onLoad={() => {
-          console.log('✅ Google Analytics loaded successfully');
-        }}
-        onError={() => {
-          console.error('❌ Failed to load Google Analytics');
-        }}
-      />
-      <Script
-        id="google-analytics-init"
-        strategy="afterInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${GA_MEASUREMENT_ID}', {
-              page_path: window.location.pathname,
-              send_page_view: true,
-              debug_mode: false,
-              custom_map: {
-                'custom_parameter_user_plan': 'user_plan',
-                'custom_parameter_parking_action': 'parking_action'
-              }
-            });
-            
-            // Track initial page load
-            gtag('event', 'page_view', {
-              page_title: document.title,
-              page_location: window.location.href,
-              page_path: window.location.pathname
-            });
-            
-            console.log('🔍 GA4 initialized with ID:', '${GA_MEASUREMENT_ID}');
-          `,
-        }}
-      />
-    </>
-  );
-}
-
 export const trackPageView = (url: string, title?: string) => {
   // Only track in production
   if (process.env.NODE_ENV !== 'production') {
     return;
   }
 
-  if (typeof window !== 'undefined' && window.gtag) {
-    window.gtag('config', GA_MEASUREMENT_ID, {
+  if (typeof window !== 'undefined' && (window as any).gtag) {
+    (window as any).gtag('config', GA_MEASUREMENT_ID, {
       page_location: url,
       page_title: title,
     });
@@ -130,8 +55,8 @@ export const trackEvent = (
     return;
   }
 
-  if (typeof window !== 'undefined' && window.gtag) {
-    window.gtag('event', eventName, parameters);
+  if (typeof window !== 'undefined' && (window as any).gtag) {
+    (window as any).gtag('event', eventName, parameters);
   }
 };
 
