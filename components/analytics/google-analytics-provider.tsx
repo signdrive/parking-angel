@@ -6,34 +6,30 @@ import { usePathname } from 'next/navigation';
 
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
-// Helper function to detect development environment
-function isDevelopmentEnvironment(): boolean {
-  return process.env.NODE_ENV === 'development' || 
-         (typeof window !== 'undefined' && (
-           window.location.hostname === 'localhost' ||
-           window.location.hostname === '127.0.0.1' ||
-           window.location.hostname.includes('.local') ||
-           window.location.port === '3000'
-         ));
-}
-
 export function GoogleAnalyticsProvider() {
-  const [isClient, setIsClient] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    // Only run this check on the client side to avoid hydration mismatch
+    const isDevelopment = process.env.NODE_ENV === 'development' || 
+                         window.location.hostname === 'localhost' ||
+                         window.location.hostname === '127.0.0.1' ||
+                         window.location.hostname.includes('.local') ||
+                         window.location.port === '3000';
+
+    if (isDevelopment) {
+      console.log('📊 GA4 provider disabled in development environment');
+      setShouldRender(false);
+    } else if (GA_MEASUREMENT_ID) {
+      setShouldRender(true);
+    } else {
+      console.warn('⚠️ GA_MEASUREMENT_ID not configured');
+      setShouldRender(false);
+    }
   }, []);
 
-  // Skip Google Analytics entirely in development to avoid network errors
-  const isDevelopment = isDevelopmentEnvironment();
-
-  if (!isClient) {
-    // Don't render anything during SSR
-    return null;
-  }
-
-  if (isDevelopment) {
-    console.log('📊 GA4 provider disabled in development environment');
+  // Always return the same structure during SSR and initial client render
+  if (!shouldRender) {
     return null;
   }
 
@@ -107,7 +103,13 @@ export function GoogleAnalyticsProvider() {
 
 export const trackPageView = (url: string, title?: string) => {
   // Skip tracking in development
-  if (isDevelopmentEnvironment()) {
+  if (typeof window !== 'undefined' && (
+    process.env.NODE_ENV === 'development' || 
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('.local') ||
+    window.location.port === '3000'
+  )) {
     console.log('📊 Page view tracking skipped in development:', url, title);
     return;
   }
@@ -125,7 +127,13 @@ export const trackEvent = (
   parameters?: Record<string, any>
 ) => {
   // Skip tracking in development
-  if (isDevelopmentEnvironment()) {
+  if (typeof window !== 'undefined' && (
+    process.env.NODE_ENV === 'development' || 
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('.local') ||
+    window.location.port === '3000'
+  )) {
     console.log('📊 Event tracking skipped in development:', eventName, parameters);
     return;
   }
@@ -138,7 +146,13 @@ export const trackEvent = (
 // Track parking-specific events
 export function trackParkingEvent(action: string, data?: Record<string, any>) {
   // Skip tracking in development
-  if (isDevelopmentEnvironment()) {
+  if (typeof window !== 'undefined' && (
+    process.env.NODE_ENV === 'development' || 
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('.local') ||
+    window.location.port === '3000'
+  )) {
     console.log('📊 GA4 Parking event skipped in development:', action, data);
     return;
   }
@@ -153,7 +167,13 @@ export function trackParkingEvent(action: string, data?: Record<string, any>) {
 // Track subscription events
 export function trackSubscriptionEvent(action: string, plan?: string) {
   // Skip tracking in development
-  if (isDevelopmentEnvironment()) {
+  if (typeof window !== 'undefined' && (
+    process.env.NODE_ENV === 'development' || 
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('.local') ||
+    window.location.port === '3000'
+  )) {
     console.log('📊 GA4 Subscription event skipped in development:', action, plan);
     return;
   }
@@ -168,7 +188,13 @@ export function trackSubscriptionEvent(action: string, plan?: string) {
 // Track navigation events
 export function trackPageNavigation(pagePath: string, pageTitle?: string) {
   // Skip tracking in development
-  if (isDevelopmentEnvironment()) {
+  if (typeof window !== 'undefined' && (
+    process.env.NODE_ENV === 'development' || 
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('.local') ||
+    window.location.port === '3000'
+  )) {
     console.log('📊 GA4 Page view skipped in development:', pagePath);
     return;
   }
@@ -183,7 +209,13 @@ export function trackPageNavigation(pagePath: string, pageTitle?: string) {
 // Track user interactions
 export function trackUserInteraction(element: string, action: string) {
   // Skip tracking in development
-  if (isDevelopmentEnvironment()) {
+  if (typeof window !== 'undefined' && (
+    process.env.NODE_ENV === 'development' || 
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('.local') ||
+    window.location.port === '3000'
+  )) {
     console.log('📊 GA4 User interaction skipped in development:', element, action);
     return;
   }
