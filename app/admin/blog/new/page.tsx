@@ -380,7 +380,12 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
                   ))}
                 </select>
                 {categories.length === 0 && (
-                  <p className="text-sm text-amber-600 mt-1")              <div>
+                  <p className="text-sm text-amber-600 mt-1">
+                    Failed to load categories. Please refresh the page.
+                  </p>
+                )}
+              </div>
+              <div>
                 <Label>Tags</Label>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {tags.map((tag) => (
