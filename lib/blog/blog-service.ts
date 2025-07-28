@@ -159,56 +159,43 @@ class BlogService {
   // Categories
   async getCategories(): Promise<BlogCategory[]> {
     try {
-      console.log('� Fetching categories from API...')
+      console.log('🔄 Fetching categories from Supabase...');
       
-      const response = await fetch('/api/blog/categories/public')
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      const { data, error } = await this.supabase
+        .from('blog_categories')
+        .select('*')
+        .order('name')
+
+      if (error) {
+        console.error('❌ Error fetching categories:', error)
+        // Return default categories if table doesn't exist
+        return [
+          {
+            id: 'temp-uncategorized',
+            name: 'Uncategorized',
+            slug: 'uncategorized',
+            description: 'Default category',
+            color: '#6B7280',
+            created_at: new Date().toISOString()
+          }
+        ]
       }
-      
-      const result = await response.json()
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch categories')
-      }
-      
-      console.log('✅ Categories fetched successfully:', result.categories)
-      return result.categories || []
-      
+
+      console.log('✅ Fetched', data?.length || 0, 'categories:', data?.map(c => c.name));
+      return data || []
     } catch (error) {
-      console.error('❌ Error fetching categories:', error)
-      
-      // Return default categories as fallback
-      const defaultCategories: BlogCategory[] = [
+      console.error('❌ Exception fetching categories:', error)
+      // Return default categories on exception
+      return [
         {
-          id: 'technology',
-          name: 'Technology',
-          slug: 'technology',
-          description: 'Posts about parking technology and innovations',
-          color: '#3B82F6',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'business',
-          name: 'Business',
-          slug: 'business',
-          description: 'Business insights and strategies',
-          color: '#10B981',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'case-studies',
-          name: 'Case Studies',
-          slug: 'case-studies',
-          description: 'Real-world implementation examples',
-          color: '#F59E0B',
+          id: 'temp-uncategorized',
+          name: 'Uncategorized',
+          slug: 'uncategorized',
+          description: 'Default category',
+          color: '#6B7280',
           created_at: new Date().toISOString()
         }
       ]
-      
-      console.log('🔄 Using default categories as fallback')
-      return defaultCategories
     }
   }
 

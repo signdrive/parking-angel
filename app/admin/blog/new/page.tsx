@@ -57,21 +57,19 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
     
     // Load categories and tags
     try {
-      console.log('📡 Calling blogService.getCategories()...')
-      const categoriesData = await blogService.getCategories()
-      console.log('📁 Categories response:', categoriesData);
+      const [categoriesData, tagsData] = await Promise.all([
+        blogService.getCategories(),
+        blogService.getTags()
+      ])
       
-      console.log('� Calling blogService.getTags()...')
-      const tagsData = await blogService.getTags()
-      console.log('🏷️ Tags response:', tagsData);
+      console.log('📁 Loaded categories:', categoriesData);
+      console.log('🏷️ Loaded tags:', tagsData);
       
       setCategories(categoriesData)
       setAvailableTags(tagsData)
-      
-      console.log('✅ Blog data loaded successfully')
     } catch (error) {
       console.error('❌ Error loading blog data:', error);
-      setErrors([`Failed to load categories and tags: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      setErrors(['Failed to load categories and tags. Please refresh the page.']);
     }
 
     // If editing existing post, load its data
