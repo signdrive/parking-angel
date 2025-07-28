@@ -10,9 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { X, Save, Eye } from 'lucide-react'
+import { X, Save, Eye, AlertCircle } from 'lucide-react'
 import { blogService, BlogCategory, BlogTag } from '@/lib/blog/blog-service'
 import { useAuth } from '@/components/auth/auth-provider'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface BlogEditorProps {
   postId?: string
@@ -37,6 +38,7 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
   
   const [loading, setLoading] = useState(!!postId)
   const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<string[]>([])
   
   const { user } = useAuth()
   const router = useRouter()
@@ -109,8 +111,29 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
   }
 
   const handleSave = async (publishNow = false) => {
-    if (!title || !content || !categoryId || !user) {
-      alert('Please fill in all required fields')
+    // Clear previous errors
+    setErrors([])
+    const validationErrors: string[] = []
+
+    // Validate required fields with clear messages
+    if (!title.trim()) {
+      validationErrors.push('Blog post title is required')
+    }
+    if (!content.trim()) {
+      validationErrors.push('Blog post content is required')
+    }
+    if (!categoryId) {
+      validationErrors.push('Please select a category for your blog post')
+    }
+    if (!slug.trim()) {
+      validationErrors.push('URL slug is required')
+    }
+    if (!user) {
+      validationErrors.push('You must be logged in to create a blog post')
+    }
+
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors)
       return
     }
 
@@ -128,7 +151,7 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
       meta_title: metaTitle || title,
       meta_description: metaDescription || excerpt,
       featured_image_url: featuredImage,
-      author_id: user.id,
+      author_id: user?.id,
       published_at: (publishNow || published) ? new Date().toISOString() : undefined
     }
 
@@ -145,7 +168,7 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
     if (success) {
       router.push('/admin/blog')
     } else {
-      alert('Failed to save post. Please try again.')
+      setErrors(['Failed to save blog post. Please check your connection and try again.'])
     }
   }
 
@@ -199,6 +222,23 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
         </div>
       </div>
 
+      {/* Error Messages */}
+      {errors.length > 0 && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="space-y-1">
+              <p className="font-semibold">Please fix the following issues:</p>
+              <ul className="list-disc list-inside space-y-1">
+                {errors.map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           <Card>
@@ -251,10 +291,10 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Write your blog post content here..."
                   rows={20}
-                  className="font-mono"
+                  className="mt-2 font-mono"
                 />
-                <p className="text-sm text-gray-500 mt-1">
-                  Supports Markdown formatting
+                <p className="text-sm text-gray-500 mt-2">
+                  Supports HTML and Markdown formatting. Rich text editor coming soon!
                 </p>
               </div>
             </CardContent>
@@ -363,13 +403,30 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
               </div>
 
               <div>
-                <Label htmlFor="featuredImage">Featured Image URL</Label>
-                <Input
-                  id="featuredImage"
-                  value={featuredImage}
-                  onChange={(e) => setFeaturedImage(e.target.value)}
-                  placeholder="https://example.com/image.jpg"
-                />
+                <Label htmlFor="featuredImage">Featured Image</Label>
+                <div className="space-y-3 mt-2">
+                  <Input
+                    id="featuredImage"
+                    value={featuredImage}
+                    onChange={(e) => setFeaturedImage(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                  {featuredImage && (
+                    <div className="relative">
+                      <img 
+                        src={featuredImage} 
+                        alt="Featured image preview" 
+                        className="max-w-full h-32 object-cover rounded-lg"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                    </div>
+                  )}
+                  <p className="text-sm text-gray-500">
+                    Enter an image URL or upload functionality coming soon!
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

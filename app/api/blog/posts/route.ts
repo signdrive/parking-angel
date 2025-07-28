@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
@@ -52,7 +52,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient()
+    // Use service role client for n8n webhooks to bypass RLS
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
     const postData: N8nBlogPost = await request.json()
 
     // Validate required fields
@@ -80,21 +85,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get category ID if category_slug is provided
+    // Get category ID and name if category_slug is provided
     let category_id = null
+    let category_name = null
     if (postData.category_slug) {
       const { data: category } = await supabase
         .from('blog_categories')
-        .select('id')
+        .select('id, name')
         .eq('slug', postData.category_slug)
         .single()
       
       if (category) {
         category_id = category.id
+        category_name = category.name
       }
     }
+    
+    // If no category found, use default
+    if (!category_name) {
+      category_name = 'Technology'
+    }
 
-    // Get author ID if author_email is provided, otherwise use default
+    // Get author ID if author_email is provided, otherwise use null for system posts
     let author_id = null
     if (postData.author_email) {
       const { data: author } = await supabase
@@ -108,11 +120,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If no author found, you might want to create a default system author
-    if (!author_id) {
-      // For now, we'll use a placeholder - you should create a system author
-      author_id = '00000000-0000-0000-0000-000000000000' // Placeholder
-    }
+    // For automated n8n posts, we'll use null author_id and rely on author_name
 
     // Prepare blog post data
     const blogPostData = {
@@ -121,7 +129,9 @@ export async function POST(request: NextRequest) {
       excerpt: postData.excerpt || postData.content.substring(0, 200) + '...',
       content: postData.content,
       author_id,
+      author_name: 'ParkAlgo AI', // Default author name for n8n posts
       category_id,
+      category: category_name, // Add the category string field
       tags: postData.tags || [],
       featured: postData.featured || false,
       published: postData.published || false,
@@ -202,7 +212,10 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const published = searchParams.get('published') === 'true'
 
-    const supabase = createClient()
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
     
     let query = supabase
       .from('blog_posts')
