@@ -65,8 +65,20 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
       console.log('📁 Loaded categories:', categoriesData);
       console.log('🏷️ Loaded tags:', tagsData);
       
-      setCategories(categoriesData)
-      setAvailableTags(tagsData)
+      // Force state update with proper validation
+      if (Array.isArray(categoriesData) && categoriesData.length > 0) {
+        setCategories(categoriesData)
+        console.log('✅ Categories state updated successfully:', categoriesData.length)
+      } else {
+        console.warn('⚠️ Categories data is empty or invalid:', categoriesData)
+        setCategories([])
+      }
+      
+      if (Array.isArray(tagsData)) {
+        setAvailableTags(tagsData)
+      } else {
+        setAvailableTags([])
+      }
     } catch (error) {
       console.error('❌ Error loading blog data:', error);
       setErrors(['Failed to load categories and tags. Please refresh the page.']);
@@ -349,7 +361,15 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="category">Category *</Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
+                {/* Debug info */}
+                <p className="text-xs text-gray-400 mb-1">
+                  Categories loaded: {categories.length} (Debug: {JSON.stringify(categories.map(c => c.name))})
+                </p>
+                <Select 
+                  key={`categories-${categories.length}`} // Force re-render when categories change
+                  value={categoryId} 
+                  onValueChange={setCategoryId}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder={categories.length > 0 ? "Select category" : "Loading categories..."} />
                   </SelectTrigger>
@@ -357,7 +377,7 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
                     {categories.length > 0 ? (
                       categories.map((category) => (
                         <SelectItem key={category.id} value={category.id}>
-                          {category.name}
+                          {category.name} ({category.slug})
                         </SelectItem>
                       ))
                     ) : (
