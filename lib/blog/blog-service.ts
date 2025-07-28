@@ -159,17 +159,19 @@ class BlogService {
   // Categories
   async getCategories(): Promise<BlogCategory[]> {
     try {
+      console.log('🔄 Fetching categories from Supabase...');
+      
       const { data, error } = await this.supabase
         .from('blog_categories')
         .select('*')
         .order('name')
 
       if (error) {
-        console.error('Error fetching categories (table may not exist):', error)
+        console.error('❌ Error fetching categories:', error)
         // Return default categories if table doesn't exist
         return [
           {
-            id: 'uncategorized',
+            id: 'temp-uncategorized',
             name: 'Uncategorized',
             slug: 'uncategorized',
             description: 'Default category',
@@ -179,13 +181,14 @@ class BlogService {
         ]
       }
 
+      console.log('✅ Fetched', data?.length || 0, 'categories:', data?.map(c => c.name));
       return data || []
     } catch (error) {
-      console.error('Exception fetching categories:', error)
+      console.error('❌ Exception fetching categories:', error)
       // Return default categories on exception
       return [
         {
-          id: 'uncategorized',
+          id: 'temp-uncategorized',
           name: 'Uncategorized',
           slug: 'uncategorized',
           description: 'Default category',

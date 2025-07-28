@@ -53,31 +53,46 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
   }, [user, router, postId])
 
   const loadInitialData = async () => {
-    // Load categories and tags
-    const [categoriesData, tagsData] = await Promise.all([
-      blogService.getCategories(),
-      blogService.getTags()
-    ])
+    console.log('🔄 Loading blog data...');
     
-    setCategories(categoriesData)
-    setAvailableTags(tagsData)
+    // Load categories and tags
+    try {
+      const [categoriesData, tagsData] = await Promise.all([
+        blogService.getCategories(),
+        blogService.getTags()
+      ])
+      
+      console.log('📁 Loaded categories:', categoriesData);
+      console.log('🏷️ Loaded tags:', tagsData);
+      
+      setCategories(categoriesData)
+      setAvailableTags(tagsData)
+    } catch (error) {
+      console.error('❌ Error loading blog data:', error);
+      setErrors(['Failed to load categories and tags. Please refresh the page.']);
+    }
 
     // If editing existing post, load its data
     if (postId) {
       setLoading(true)
-      const post = await blogService.getPostById(postId)
-      if (post) {
-        setTitle(post.title)
-        setContent(post.content)
-        setExcerpt(post.excerpt || '')
-        setSlug(post.slug)
-        setCategoryId(post.category_id)
-        setTags(post.tags)
-        setPublished(post.published)
-        setFeatured(post.featured)
-        setMetaTitle(post.meta_title || '')
-        setMetaDescription(post.meta_description || '')
-        setFeaturedImage(post.featured_image_url || '')
+      try {
+        const post = await blogService.getPostById(postId)
+        if (post) {
+          setTitle(post.title)
+          setContent(post.content)
+          setExcerpt(post.excerpt || '')
+          setSlug(post.slug)
+          setCategoryId(post.category_id)
+          setTags(post.tags)
+          setPublished(post.published)
+          setFeatured(post.featured)
+          setMetaTitle(post.meta_title || '')
+          setMetaDescription(post.meta_description || '')
+          setFeaturedImage(post.featured_image_url || '')
+        }
+      } catch (error) {
+        console.error('❌ Error loading post:', error);
+        setErrors(['Failed to load the blog post. Please try again.']);
       }
       setLoading(false)
     }
@@ -336,16 +351,27 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
                 <Label htmlFor="category">Category *</Label>
                 <Select value={categoryId} onValueChange={setCategoryId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder={categories.length > 0 ? "Select category" : "Loading categories..."} />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
+                    {categories.length > 0 ? (
+                      categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="loading" disabled>
+                        Loading categories...
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
+                {categories.length === 0 && (
+                  <p className="text-sm text-amber-600 mt-1">
+                    Categories are loading... If this persists, please check the console for errors.
+                  </p>
+                )}
               </div>
 
               <div>
