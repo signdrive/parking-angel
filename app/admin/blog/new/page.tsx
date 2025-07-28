@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { X, Save, Eye, AlertCircle } from 'lucide-react'
 import { blogService, BlogCategory, BlogTag } from '@/lib/blog/blog-service'
@@ -365,36 +364,23 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
                 <p className="text-xs text-gray-400 mb-1">
                   Categories loaded: {categories.length} (Debug: {JSON.stringify(categories.map(c => c.name))})
                 </p>
-                <Select 
-                  key={`categories-${categories.length}`} // Force re-render when categories change
+                <select 
                   value={categoryId} 
-                  onValueChange={setCategoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full p-2 border border-gray-200 rounded-md"
+                  required
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder={categories.length > 0 ? "Select category" : "Loading categories..."} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.length > 0 ? (
-                      categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name} ({category.slug})
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="loading" disabled>
-                        Loading categories...
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                  <option value="">
+                    {categories.length > 0 ? "Select category" : "Loading categories..."}
+                  </option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name} ({category.slug})
+                    </option>
+                  ))}
+                </select>
                 {categories.length === 0 && (
-                  <p className="text-sm text-amber-600 mt-1">
-                    Categories are loading... If this persists, please check the console for errors.
-                  </p>
-                )}
-              </div>
-
-              <div>
+                  <p className="text-sm text-amber-600 mt-1")              <div>
                 <Label>Tags</Label>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {tags.map((tag) => (
