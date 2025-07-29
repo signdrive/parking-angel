@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       slug: postData.slug || 'untitled-' + Date.now(),
       published: postData.published || false,
       author_name: postData.author_name || 'System Author',
-      category_id: postData.category_id || null,
+      category: postData.category_id || null, // Map category_id to category field
       excerpt: postData.excerpt || '',
       tags: postData.tags || [],
       read_time: calculateReadTime(postData.content || 'No content')
