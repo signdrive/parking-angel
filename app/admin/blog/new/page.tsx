@@ -157,6 +157,9 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
     if (!user) {
       validationErrors.push('You must be logged in to create a blog post')
     }
+    if (!user?.id) {
+      validationErrors.push('User ID is missing - please log in again')
+    }
 
     if (validationErrors.length > 0) {
       setErrors(validationErrors)
@@ -180,6 +183,9 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
       author_id: user?.id,
       published_at: (publishNow || published) ? new Date().toISOString() : undefined
     }
+
+    console.log('📝 Post data being sent:', postData)
+    console.log('👤 User object:', user)
 
     let success = false
     if (postId) {

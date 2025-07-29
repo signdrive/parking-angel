@@ -173,44 +173,40 @@ class BlogService {
   // Categories
   async getCategories(): Promise<BlogCategory[]> {
     try {
-      console.log('🔄 Fetching categories from Supabase...');
+      console.log('🔄 Fetching categories from API...');
       
-      const { data, error } = await this.supabase
-        .from('blog_categories')
-        .select('*')
-        .order('name')
-
-      if (error) {
-        console.error('❌ Error fetching categories:', error)
-        // Return default categories if table doesn't exist
-        return [
-          {
-            id: 'temp-uncategorized',
-            name: 'Uncategorized',
-            slug: 'uncategorized',
-            description: 'Default category',
-            color: '#6B7280',
-            created_at: new Date().toISOString()
-          }
-        ]
+      const response = await fetch('/api/blog/categories/public')
+      const result = await response.json()
+      
+      if (!response.ok) {
+        console.error('❌ API Error fetching categories:', result)
+        return this.getFallbackCategories()
       }
-
-      console.log('✅ Fetched', data?.length || 0, 'categories:', data?.map(c => c.name));
-      return data || []
+      
+      if (result.success && Array.isArray(result.categories)) {
+        console.log('✅ Fetched', result.categories.length, 'categories:', result.categories.map((c: BlogCategory) => c.name));
+        return result.categories
+      }
+      
+      console.error('❌ Unexpected API response:', result)
+      return this.getFallbackCategories()
     } catch (error) {
       console.error('❌ Exception fetching categories:', error)
-      // Return default categories on exception
-      return [
-        {
-          id: 'temp-uncategorized',
-          name: 'Uncategorized',
-          slug: 'uncategorized',
-          description: 'Default category',
-          color: '#6B7280',
-          created_at: new Date().toISOString()
-        }
-      ]
+      return this.getFallbackCategories()
     }
+  }
+
+  private getFallbackCategories(): BlogCategory[] {
+    return [
+      {
+        id: 'temp-uncategorized',
+        name: 'Uncategorized',
+        slug: 'uncategorized',
+        description: 'Default category',
+        color: '#6B7280',
+        created_at: new Date().toISOString()
+      }
+    ]
   }
 
   async createCategory(categoryData: Partial<BlogCategory>): Promise<BlogCategory | null> {
