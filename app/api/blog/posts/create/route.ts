@@ -28,25 +28,15 @@ export async function POST(request: NextRequest) {
       }
     )
     
-    // Clean the data - only include fields that should be in the database
+    // Minimal data - only required fields
     const insertData = {
-      title: postData.title,
-      content: postData.content,
-      excerpt: postData.excerpt || '',
-      slug: postData.slug,
-      category_id: postData.category_id,
-      tags: postData.tags || [],
-      published: postData.published || false,
-      featured: postData.featured || false,
-      meta_title: postData.meta_title || postData.title,
-      meta_description: postData.meta_description || postData.excerpt || '',
-      featured_image_url: postData.featured_image_url || '',
-      author_id: postData.author_id,
-      published_at: postData.published_at,
-      read_time: postData.content ? calculateReadTime(postData.content) : 1
+      title: postData.title || 'Untitled',
+      content: postData.content || 'No content',
+      slug: postData.slug || 'untitled-' + Date.now(),
+      published: false
     }
     
-    console.log('📝 Insert data:', insertData)
+    console.log('📝 Minimal insert data:', insertData)
     
     const { data, error } = await supabase
       .from('blog_posts')
@@ -57,7 +47,11 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('❌ Error creating post:', error)
       return NextResponse.json(
-        { error: 'Failed to create blog post', details: error },
+        { 
+          error: 'Failed to create blog post', 
+          message: error.message,
+          code: error.code
+        },
         { status: 500 }
       )
     }
@@ -72,7 +66,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Exception in POST /api/blog/posts/create:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', message: error.message },
       { status: 500 }
     )
   }
