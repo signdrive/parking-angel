@@ -65,8 +65,12 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('❌ Exception in POST /api/blog/posts/create:', error)
+    const errorMessage =
+      typeof error === 'object' && error !== null && 'message' in error
+        ? (error as { message?: string }).message
+        : String(error)
     return NextResponse.json(
-      { error: 'Internal server error', message: error.message },
+      { error: 'Internal server error', message: errorMessage },
       { status: 500 }
     )
   }
