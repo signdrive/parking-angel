@@ -102,21 +102,35 @@ class BlogService {
   }
 
   async createPost(postData: Partial<BlogPost>): Promise<BlogPost | null> {
-    const { data, error } = await this.supabase
-      .from('blog_posts')
-      .insert([{
-        ...postData,
-        read_time: postData.content ? this.calculateReadTime(postData.content) : undefined
-      }])
-      .select()
-      .single()
-
-    if (error || !data) {
-      console.error('Error creating post:', error)
+    try {
+      console.log('🔄 Creating post via API with data:', postData)
+      
+      const response = await fetch('/api/blog/posts/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(postData)
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        console.error('❌ API Error creating post:', result)
+        return null
+      }
+      
+      if (result.success && result.post) {
+        console.log('✅ Post created successfully via API:', result.post)
+        return result.post
+      }
+      
+      console.error('❌ Unexpected API response:', result)
+      return null
+    } catch (error) {
+      console.error('❌ Exception in createPost:', error)
       return null
     }
-
-    return this.getPostById(data.id)
   }
 
   async updatePost(id: string, updates: Partial<BlogPost>): Promise<boolean> {
