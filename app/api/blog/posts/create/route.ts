@@ -28,12 +28,17 @@ export async function POST(request: NextRequest) {
       }
     )
     
-    // Minimal data - only required fields
+    // Include all required database fields
     const insertData = {
       title: postData.title || 'Untitled',
       content: postData.content || 'No content',
       slug: postData.slug || 'untitled-' + Date.now(),
-      published: false
+      published: postData.published || false,
+      author_name: postData.author_name || 'System Author',
+      category_id: postData.category_id || null,
+      excerpt: postData.excerpt || '',
+      tags: postData.tags || [],
+      read_time: calculateReadTime(postData.content || 'No content')
     }
     
     console.log('📝 Minimal insert data:', insertData)
