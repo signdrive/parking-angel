@@ -13,6 +13,7 @@ import { X, Save, Eye, AlertCircle } from 'lucide-react'
 import { blogService, BlogCategory, BlogTag } from '@/lib/blog/blog-service'
 import { useAuth } from '@/components/auth/auth-provider'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import RichTextEditor from '@/components/ui/rich-text-editor'
 
 interface BlogEditorProps {
   postId?: string
@@ -134,6 +135,28 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
 
   const removeTag = (tagToRemove: string) => {
     setTags(tags.filter(tag => tag !== tagToRemove))
+  }
+
+  const handleImageUpload = async (file: File): Promise<string> => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const response = await fetch('/api/blog/upload-image', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error('Upload failed')
+      }
+
+      const result = await response.json()
+      return result.url
+    } catch (error) {
+      console.error('Image upload error:', error)
+      throw error
+    }
   }
 
   const handleSave = async (publishNow = false) => {
@@ -317,16 +340,16 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
 
               <div>
                 <Label htmlFor="content">Content *</Label>
-                <Textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Write your blog post content here..."
-                  rows={20}
-                  className="mt-2 font-mono"
-                />
+                <div className="mt-2">
+                  <RichTextEditor
+                    content={content}
+                    onChange={setContent}
+                    placeholder="Write your blog post content here..."
+                    onImageUpload={handleImageUpload}
+                  />
+                </div>
                 <p className="text-sm text-gray-500 mt-2">
-                  Supports HTML and Markdown formatting. Rich text editor coming soon!
+                  Rich text editor with support for formatting, links, and image uploads.
                 </p>
               </div>
             </CardContent>
@@ -448,12 +471,38 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
               <div>
                 <Label htmlFor="featuredImage">Featured Image</Label>
                 <div className="space-y-3 mt-2">
-                  <Input
-                    id="featuredImage"
-                    value={featuredImage}
-                    onChange={(e) => setFeaturedImage(e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="featuredImage"
+                      value={featuredImage}
+                      onChange={(e) => setFeaturedImage(e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={async () => {
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = 'image/*'
+                        input.onchange = async (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0]
+                          if (file) {
+                            try {
+                              const url = await handleImageUpload(file)
+                              setFeaturedImage(url)
+                            } catch (error) {
+                              alert('Failed to upload image. Please try again.')
+                            }
+                          }
+                        }
+                        input.click()
+                      }}
+                    >
+                      Upload
+                    </Button>
+                  </div>
                   {featuredImage && (
                     <div className="relative">
                       <img 
@@ -467,7 +516,7 @@ export default function BlogEditor({ postId }: BlogEditorProps) {
                     </div>
                   )}
                   <p className="text-sm text-gray-500">
-                    Enter an image URL or upload functionality coming soon!
+                    Enter an image URL or upload an image file.
                   </p>
                 </div>
               </div>

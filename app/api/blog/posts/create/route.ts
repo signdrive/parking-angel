@@ -1,4 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResp    // Include all required database fields
+    const insertData = {
+      title: postData.title || 'Untitled',
+      content: postData.content || 'No content',
+      slug: postData.slug || 'untitled-' + Date.now(),
+      published: postData.published || false,
+      author_name: postData.author_name || 'System Author',
+      category: postData.category_id || null,
+      excerpt: postData.excerpt || '',
+      tags: postData.tags || [],
+      read_time: calculateReadTime(postData.content || 'No content'),
+      featured: postData.featured || false,
+      featured_image_url: postData.featured_image_url || null,
+      meta_title: postData.meta_title || null,
+      meta_description: postData.meta_description || null
+    }'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
 
