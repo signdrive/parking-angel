@@ -18,18 +18,25 @@
   },
   "redirects": [
     {
-      "source": "http://www.parkalgo.com/(.*)",
-      "destination": "https://parkalgo.com/$1",
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.parkalgo.com"
+        }
+      ],
+      "destination": "https://parkalgo.com/",
       "permanent": true
     },
     {
-      "source": "http://parkalgo.com/(.*)",
-      "destination": "https://parkalgo.com/$1",
-      "permanent": true
-    },
-    {
-      "source": "https://www.parkalgo.com/(.*)",
-      "destination": "https://parkalgo.com/$1",
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.parkalgo.com"
+        }
+      ],
+      "destination": "https://parkalgo.com/:path*",
       "permanent": true
     }
   ],
@@ -82,7 +89,7 @@
       ]
     },
     {
-      "source": "/(.*).ico",
+      "source": "/(.+)\\.ico",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -95,7 +102,7 @@
       ]
     },
     {
-      "source": "/(.*).png",
+      "source": "/(.+)\\.png",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -108,7 +115,7 @@
       ]
     },
     {
-      "source": "/(.*).jpg",
+      "source": "/(.+)\\.jpg",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -121,7 +128,7 @@
       ]
     },
     {
-      "source": "/(.*).jpeg",
+      "source": "/(.+)\\.jpeg",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -134,7 +141,7 @@
       ]
     },
     {
-      "source": "/(.*).svg",
+      "source": "/(.+)\\.svg",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -147,7 +154,7 @@
       ]
     },
     {
-      "source": "/(.*).webp",
+      "source": "/(.+)\\.webp",
       "headers": [
         {
           "key": "X-Robots-Tag",
