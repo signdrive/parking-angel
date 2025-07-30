@@ -4,20 +4,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const host = request.headers.get('host') || '';
+  const protocol = request.headers.get('x-forwarded-proto') || 'https';
 
-  // Handle canonical URL redirects
-  // Redirect www to non-www
+  // Critical: Always redirect www to non-www (Google Search Console fix)
   if (host.startsWith('www.')) {
-    const nonWwwUrl = new URL(request.url);
-    nonWwwUrl.host = host.replace('www.', '');
+    const nonWwwUrl = new URL(`https://parkalgo.com${pathname}${search}`);
     return NextResponse.redirect(nonWwwUrl, 301);
   }
 
-  // Remove trailing slashes (except for root)
-  if (pathname !== '/' && pathname.endsWith('/')) {
-    const cleanUrl = new URL(request.url);
-    cleanUrl.pathname = pathname.slice(0, -1);
-    return NextResponse.redirect(cleanUrl, 301);
+  // Redirect HTTP to HTTPS
+  if (protocol === 'http' && host === 'parkalgo.com') {
+    const httpsUrl = new URL(`https://parkalgo.com${pathname}${search}`);
+    return NextResponse.redirect(httpsUrl, 301);
   }
 
   const response = NextResponse.next({
@@ -26,8 +24,11 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Add canonical header for debugging
-  response.headers.set('x-canonical-url', `https://parkalgo.com${pathname}`);
+  // Add SEO headers for better indexing
+  const canonicalPath = pathname === '/' ? '/' : pathname;
+  response.headers.set('x-canonical-url', `https://parkalgo.com${canonicalPath}`);
+  response.headers.set('x-robots-tag', 'index, follow, max-image-preview:large, max-snippet:-1');
+  response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

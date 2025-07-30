@@ -35,9 +35,9 @@ if (typeof window !== 'undefined') {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NODE_ENV === 'production' ? 'https://parkalgo.com' : 'http://localhost:3000'),
-  title: "AI Parking Optimization Software | Smart Algorithms | Parkalgo",
-  description: "Transform parking efficiency with AI-powered algorithms. Parkalgo's smart parking management software reduces congestion & maximizes revenue through automated solutions.",
+  metadataBase: new URL('https://parkalgo.com'),
+  title: "AI Parking Optimization | Smart Algorithms | Parkalgo",
+  description: "Transform parking efficiency with AI-powered algorithms. Smart parking management software that reduces congestion & maximizes revenue.",
   keywords: "AI parking optimization, smart parking algorithms, parking management software, automated parking solutions, dynamic parking pricing, cost-effective parking technology, cloud-based parking management",
   generator: "Next.js",
   manifest: process.env.NODE_ENV === 'production' ? "/manifest.json" : undefined,
@@ -50,17 +50,17 @@ export const metadata: Metadata = {
     telephone: false,
   },
   alternates: {
-    canonical: 'https://parkalgo.com'
+    canonical: 'https://parkalgo.com/',
   },
   openGraph: {
     title: "AI Parking Optimization Software | Smart Algorithms | Parkalgo",
     description: "Transform parking efficiency with AI-powered algorithms. Reduce congestion & maximize revenue through automated parking solutions.",
-    url: "https://parkalgo.com",
+    url: "https://parkalgo.com/",
     siteName: "Parkalgo",
     type: "website",
     images: [
       {
-        url: "/og-image.jpg",
+        url: "https://parkalgo.com/og-image.jpg",
         width: 1200,
         height: 630,
         alt: "Parkalgo AI Parking Optimization Platform",

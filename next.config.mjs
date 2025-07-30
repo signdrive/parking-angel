@@ -239,37 +239,14 @@ const nextConfig = {
 
   async redirects() {
     return [
-      // Handle www to non-www redirect
-      {
-        source: '/:path*',
-        has: [
-          {
-            type: 'host',
-            value: 'www.parkalgo.com',
-          },
-        ],
-        destination: 'https://parkalgo.com/:path*',
-        permanent: true,
-      },
-      // Handle trailing slashes
-      {
-        source: '/:path((?!.*\\.).*)',
-        has: [
-          {
-            type: 'header',
-            key: 'x-pathname',
-            value: '(?<pathname>.*?)/$',
-          },
-        ],
-        destination: '/:pathname',
-        permanent: true,
-      },
-      // Original redirects
+      // Only essential redirects - www to non-www handled in middleware
+      // Remove trailing slash redirects to avoid Google confusion
       {
         source: '/www',
         destination: '/',
         permanent: true,
       },
+      // Auth error handling
       {
         source: '/auth/callback',
         has: [

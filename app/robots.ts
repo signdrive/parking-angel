@@ -12,6 +12,11 @@ export default function robots(): MetadataRoute.Robots {
           "/private/",
           "/auth/callback",
           "/dashboard/settings/",
+          "/*.ico$", // Disallow crawling of icon files
+          "/*.png$", // Disallow crawling of image assets
+          "/*.jpg$", // Disallow crawling of image assets
+          "/*.svg$", // Disallow crawling of SVG assets
+          "/manifest.json", // Disallow crawling of PWA manifest
         ],
       },
       {
@@ -27,5 +32,6 @@ export default function robots(): MetadataRoute.Robots {
       "https://parkalgo.com/sitemap.xml",
       "https://parkalgo.com/blog/sitemap.xml"
     ],
+    host: "https://parkalgo.com",
   }
 }

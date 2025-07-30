@@ -8,6 +8,91 @@
     },
     "app/api/cleanup/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/blog/**/*.ts": {
+      "maxDuration": 20
+    },
+    "app/api/upload/**/*.ts": {
+      "maxDuration": 25
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "http://www.parkalgo.com/(.*)",
+      "destination": "https://parkalgo.com/$1",
+      "permanent": true
+    },
+    {
+      "source": "http://parkalgo.com/(.*)",
+      "destination": "https://parkalgo.com/$1",
+      "permanent": true
+    },
+    {
+      "source": "https://www.parkalgo.com/(.*)",
+      "destination": "https://parkalgo.com/$1",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload"
+        },
+        {
+          "key": "X-Frame-Options", 
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+        }
+      ]
+    },
+    {
+      "source": "/consent-settings",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/favicon.ico",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*\\.(ico|png|jpg|jpeg|svg|webp))$",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
 }

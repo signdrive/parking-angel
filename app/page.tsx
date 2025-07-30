@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapPin, Users, Clock, Star, AlertCircle, CreditCard, CheckCircle2, Crown, MessageSquare, Bell, Car, Trophy, Zap, TrendingUp } from "lucide-react"
+import Head from "next/head"
 
 import { EnvironmentCheck } from "@/components/setup/environment-check"
 import { ConnectionTest } from "@/components/setup/connection-test"
@@ -166,7 +167,13 @@ export default function HomePage() {
 	}
 
 	return (
-		<div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+		<>
+			<Head>
+				<link rel="canonical" href="https://parkalgo.com/" />
+				<meta property="og:url" content="https://parkalgo.com/" />
+				<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+			</Head>
+			<div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
 			<header className="container mx-auto px-4 py-6">
 				<nav className="flex items-center justify-between">
 					<div className="flex items-center space-x-2">
@@ -530,5 +537,6 @@ export default function HomePage() {
 			<StructuredData type="website" />
 			<StructuredData type="faq" />
 		</div>
+		</>
 	)
 }

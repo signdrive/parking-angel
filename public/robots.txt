@@ -8,16 +8,41 @@ Allow: /icon-*.png
 Allow: /icon-*.svg
 Allow: /apple-touch-icon.png
 
+# Disallow private and dynamic content
 Disallow: /api/
 Disallow: /admin/
 Disallow: /private/
 Disallow: /auth/callback
 Disallow: /dashboard/settings/
+Disallow: /dashboard/private/
 Disallow: /_next/static/chunks/
 Disallow: /_next/image
 Disallow: /node_modules/
 
+# Privacy pages (allow but low priority)
+Allow: /consent-settings
+
+# OpenAI GPT Bot
 User-agent: GPTBot
+Disallow: /
+
+# ChatGPT Bot  
+User-agent: ChatGPT-User
+Disallow: /
+
+# Claude Bot
+User-agent: Claude-Web
+Disallow: /
+
+# Bing Bot
+User-agent: bingbot
+Crawl-delay: 5
+
+# Preferred domain declaration
+Sitemap: https://parkalgo.com/sitemap.xml
+
+# Help crawlers understand canonical URLs
+# The canonical version is: https://parkalgo.com/ (no www, with HTTPS)
 Disallow: /
 
 User-agent: Google-Extended

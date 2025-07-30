@@ -4,15 +4,15 @@ import { MapPin } from "lucide-react"
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Login | Parkalgo - AI Parking Optimization',
-  description: 'Sign in to your Parkalgo account to access AI-powered parking management dashboard, real-time analytics, and smart parking solutions.',
+  title: 'Login | Parkalgo - AI Parking',
+  description: 'Sign in to your Parkalgo account for AI-powered parking management, real-time analytics, and smart solutions.',
   keywords: 'Parkalgo login, parking management login, AI parking dashboard access, smart parking account',
   robots: {
-    index: true,
+    index: false,
     follow: true,
   },
   alternates: {
-    canonical: 'https://parkalgo.com/auth/login'
+    canonical: 'https://parkalgo.com/auth/login',
   },
   openGraph: {
     title: 'Login | Parkalgo - AI Parking Optimization',
@@ -37,6 +37,14 @@ export default function LoginPage() {
             <MapPin className="w-8 h-8 text-blue-600" />
             <span className="text-2xl font-bold text-gray-900">Park Algo</span>
           </Link>
+          
+          {/* SEO: Added H1 tag for better ranking */}
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Sign In to Your Account
+          </h1>
+          <h2 className="text-lg text-gray-600 mb-6">
+            Access your AI-powered parking management dashboard
+          </h2>
         </div>
 
         <LoginForm />
@@ -45,9 +53,26 @@ export default function LoginPage() {
           <p className="text-sm text-gray-600">
             {"Don't have an account? "}
             <Link href="/auth/signup" className="text-blue-600 hover:underline">
-              Sign up
+              Sign up for free
             </Link>
+            {" to get started with smart parking solutions."}
           </p>
+          
+          {/* SEO: Added more descriptive content */}
+          <div className="mt-6 text-xs text-gray-500 max-w-sm mx-auto">
+            <p>Join thousands of users who trust Parkalgo for intelligent parking management. Our AI-powered platform helps you find, reserve, and optimize parking spaces with real-time data and advanced algorithms.</p>
+            
+            {/* SEO: Added internal links for better discoverability */}
+            <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs">
+              <Link href="/features" className="text-blue-600 hover:underline">Features</Link>
+              <span className="text-gray-300">•</span>
+              <Link href="/pricing" className="text-blue-600 hover:underline">Pricing</Link>
+              <span className="text-gray-300">•</span>
+              <Link href="/blog" className="text-blue-600 hover:underline">Blog</Link>
+              <span className="text-gray-300">•</span>
+              <Link href="/ai-parking-optimization" className="text-blue-600 hover:underline">AI Solutions</Link>
+            </div>
+          </div>
         </div>
       </div>
     </div>
