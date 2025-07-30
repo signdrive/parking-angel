@@ -5,6 +5,7 @@ export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const host = request.headers.get('host') || '';
   const protocol = request.headers.get('x-forwarded-proto') || 'https';
+  const userAgent = request.headers.get('user-agent') || '';
 
   // Critical: Always redirect www to non-www (Google Search Console fix)
   if (host.startsWith('www.')) {
@@ -24,10 +25,19 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  // Check if it's a known SEO crawler
+  const isBot = /bot|crawler|spider|crawling|screaming frog|googlebot|bingbot|yandexbot|facebookexternalhit|twitterbot|whatsapp|linkedinbot|pinterest|slackbot|redditbot|applebot|duckduckbot|baiduspider|sogou|exalead|teoma|alexa|mj12bot|dotbot|ahrefsbot|semrushbot|majesticSEO|blekkobot|ia_archiver|wayback|archive\.org/i.test(userAgent.toLowerCase());
+
   // Add SEO headers for better indexing
   const canonicalPath = pathname === '/' ? '/' : pathname;
   response.headers.set('x-canonical-url', `https://parkalgo.com${canonicalPath}`);
   response.headers.set('x-robots-tag', 'index, follow, max-image-preview:large, max-snippet:-1');
+  
+  // Special handling for bots to ensure proper rendering
+  if (isBot) {
+    response.headers.set('x-bot-detected', 'true');
+    response.headers.set('cache-control', 'public, max-age=0, must-revalidate');
+  }
   response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
 
   const supabase = createServerClient(

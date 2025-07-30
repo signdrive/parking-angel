@@ -1,3 +1,7 @@
+// Force static generation for homepage for better SEO crawler compatibility
+export const dynamic = 'force-static'
+export const revalidate = 3600 // Revalidate every hour
+
 import { Metadata } from "next"
 import { HomepageContent } from "./homepage-content"
 import { ClientInteractiveComponents } from "./client-components"
