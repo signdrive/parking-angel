@@ -19,14 +19,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(httpsUrl, 301);
   }
 
-  // Check if it's a known SEO crawler and redirect to static version for homepage
-  const isBot = /bot|crawler|spider|crawling|screaming frog|googlebot|bingbot|yandexbot|facebookexternalhit|twitterbot|whatsapp|linkedinbot|pinterest|slackbot|redditbot|applebot|duckduckbot|baiduspider|sogou|exalead|teoma|alexa|mj12bot|dotbot|ahrefsbot|semrushbot|majesticSEO|blekkobot|ia_archiver|wayback|archive\.org/i.test(userAgent.toLowerCase());
-  
-  if (isBot && pathname === '/') {
-    const staticUrl = new URL('/seo-static', request.url);
-    return NextResponse.redirect(staticUrl, 307); // Temporary redirect for bots
-  }
-
   const response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -38,10 +30,13 @@ export async function middleware(request: NextRequest) {
   response.headers.set('x-canonical-url', `https://parkalgo.com${canonicalPath}`);
   response.headers.set('x-robots-tag', 'index, follow, max-image-preview:large, max-snippet:-1');
   
+  // Check if it's a known SEO crawler
+  const isBot = /bot|crawler|spider|crawling|screaming frog|googlebot|bingbot|yandexbot|facebookexternalhit|twitterbot|whatsapp|linkedinbot|pinterest|slackbot|redditbot|applebot|duckduckbot|baiduspider|sogou|exalead|teoma|alexa|mj12bot|dotbot|ahrefsbot|semrushbot|majesticSEO|blekkobot|ia_archiver|wayback|archive\.org/i.test(userAgent.toLowerCase());
+  
   // Special handling for bots to ensure proper rendering
   if (isBot) {
     response.headers.set('x-bot-detected', 'true');
-    response.headers.set('cache-control', 'public, max-age=0, must-revalidate');
+    response.headers.set('cache-control', 'public, max-age=3600, must-revalidate');
   }
   response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
 
