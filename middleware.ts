@@ -19,14 +19,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(httpsUrl, 301);
   }
 
+  // Check if it's a known SEO crawler and redirect to static version for homepage
+  const isBot = /bot|crawler|spider|crawling|screaming frog|googlebot|bingbot|yandexbot|facebookexternalhit|twitterbot|whatsapp|linkedinbot|pinterest|slackbot|redditbot|applebot|duckduckbot|baiduspider|sogou|exalead|teoma|alexa|mj12bot|dotbot|ahrefsbot|semrushbot|majesticSEO|blekkobot|ia_archiver|wayback|archive\.org/i.test(userAgent.toLowerCase());
+  
+  if (isBot && pathname === '/') {
+    const staticUrl = new URL('/seo-static', request.url);
+    return NextResponse.redirect(staticUrl, 307); // Temporary redirect for bots
+  }
+
   const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
-
-  // Check if it's a known SEO crawler
-  const isBot = /bot|crawler|spider|crawling|screaming frog|googlebot|bingbot|yandexbot|facebookexternalhit|twitterbot|whatsapp|linkedinbot|pinterest|slackbot|redditbot|applebot|duckduckbot|baiduspider|sogou|exalead|teoma|alexa|mj12bot|dotbot|ahrefsbot|semrushbot|majesticSEO|blekkobot|ia_archiver|wayback|archive\.org/i.test(userAgent.toLowerCase());
 
   // Add SEO headers for better indexing
   const canonicalPath = pathname === '/' ? '/' : pathname;
