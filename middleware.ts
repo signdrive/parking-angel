@@ -33,8 +33,8 @@ export async function middleware(request: NextRequest) {
   // Check if it's a known SEO crawler
   const isBot = /bot|crawler|spider|crawling|screaming frog|googlebot|bingbot|yandexbot|facebookexternalhit|twitterbot|whatsapp|linkedinbot|pinterest|slackbot|redditbot|applebot|duckduckbot|baiduspider|sogou|exalead|teoma|alexa|mj12bot|dotbot|ahrefsbot|semrushbot|majesticSEO|blekkobot|ia_archiver|wayback|archive\.org/i.test(userAgent.toLowerCase());
   
-  // Rewrite crawlers to SEO endpoint for homepage only (no redirect to avoid 3xx warning)
-  if (pathname === '/' && isBot) {
+    // Rewrite crawlers to SEO endpoint for main pages (no redirect to avoid 3xx warning)
+  if (isBot && ['/', '/blog', '/features'].includes(pathname)) {
     const seoUrl = new URL(`https://parkalgo.com/api/seo`);
     return NextResponse.rewrite(seoUrl);
   }
