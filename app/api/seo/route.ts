@@ -219,25 +219,16 @@ const SEO_HTML = `<!DOCTYPE html>
         <div class="internal-links">
             <h3>Explore Parkalgo Platform</h3>
             <p>Discover all the ways Parkalgo can transform your parking experience with intelligent solutions:</p>
-            <a href="/features">Platform Features</a>
-            <a href="/ai-parking-optimization">AI Technology</a>
-            <a href="/smart-parking-solutions">Smart Solutions</a>
-            <a href="/parking-management-demo">Live Demo</a>
             <a href="/dashboard">Dashboard</a>
-            <a href="/case-studies">Success Stories</a>
-            <a href="/api-documentation">Developer API</a>
-            <a href="/integration-guide">Integration Guide</a>
-            <a href="/mobile-apps">Mobile Apps</a>
-            <a href="/enterprise-solutions">Enterprise</a>
-            <a href="/partner-program">Partners</a>
-            <a href="/support">Support</a>
-            <a href="/blog">Blog & Updates</a>
-            <a href="/about">About Us</a>
+            <a href="/plans">Pricing Plans</a>
+            <a href="/auth/signup">Sign Up</a>
+            <a href="/auth/login">Login</a>
+            <a href="/features">Features</a>
             <a href="/contact">Contact</a>
-            <a href="/pricing">Pricing</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/terms">Terms of Service</a>
             <a href="/faq">FAQ</a>
-            <a href="/privacy">Privacy</a>
-            <a href="/terms">Terms</a>
+            <a href="/blog">Blog</a>
         </div>
 
         <section>
@@ -246,7 +237,7 @@ const SEO_HTML = `<!DOCTYPE html>
             <nav>
                 <a href="/auth/signup" class="cta-button">Start Free Trial</a>
                 <a href="/auth/login" class="cta-button">Sign In</a>
-                <a href="/demo" class="cta-button">Watch Demo</a>
+                <a href="/dashboard" class="cta-button">View Dashboard</a>
                 <a href="/contact" class="cta-button">Contact Sales</a>
             </nav>
         </section>
