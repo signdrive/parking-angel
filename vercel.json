@@ -18,8 +18,15 @@
   },
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/api/crawler-detect"
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|crawler|spider|screaming|frog|googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|rogerbot|linkedinbot|embedly|showyoubot|pinterest|slackbot|redditbot|applebot|whatsapp|flipboard|tumblr|bitlybot|discordbot).*"
+        }
+      ],
+      "destination": "/api/seo"
     }
   ],
   "redirects": [
