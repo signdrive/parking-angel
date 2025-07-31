@@ -23,10 +23,10 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(bot|crawler|spider|screaming|frog|googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|rogerbot|linkedinbot|embedly|showyoubot|pinterest|slackbot|redditbot|applebot|whatsapp|flipboard|tumblr|bitlybot|discordbot).*"
+          "value": ".*(bot|crawler|spider|crawling|screaming|frog|googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|rogerbot|linkedinbot|embedly|quora|showyoubot|outbrain|pinterest|slackbot|vkshare|w3c_validator|redditbot|applebot|whatsapp|flipboard|tumblr|bitlybot|skypeuripreview|nuzzel|discordbot|lighthouse|pagespeed|gtmetrix|pingdom|uptimerobot|websitepulse).*"
         }
       ],
-      "destination": "/api/seo"
+      "destination": "/seo.html"
     }
   ],
   "redirects": [
