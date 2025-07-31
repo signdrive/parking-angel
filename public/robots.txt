@@ -1,6 +1,7 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
+Allow: /api/seo
+Allow: /api/seo/
 Allow: /sitemap.xml
 Allow: /favicon.ico
 Allow: /favicon-*.png
@@ -8,8 +9,6 @@ Allow: /icon-*.png
 Allow: /icon-*.svg
 Allow: /apple-touch-icon.png
 Allow: /seo.html
-Allow: /api/seo
-Allow: /api/seo/
 
 # Disallow private and dynamic content (but allow SEO endpoints)
 Disallow: /api/auth/
