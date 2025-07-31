@@ -16,6 +16,19 @@
       "maxDuration": 25
     }
   },
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|crawler|spider|scraper|screaming|lighthouse|pagespeed|insight|validator|facebook|google|twitter|linkedin|slack|whatsapp|telegram).*"
+        }
+      ],
+      "destination": "/seo.html"
+    }
+  ],
   "redirects": [
     {
       "source": "/",
