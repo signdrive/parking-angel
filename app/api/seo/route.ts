@@ -257,20 +257,6 @@ const SEO_HTML = `<!DOCTYPE html>
             <p>&copy; 2025 Parkalgo. All rights reserved. AI-powered parking optimization for smarter cities and businesses.</p>
         </footer>
     </main>
-
-    <!-- Redirect script for human users only -->
-    <script>
-        // Only redirect human users, not bots or crawlers
-        if (typeof navigator !== 'undefined' && 
-            !/bot|crawler|spider|crawling|screaming|frog|google|bing|yahoo|slurp|duckduck|baidu|yandex|facebook|twitter|linkedin|pinterest|instagram|whatsapp|telegram/i.test(navigator.userAgent)) {
-            // Small delay to ensure SEO crawlers can read the content first
-            setTimeout(function() {
-                if (typeof window !== 'undefined' && window.location) {
-                    window.location.href = '/';
-                }
-            }, 300);
-        }
-    </script>
 </body>
 </html>`
 
