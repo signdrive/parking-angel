@@ -23,7 +23,40 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(bot|crawler|spider|scraper|screaming|lighthouse|pagespeed|insight|validator|facebook|google|twitter|linkedin|slack|whatsapp|telegram).*"
+          "value": ".*[Ss]creaming.*"
+        }
+      ],
+      "destination": "/seo.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*[Bb]ot.*"
+        }
+      ],
+      "destination": "/seo.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*[Cc]rawler.*"
+        }
+      ],
+      "destination": "/seo.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*[Ss]pider.*"
         }
       ],
       "destination": "/seo.html"
