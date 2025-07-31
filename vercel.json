@@ -18,48 +18,8 @@
   },
   "rewrites": [
     {
-      "source": "/",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*[Ss]creaming.*"
-        }
-      ],
-      "destination": "/seo.html"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*[Bb]ot.*"
-        }
-      ],
-      "destination": "/seo.html"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*[Cc]rawler.*"
-        }
-      ],
-      "destination": "/seo.html"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*[Ss]pider.*"
-        }
-      ],
-      "destination": "/seo.html"
+      "source": "/(.*)",
+      "destination": "/api/crawler-detect"
     }
   ],
   "redirects": [
