@@ -470,3 +470,4 @@ export default function HomePage() {
     </>
   )
 }
+<- This should resolve Screaming Frog visibility issues with H1/H2 Force rebuild Thu Jul 31 00:40:02 UTC 2025 -->
