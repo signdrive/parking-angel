@@ -33,6 +33,12 @@ export async function middleware(request: NextRequest) {
   // Check if it's a known SEO crawler
   const isBot = /bot|crawler|spider|crawling|screaming frog|googlebot|bingbot|yandexbot|facebookexternalhit|twitterbot|whatsapp|linkedinbot|pinterest|slackbot|redditbot|applebot|duckduckbot|baiduspider|sogou|exalead|teoma|alexa|mj12bot|dotbot|ahrefsbot|semrushbot|majesticSEO|blekkobot|ia_archiver|wayback|archive\.org/i.test(userAgent.toLowerCase());
   
+  // Redirect crawlers to SEO endpoint for homepage only
+  if (pathname === '/' && isBot) {
+    const seoUrl = new URL(`https://parkalgo.com/api/seo`);
+    return NextResponse.redirect(seoUrl, 302);
+  }
+  
   // Special handling for bots to ensure proper rendering (no redirect, let Vercel rewrites handle it)
   if (isBot) {
     response.headers.set('x-bot-detected', 'true');
