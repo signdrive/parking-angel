@@ -26,7 +26,7 @@
           "value": ".*(bot|crawler|spider|crawling|screaming|frog|googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|rogerbot|linkedinbot|embedly|quora|showyoubot|outbrain|pinterest|slackbot|vkshare|w3c_validator|redditbot|applebot|whatsapp|flipboard|tumblr|bitlybot|skypeuripreview|nuzzel|discordbot|lighthouse|pagespeed|gtmetrix|pingdom|uptimerobot|websitepulse).*"
         }
       ],
-      "destination": "/seo.html"
+      "destination": "/api/seo"
     }
   ],
   "redirects": [
