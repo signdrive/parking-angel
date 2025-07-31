@@ -7,9 +7,13 @@ Allow: /favicon-*.png
 Allow: /icon-*.png
 Allow: /icon-*.svg
 Allow: /apple-touch-icon.png
+Allow: /seo.html
 
-# Disallow private and dynamic content
-Disallow: /api/
+# Disallow private and dynamic content (but allow crawler endpoint)
+Disallow: /api/auth/
+Disallow: /api/spots/
+Disallow: /api/payments/
+Disallow: /api/upload/
 Disallow: /admin/
 Disallow: /private/
 Disallow: /auth/callback
