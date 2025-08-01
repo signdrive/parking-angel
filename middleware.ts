@@ -36,6 +36,7 @@ export async function middleware(request: NextRequest) {
     // Rewrite crawlers to SEO endpoint for main pages (no redirect to avoid 3xx warning)
   if (isBot && ['/', '/blog', '/features'].includes(pathname)) {
     const seoUrl = new URL(`https://parkalgo.com/api/seo`);
+    seoUrl.searchParams.set('path', pathname);
     return NextResponse.rewrite(seoUrl);
   }
   

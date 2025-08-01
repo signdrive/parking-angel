@@ -18,6 +18,10 @@
   },
   "rewrites": [
     {
+      "source": "/robots.txt",
+      "destination": "/app/robots.txt/route.ts"
+    },
+    {
       "source": "/",
       "has": [
         {
