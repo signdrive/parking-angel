@@ -22,13 +22,19 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
     }
   }
 
+  const canonicalUrl = `https://parkalgo.com/blog/category/${params.slug}`
+
   return {
     title: `${category.name} | ParkAlgo Blog`,
     description: category.description || `Read all articles in the ${category.name} category on ParkAlgo blog.`,
+    alternates: {
+      canonical: canonicalUrl
+    },
     openGraph: {
       title: `${category.name} - ParkAlgo Blog`,
       description: category.description || `Articles about ${category.name}`,
       type: 'website',
+      url: canonicalUrl
     }
   }
 }

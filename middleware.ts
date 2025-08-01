@@ -33,8 +33,14 @@ export async function middleware(request: NextRequest) {
   // Check if it's a known SEO crawler
   const isBot = /bot|crawler|spider|crawling|screaming frog|googlebot|bingbot|yandexbot|facebookexternalhit|twitterbot|whatsapp|linkedinbot|pinterest|slackbot|redditbot|applebot|duckduckbot|baiduspider|sogou|exalead|teoma|alexa|mj12bot|dotbot|ahrefsbot|semrushbot|majesticSEO|blekkobot|ia_archiver|wayback|archive\.org/i.test(userAgent.toLowerCase());
   
-    // Rewrite crawlers to SEO endpoint for main pages (no redirect to avoid 3xx warning)
-  if (isBot && ['/', '/blog', '/features'].includes(pathname)) {
+  // Define pages that should be served to crawlers via SEO endpoint
+  const seoPages = ['/', '/blog', '/features', '/plans', '/contact', '/faq', '/privacy', '/terms', '/pricing', '/dashboard'];
+  const isBlogPost = pathname.startsWith('/blog/') && pathname !== '/blog';
+  const isBlogCategory = pathname.startsWith('/blog/category/');
+  const isBlogTag = pathname.startsWith('/blog/tag/');
+  
+  // Rewrite crawlers to SEO endpoint for main pages and blog content (no redirect to avoid 3xx warning)
+  if (isBot && (seoPages.includes(pathname) || isBlogPost || isBlogCategory || isBlogTag)) {
     const seoUrl = new URL(`https://parkalgo.com/api/seo`);
     seoUrl.searchParams.set('path', pathname);
     return NextResponse.rewrite(seoUrl);

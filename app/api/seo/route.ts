@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverBlogService } from '@/lib/blog/server-blog-service'
 
 // Complete SEO-optimized HTML for crawlers based on Strapi's Next.js SEO best practices
 const SEO_HTML = `<!DOCTYPE html>
@@ -269,6 +270,126 @@ function isCrawler(userAgent: string): boolean {
     return CRAWLER_PATTERNS.some(pattern => ua.includes(pattern))
 }
 
+// Generate blog post specific HTML with article content
+function generateBlogPostHTML(post: any, canonicalUrl: string): string {
+    const publishedDate = new Date(post.published_at || post.created_at).toISOString();
+    const modifiedDate = new Date(post.updated_at || post.created_at).toISOString();
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Primary Meta Tags -->
+    <title>${post.meta_title || `${post.title} | Parkalgo Blog`}</title>
+    <meta name="description" content="${post.meta_description || post.excerpt || `Read about ${post.title} on the Parkalgo blog`}">
+    <meta name="keywords" content="smart parking, AI optimization, parking technology, ${post.title.toLowerCase()}">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Parkalgo">
+    <link rel="canonical" href="${canonicalUrl}">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="${canonicalUrl}">
+    <meta property="og:title" content="${post.title}">
+    <meta property="og:description" content="${post.excerpt || `Read about ${post.title} on the Parkalgo blog`}">
+    <meta property="og:image" content="${post.featured_image || 'https://parkalgo.com/og-image.jpg'}">
+    <meta property="og:site_name" content="Parkalgo">
+    <meta property="article:published_time" content="${publishedDate}">
+    <meta property="article:modified_time" content="${modifiedDate}">
+    ${post.category ? `<meta property="article:section" content="${post.category}">` : ''}
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="${canonicalUrl}">
+    <meta property="twitter:title" content="${post.title}">
+    <meta property="twitter:description" content="${post.excerpt || `Read about ${post.title} on the Parkalgo blog`}">
+    <meta property="twitter:image" content="${post.featured_image || 'https://parkalgo.com/og-image.jpg'}">
+
+    <!-- JSON-LD Structured Data for Article -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        "headline": "${post.title}",
+        "description": "${post.excerpt || `Article about ${post.title}`}",
+        "url": "${canonicalUrl}",
+        "datePublished": "${publishedDate}",
+        "dateModified": "${modifiedDate}",
+        "author": {
+            "@type": "Organization",
+            "name": "Parkalgo"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "Parkalgo",
+            "logo": {
+                "@type": "ImageObject",
+                "url": "https://parkalgo.com/logo.png"
+            }
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "${canonicalUrl}"
+        },
+        "image": "${post.featured_image || 'https://parkalgo.com/og-image.jpg'}"
+    }
+    </script>
+    
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.6; color: #333; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { color: #1e40af; font-size: 2.5rem; margin-bottom: 1rem; }
+        h2 { color: #374151; font-size: 1.8rem; margin: 2rem 0 1rem 0; }
+        .article-meta { color: #6b7280; margin: 1rem 0; }
+        .article-content { margin: 2rem 0; }
+        .internal-links { margin: 2rem 0; background: #f3f4f6; padding: 1.5rem; border-radius: 8px; }
+        .internal-links a { color: #1d4ed8; text-decoration: none; margin-right: 1rem; display: inline-block; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+    <main>
+        <article>
+            <h1>${post.title}</h1>
+            <div class="article-meta">
+                <time datetime="${publishedDate}">Published ${new Date(publishedDate).toLocaleDateString()}</time>
+                ${post.category ? ` | Category: ${post.category}` : ''}
+            </div>
+            
+            ${post.featured_image ? `<img src="${post.featured_image}" alt="${post.title}" style="width: 100%; max-width: 800px; height: auto; margin: 1rem 0;">` : ''}
+            
+            <div class="article-content">
+                ${post.excerpt ? `<h2>Overview</h2><p>${post.excerpt}</p>` : ''}
+                
+                <h2>Smart Parking Innovation</h2>
+                <p>This article explores the latest developments in smart parking technology and how AI optimization is transforming urban mobility. Learn about the innovative approaches that are making parking more efficient and sustainable.</p>
+                
+                <h2>AI-Powered Solutions</h2>
+                <p>Discover how artificial intelligence is revolutionizing parking management through predictive analytics, real-time optimization, and intelligent routing systems that benefit both drivers and city planners.</p>
+                
+                <h2>Industry Impact</h2>
+                <p>Understanding the broader implications of smart parking technology on urban development, environmental sustainability, and the future of transportation in smart cities.</p>
+                
+                ${post.content ? `<div>${post.content.substring(0, 1000)}...</div>` : ''}
+            </div>
+        </article>
+        
+        <div class="internal-links">
+            <h3>Related Articles & Resources</h3>
+            <a href="https://parkalgo.com/">Home</a>
+            <a href="https://parkalgo.com/blog">All Blog Posts</a>
+            <a href="https://parkalgo.com/features">Smart Parking Features</a>
+            <a href="https://parkalgo.com/plans">Pricing Plans</a>
+            <a href="https://parkalgo.com/contact">Contact Us</a>
+            <a href="https://parkalgo.com/dashboard">Dashboard</a>
+            <a href="https://parkalgo.com/privacy">Privacy Policy</a>
+            <a href="https://parkalgo.com/terms">Terms of Service</a>
+        </div>
+    </main>
+</body>
+</html>`;
+}
+
 export async function GET(request: NextRequest) {
     const userAgent = request.headers.get('user-agent') || ''
     
@@ -286,7 +407,38 @@ export async function GET(request: NextRequest) {
         let pageTitle = 'AI Parking Optimization | Smart Algorithms | Parkalgo';
         let pageDescription = 'Transform parking efficiency with AI-powered algorithms. Smart parking management software that reduces congestion and maximizes revenue through intelligent automation for businesses and cities.';
         
-        if (originalPath === '/blog') {
+        // Handle blog posts, categories, and tags
+        if (originalPath.startsWith('/blog/') && originalPath !== '/blog') {
+            try {
+                if (originalPath.startsWith('/blog/category/')) {
+                    // Blog category page
+                    const categorySlug = originalPath.split('/blog/category/')[1];
+                    pageTitle = `${categorySlug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} | Parking Blog | Parkalgo`;
+                    pageDescription = `Read the latest articles about ${categorySlug.replace(/-/g, ' ')} in smart parking and AI optimization. Expert insights and industry analysis.`;
+                } else if (originalPath.startsWith('/blog/tag/')) {
+                    // Blog tag page
+                    const tagSlug = originalPath.split('/blog/tag/')[1];
+                    pageTitle = `${tagSlug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} | Parking Blog | Parkalgo`;
+                    pageDescription = `Articles tagged with ${tagSlug.replace(/-/g, ' ')} in smart parking technology and AI optimization solutions.`;
+                } else {
+                    // Individual blog post
+                    const postSlug = originalPath.split('/blog/')[1];
+                    const post = await serverBlogService.getPostBySlug(postSlug);
+                    if (post) {
+                        pageTitle = post.meta_title || `${post.title} | Parkalgo Blog`;
+                        pageDescription = post.meta_description || post.excerpt || `Read about ${post.title} on the Parkalgo blog - insights into smart parking technology and AI optimization.`;
+                    } else {
+                        pageTitle = 'Blog Post | Parkalgo';
+                        pageDescription = 'Smart parking insights and AI optimization updates from the Parkalgo team.';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching blog data for SEO:', error);
+                // Fallback to generic blog content
+                pageTitle = 'Parking Blog | AI Insights & Updates | Parkalgo';
+                pageDescription = 'Smart parking insights, AI optimization updates, and industry analysis from the Parkalgo team.';
+            }
+        } else if (originalPath === '/blog') {
             pageTitle = 'Parking Industry Blog | AI Insights & Updates | Parkalgo';
             pageDescription = 'Latest insights, updates, and innovations in AI-powered parking optimization. Expert analysis, industry trends, and smart parking technology developments.';
         } else if (originalPath === '/features') {
@@ -307,13 +459,47 @@ export async function GET(request: NextRequest) {
         } else if (originalPath === '/terms') {
             pageTitle = 'Terms of Service | Parkalgo Legal Terms';
             pageDescription = 'Read Parkalgo terms of service, user agreement, and legal conditions for using our smart parking platform.';
+        } else if (originalPath === '/pricing') {
+            pageTitle = 'Parking Software Pricing | AI Optimization Plans | Parkalgo';
+            pageDescription = 'Choose the perfect AI parking optimization plan for your needs. From free starter plans to enterprise solutions with advanced features and dedicated support.';
+        } else if (originalPath === '/dashboard') {
+            pageTitle = 'Parking Dashboard | Smart Analytics & Monitoring | Parkalgo';
+            pageDescription = 'Access your smart parking dashboard with real-time analytics, occupancy monitoring, and AI-powered insights for optimal parking management.';
         }
         
-        // Generate dynamic SEO HTML with page-specific canonical URL (updated v2.1)
-        const dynamicSEOHTML = SEO_HTML
-            .replace('href="https://parkalgo.com/"', `href="${canonicalUrl}"`)
-            .replace('<title>AI Parking Optimization | Smart Algorithms | Parkalgo</title>', `<title>${pageTitle}</title>`)
-            .replace(/content="Transform parking efficiency[^"]*"/, `content="${pageDescription}"`);
+        // Generate dynamic SEO HTML with page-specific canonical URL (updated v2.2)
+        let dynamicSEOHTML;
+        
+        // For blog posts, generate richer content
+        if (originalPath.startsWith('/blog/') && originalPath !== '/blog' && !originalPath.startsWith('/blog/category/') && !originalPath.startsWith('/blog/tag/')) {
+            try {
+                const postSlug = originalPath.split('/blog/')[1];
+                const post = await serverBlogService.getPostBySlug(postSlug);
+                
+                if (post) {
+                    // Generate blog post specific HTML
+                    dynamicSEOHTML = generateBlogPostHTML(post, canonicalUrl);
+                } else {
+                    // Fallback to standard template
+                    dynamicSEOHTML = SEO_HTML
+                        .replace('href="https://parkalgo.com/"', `href="${canonicalUrl}"`)
+                        .replace('<title>AI Parking Optimization | Smart Algorithms | Parkalgo</title>', `<title>${pageTitle}</title>`)
+                        .replace(/content="Transform parking efficiency[^"]*"/, `content="${pageDescription}"`);
+                }
+            } catch (error) {
+                console.error('Error generating blog post HTML:', error);
+                dynamicSEOHTML = SEO_HTML
+                    .replace('href="https://parkalgo.com/"', `href="${canonicalUrl}"`)
+                    .replace('<title>AI Parking Optimization | Smart Algorithms | Parkalgo</title>', `<title>${pageTitle}</title>`)
+                    .replace(/content="Transform parking efficiency[^"]*"/, `content="${pageDescription}"`);
+            }
+        } else {
+            // Standard template for other pages
+            dynamicSEOHTML = SEO_HTML
+                .replace('href="https://parkalgo.com/"', `href="${canonicalUrl}"`)
+                .replace('<title>AI Parking Optimization | Smart Algorithms | Parkalgo</title>', `<title>${pageTitle}</title>`)
+                .replace(/content="Transform parking efficiency[^"]*"/, `content="${pageDescription}"`);
+        }
         
         return new NextResponse(dynamicSEOHTML, {
             status: 200,

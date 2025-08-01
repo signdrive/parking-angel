@@ -25,15 +25,21 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
     }
   }
 
+  const canonicalUrl = `https://parkalgo.com/blog/${post.slug}`
+
   return {
     title: post.meta_title || `${post.title} | ParkAlgo Blog`,
     description: post.meta_description || post.excerpt || `Read about ${post.title} on the ParkAlgo blog.`,
     keywords: post.tags.join(', '),
     authors: [{ name: post.author_name }],
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title: post.title,
       description: post.excerpt || '',
       type: 'article',
+      url: canonicalUrl,
       publishedTime: post.published_at || post.created_at,
       authors: [post.author_name],
       tags: post.tags,
