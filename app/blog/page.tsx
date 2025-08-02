@@ -39,11 +39,11 @@ export default function BlogPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-12">
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-4">Loading blog posts...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-4">Loading blog posts...</p>
           </div>
         </div>
       </div>
@@ -51,23 +51,23 @@ export default function BlogPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-white border-b">
+      <div className="bg-card border-b border-border">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center space-x-4 mb-4">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Home
               </Button>
             </Link>
           </div>
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            <h1 className="text-4xl font-bold text-foreground mb-4">
               Parking Technology Blog
             </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
               Expert insights on AI parking optimization, smart city solutions, and the future of parking management technology.
             </p>
           </div>
@@ -78,15 +78,15 @@ export default function BlogPage() {
         {/* Featured Posts */}
         {featuredPosts.length > 0 && (
           <section className="mb-16">
-            <h2 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
-              <TrendingUp className="w-6 h-6 mr-2 text-blue-600" />
+            <h2 className="text-2xl font-bold text-foreground mb-8 flex items-center">
+              <TrendingUp className="w-6 h-6 mr-2 text-primary" />
               Featured Articles
             </h2>
             <div className="grid md:grid-cols-2 gap-8">
               {featuredPosts.map((post) => (
                 <Card key={post.id} className="hover:shadow-lg transition-shadow cursor-pointer">
                   <CardHeader>
-                    <div className="flex items-center space-x-2 text-sm text-gray-500 mb-2">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-2">
                       <CalendarDays className="w-4 h-4" />
                       <span>{new Date(post.created_at).toLocaleDateString()}</span>
                       {post.read_time && (
@@ -96,7 +96,7 @@ export default function BlogPage() {
                         </>
                       )}
                     </div>
-                    <CardTitle className="text-xl hover:text-blue-600 transition-colors">
+                    <CardTitle className="text-xl hover:text-primary transition-colors">
                       <Link 
                         href={`/blog/${post.slug}`}
                         onClick={() => handlePostClick(post.slug)}
@@ -104,16 +104,16 @@ export default function BlogPage() {
                         {post.title}
                       </Link>
                     </CardTitle>
-                    <CardDescription className="text-gray-600 leading-relaxed">
+                    <CardDescription className="text-muted-foreground leading-relaxed">
                       {post.excerpt}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium text-gray-700">{post.author_name}</span>
-                        <span className="text-sm text-gray-500">•</span>
-                        <span className="text-sm text-blue-600 font-medium">{post.category}</span>
+                        <span className="text-sm font-medium text-foreground">{post.author_name}</span>
+                        <span className="text-sm text-muted-foreground">•</span>
+                        <span className="text-sm text-primary font-medium">{post.category}</span>
                       </div>
                       <Link 
                         href={`/blog/${post.slug}`}
@@ -128,7 +128,7 @@ export default function BlogPage() {
                       {post.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded"
+                          className="inline-block bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded"
                         >
                           {tag}
                         </span>
@@ -144,7 +144,7 @@ export default function BlogPage() {
         {/* All Articles */}
         {regularPosts.length > 0 && (
           <section>
-            <h2 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
+            <h2 className="text-2xl font-bold text-foreground mb-8 flex items-center">
               <Zap className="w-6 h-6 mr-2 text-green-600" />
               All Articles
             </h2>
@@ -152,7 +152,7 @@ export default function BlogPage() {
               {regularPosts.map((post) => (
                 <Card key={post.id} className="hover:shadow-lg transition-shadow cursor-pointer">
                   <CardHeader>
-                    <div className="flex items-center space-x-2 text-sm text-gray-500 mb-2">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-2">
                       <CalendarDays className="w-4 h-4" />
                       <span>{new Date(post.created_at).toLocaleDateString()}</span>
                       {post.read_time && (
@@ -162,7 +162,7 @@ export default function BlogPage() {
                         </>
                       )}
                     </div>
-                    <CardTitle className="text-lg hover:text-blue-600 transition-colors">
+                    <CardTitle className="text-lg hover:text-primary transition-colors">
                       <Link 
                         href={`/blog/${post.slug}`}
                         onClick={() => handlePostClick(post.slug)}
@@ -170,23 +170,23 @@ export default function BlogPage() {
                         {post.title}
                       </Link>
                     </CardTitle>
-                    <CardDescription className="text-gray-600 text-sm leading-relaxed">
+                    <CardDescription className="text-muted-foreground text-sm leading-relaxed">
                       {post.excerpt ? (post.excerpt.length > 120 ? post.excerpt.substring(0, 120) + '...' : post.excerpt) : 'No excerpt available'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium text-gray-700">{post.author_name}</span>
-                        <span className="text-sm text-gray-500">•</span>
-                        <span className="text-sm text-blue-600 font-medium">{post.category}</span>
+                        <span className="text-sm font-medium text-foreground">{post.author_name}</span>
+                        <span className="text-sm text-muted-foreground">•</span>
+                        <span className="text-sm text-primary font-medium">{post.category}</span>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {post.tags.slice(0, 2).map((tag) => (
                         <span
                           key={tag}
-                          className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded"
+                          className="inline-block bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded"
                         >
                           {tag}
                         </span>
@@ -212,28 +212,28 @@ export default function BlogPage() {
         {/* No posts message */}
         {posts.length === 0 && (
           <section className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">No blog posts yet</h2>
-            <p className="text-gray-600">Check back soon for expert insights on parking technology.</p>
+            <h2 className="text-2xl font-bold text-foreground mb-4">No blog posts yet</h2>
+            <p className="text-muted-foreground">Check back soon for expert insights on parking technology.</p>
           </section>
         )}
 
         {/* Categories & Topics */}
         {categories.length > 0 && (
-          <section className="mt-16 bg-white rounded-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+          <section className="mt-16 bg-card rounded-lg border border-border p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6 flex items-center">
               <Users className="w-6 h-6 mr-2 text-purple-600" />
               Categories
             </h2>
             <div className="grid md:grid-cols-3 gap-6">
               {categories.slice(0, 6).map((category) => (
                 <div key={category.id}>
-                  <h3 className="font-semibold text-gray-900 mb-3">{category.name}</h3>
+                  <h3 className="font-semibold text-foreground mb-3">{category.name}</h3>
                   {category.description && (
-                    <p className="text-sm text-gray-600 mb-3">{category.description}</p>
+                    <p className="text-sm text-muted-foreground mb-3">{category.description}</p>
                   )}
                   <Link 
                     href={`/blog/category/${category.slug}`} 
-                    className="text-sm text-blue-600 hover:text-blue-700"
+                    className="text-sm text-primary hover:text-primary/80"
                   >
                     View posts →
                   </Link>

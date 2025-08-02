@@ -57,12 +57,12 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
 // Convert markdown-like content to HTML (simple implementation)
 function formatContent(content: string): string {
   return content
-    .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold text-gray-900 mb-6">$1</h1>')
-    .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-gray-900 mb-4 mt-8">$1</h2>')
-    .replace(/^### (.*$)/gim, '<h3 class="text-xl font-semibold text-gray-900 mb-3 mt-6">$1</h3>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-    .replace(/\n\n/g, '</p><p class="text-gray-700 leading-relaxed mb-4">')
+    .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold text-foreground mb-6">$1</h1>')
+    .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-foreground mb-4 mt-8">$1</h2>')
+    .replace(/^### (.*$)/gim, '<h3 class="text-xl font-semibold text-foreground mb-3 mt-6">$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em class="italic text-muted-foreground">$1</em>')
+    .replace(/\n\n/g, '</p><p class="text-muted-foreground leading-relaxed mb-4">')
     .replace(/^\s*\n/gm, '')
     .trim()
 }
@@ -78,13 +78,13 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const relatedPosts = await serverBlogService.getPostsByCategory(post.category_id, 3, [post.id])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-white border-b">
+      <div className="bg-card border-b border-border">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center space-x-4 mb-6">
             <Link href="/blog">
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Blog
               </Button>
@@ -93,7 +93,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           
           <article className="max-w-4xl mx-auto">
             <header className="text-center mb-8">
-              <div className="flex items-center justify-center space-x-4 text-sm text-gray-500 mb-4">
+              <div className="flex items-center justify-center space-x-4 text-sm text-muted-foreground mb-4">
                 <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
                   {post.category}
                 </span>
@@ -109,27 +109,27 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 )}
               </div>
               
-              <h1 className="text-4xl font-bold text-gray-900 mb-4 leading-tight">
+              <h1 className="text-4xl font-bold text-foreground mb-4 leading-tight">
                 {post.title}
               </h1>
               
               {post.excerpt && (
-                <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+                <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
                   {post.excerpt}
                 </p>
               )}
               
-              <div className="flex items-center justify-center space-x-4 mt-6 text-sm text-gray-600">
-                <span>By <strong>{post.author_name}</strong></span>
+              <div className="flex items-center justify-center space-x-4 mt-6 text-sm text-muted-foreground">
+                <span>By <strong className="text-foreground">{post.author_name}</strong></span>
               </div>
               
               {post.tags.length > 0 && (
                 <div className="flex items-center justify-center flex-wrap gap-2 mt-4">
-                  <Tag className="w-4 h-4 text-gray-500" />
+                  <Tag className="w-4 h-4 text-muted-foreground" />
                   {post.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-block bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full"
+                      className="inline-block bg-secondary text-secondary-foreground text-sm px-3 py-1 rounded-full"
                     >
                       {tag}
                     </span>
@@ -154,11 +154,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       {/* Content */}
       <div className="container mx-auto px-4 py-12">
         <article className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-lg shadow-sm p-8 mb-12">
+          <div className="bg-card rounded-lg shadow-sm border border-border p-8 mb-12">
             <div 
-              className="prose prose-lg max-w-none"
+              className="prose prose-lg max-w-none dark:prose-invert"
               dangerouslySetInnerHTML={{ 
-                __html: `<p class="text-gray-700 leading-relaxed mb-4">${formattedContent}</p>` 
+                __html: `<p class="text-muted-foreground leading-relaxed mb-4">${formattedContent}</p>` 
               }}
             />
           </div>
@@ -167,27 +167,27 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         {/* Related Posts */}
         {relatedPosts.length > 0 && (
           <section className="max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-8">Related Articles</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-8">Related Articles</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {relatedPosts.map((relatedPost) => (
-                <div key={relatedPost.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
-                  <h3 className="font-semibold text-gray-900 mb-2">
+                <div key={relatedPost.id} className="bg-card rounded-lg shadow-sm border border-border p-6 hover:shadow-md transition-shadow">
+                  <h3 className="font-semibold text-foreground mb-2">
                     <Link 
                       href={`/blog/${relatedPost.slug}`}
-                      className="hover:text-blue-600 transition-colors"
+                      className="hover:text-primary transition-colors"
                     >
                       {relatedPost.title}
                     </Link>
                   </h3>
                   {relatedPost.excerpt && (
-                    <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+                    <p className="text-muted-foreground text-sm mb-4 leading-relaxed">
                       {relatedPost.excerpt.length > 100 
                         ? relatedPost.excerpt.substring(0, 100) + '...' 
                         : relatedPost.excerpt
                       }
                     </p>
                   )}
-                  <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{new Date(relatedPost.created_at).toLocaleDateString()}</span>
                     {relatedPost.read_time && <span>{relatedPost.read_time} min read</span>}
                   </div>
