@@ -49,7 +49,12 @@ class BlogService {
     try {
       let query = this.supabase
         .from('blog_posts')
-        .select('*')
+        .select(`
+          *,
+          blog_categories (
+            name
+          )
+        `)
         .order('published_at', { ascending: false })
 
       if (published) {
@@ -63,10 +68,10 @@ class BlogService {
         return []
       }
 
-      // Return posts with default values for missing relationships
+      // Map posts with proper category names
       return (data || []).map((post: any) => ({
         ...post,
-        category: 'Uncategorized',
+        category: post.blog_categories?.name || 'Uncategorized',
         author_name: 'ParkAlgo Team',
         tags: post.tags || []
       }))
@@ -80,7 +85,12 @@ class BlogService {
     try {
       const { data, error } = await this.supabase
         .from('blog_posts')
-        .select('*')
+        .select(`
+          *,
+          blog_categories (
+            name
+          )
+        `)
         .eq('id', id)
         .single()
 
@@ -91,7 +101,7 @@ class BlogService {
 
       return {
         ...data,
-        category: 'Uncategorized',
+        category: data.blog_categories?.name || 'Uncategorized',
         author_name: 'ParkAlgo Team',
         tags: data.tags || []
       }
