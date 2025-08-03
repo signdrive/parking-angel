@@ -56,8 +56,8 @@ export default function BlogAdminPage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h2>
-          <p className="text-gray-600 mb-6">You need to be logged in to access the blog admin panel.</p>
+          <h2 className="text-2xl font-bold text-foreground mb-4">Access Denied</h2>
+          <p className="text-muted-foreground mb-6">You need to be logged in to access the blog admin panel.</p>
           <Link href="/auth/login">
             <Button>Sign In</Button>
           </Link>
@@ -70,8 +70,8 @@ export default function BlogAdminPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">Blog Posts</h2>
-          <p className="text-gray-600">Manage your blog content</p>
+          <h2 className="text-3xl font-bold text-foreground">Blog Posts</h2>
+          <p className="text-muted-foreground">Manage your blog content</p>
         </div>
         <Link href="/admin/blog/new">
           <Button>
@@ -83,14 +83,14 @@ export default function BlogAdminPage() {
 
       {loading ? (
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600 mt-4">Loading posts...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground mt-4">Loading posts...</p>
         </div>
       ) : posts.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">No blog posts yet</h3>
-            <p className="text-gray-600 mb-6">Get started by creating your first blog post.</p>
+            <h3 className="text-xl font-semibold text-foreground mb-4">No blog posts yet</h3>
+            <p className="text-muted-foreground mb-6">Get started by creating your first blog post.</p>
             <Link href="/admin/blog/new">
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -119,7 +119,7 @@ export default function BlogAdminPage() {
                     <CardDescription className="mt-2">
                       {post.excerpt || 'No excerpt available'}
                     </CardDescription>
-                    <div className="flex items-center space-x-4 mt-4 text-sm text-gray-500">
+                    <div className="flex items-center space-x-4 mt-4 text-sm text-muted-foreground">
                       <span>By {post.author_name}</span>
                       <span>•</span>
                       <span>{new Date(post.created_at).toLocaleDateString()}</span>
@@ -164,7 +164,7 @@ export default function BlogAdminPage() {
                   {post.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded"
+                      className="inline-block bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded"
                     >
                       {tag}
                     </span>

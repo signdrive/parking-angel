@@ -13,33 +13,33 @@ export default function BlogAdminLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b border-border">
         <div className="container mx-auto px-4 py-4">
           <nav className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
-              <Link href="/" className="text-xl font-bold text-blue-600">
+              <Link href="/" className="text-xl font-bold text-primary">
                 ParkAlgo
               </Link>
-              <span className="text-gray-300">|</span>
-              <span className="text-gray-600">Blog Admin</span>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-muted-foreground">Blog Admin</span>
             </div>
             <div className="flex items-center space-x-4">
               <Link 
                 href="/admin/blog" 
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md"
+                className="text-muted-foreground hover:text-foreground px-3 py-2 rounded-md"
               >
                 Posts
               </Link>
               <Link 
                 href="/admin/blog/manage" 
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md"
+                className="text-muted-foreground hover:text-foreground px-3 py-2 rounded-md"
               >
                 Categories & Tags
               </Link>
               <Link 
                 href="/admin/blog/new" 
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
               >
                 New Post
               </Link>
