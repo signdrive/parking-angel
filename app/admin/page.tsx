@@ -45,7 +45,7 @@ export default function AdminPage() {
   // Check admin access and load data
   useEffect(() => {
     if (!user) {
-      router.push('/auth/signin')
+      router.push('/auth/login')
       return
     }
 
