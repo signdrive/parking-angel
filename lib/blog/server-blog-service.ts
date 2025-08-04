@@ -251,24 +251,47 @@ export class ServerBlogService {
       return null
     }
 
-    // Check if any post has this tag
-    const hasTag = data?.some(post => 
-      Array.isArray(post.tags) && post.tags.includes(slug)
-    )
+    // Function to convert tag name to slug
+    const tagToSlug = (tagName: string): string => {
+      return tagName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+    }
 
-    if (!hasTag) {
+    // Find the tag by comparing slugs
+    let foundTagName: string | null = null
+    
+    if (data) {
+      for (const post of data) {
+        if (Array.isArray(post.tags)) {
+          for (const tagName of post.tags) {
+            if (tagToSlug(tagName) === slug) {
+              foundTagName = tagName
+              break
+            }
+          }
+          if (foundTagName) break
+        }
+      }
+    }
+
+    if (!foundTagName) {
       return null
     }
+
+    // Count usage
+    const usageCount = data?.filter(post => 
+      Array.isArray(post.tags) && post.tags.includes(foundTagName)
+    ).length || 0
 
     // Return a virtual tag object
     return {
       id: slug,
-      name: slug,
+      name: foundTagName,
       slug: slug,
       color: '#3B82F6',
-      usage_count: data?.filter(post => 
-        Array.isArray(post.tags) && post.tags.includes(slug)
-      ).length || 0,
+      usage_count: usageCount,
       created_at: new Date().toISOString()
     }
   }

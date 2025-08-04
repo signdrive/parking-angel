@@ -13,7 +13,8 @@ interface TagPageProps {
 }
 
 export async function generateMetadata({ params }: TagPageProps): Promise<Metadata> {
-  const tag = await serverBlogService.getTagBySlug(params.slug)
+  const { slug } = await params
+  const tag = await serverBlogService.getTagBySlug(slug)
   
   if (!tag) {
     return {
@@ -22,7 +23,7 @@ export async function generateMetadata({ params }: TagPageProps): Promise<Metada
     }
   }
 
-  const canonicalUrl = `https://parkalgo.com/blog/tag/${params.slug}`
+  const canonicalUrl = `https://parkalgo.com/blog/tag/${slug}`
 
   return {
     title: `#${tag.name} | ParkAlgo Blog`,
@@ -40,7 +41,8 @@ export async function generateMetadata({ params }: TagPageProps): Promise<Metada
 }
 
 export default async function TagPage({ params }: TagPageProps) {
-  const tag = await serverBlogService.getTagBySlug(params.slug)
+  const { slug } = await params
+  const tag = await serverBlogService.getTagBySlug(slug)
   
   if (!tag) {
     notFound()
