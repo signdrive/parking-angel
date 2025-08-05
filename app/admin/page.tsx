@@ -24,21 +24,46 @@ export default function AdminPage() {
   const loadAdminData = useCallback(async () => {
     try {
       setLoading(true)
-      const [usersResponse, spotsResponse] = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('parking_spots').select('*').order('created_at', { ascending: false })
-      ])
+      
+      // Load users
+      const { data: usersData, error: usersError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (usersError) {
+        console.error('Users query error:', usersError);
+        throw usersError;
+      }
+      
+      // Load parking spots with error handling
+      let spotsData = [];
+      try {
+        const { data, error: spotsError } = await supabase
+          .from('parking_spots')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (spotsError) {
+          console.warn('Parking spots query error (non-fatal):', spotsError);
+          // Continue with empty spots array rather than failing completely
+          spotsData = [];
+        } else {
+          spotsData = data || [];
+        }
+      } catch (spotsErr) {
+        console.warn('Failed to load parking spots:', spotsErr);
+        spotsData = [];
+      }
 
-      if (usersResponse.error) throw usersResponse.error
-      if (spotsResponse.error) throw spotsResponse.error
-
-      setUsers(usersResponse.data as Profile[])
-      setSpots(spotsResponse.data as ParkingSpot[])
-      setError(null)
+      setUsers(usersData as Profile[]);
+      setSpots(spotsData as ParkingSpot[]);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to load admin data'))
+      console.error('Admin data loading error:', err);
+      setError(err instanceof Error ? err : new Error('Failed to load admin data'));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }, [supabase])
 
@@ -123,8 +148,28 @@ export default function AdminPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-2xl font-semibold">Parking Spots ({spots.length})</h2>
-        <AdminSpotsTable spots={spots} />
+        <h2 className="text-2xl font-semibold">
+          Parking Spots ({spots.length})
+          {spots.length === 0 && (
+            <span className="text-sm text-yellow-600 ml-2">
+              (Table may not exist or have permission issues)
+            </span>
+          )}
+        </h2>
+        {spots.length > 0 ? (
+          <AdminSpotsTable spots={spots} />
+        ) : (
+          <Card className="p-6">
+            <p className="text-gray-600">
+              No parking spots data available. This may be because:
+            </p>
+            <ul className="list-disc ml-6 mt-2 text-sm text-gray-500">
+              <li>The parking_spots table doesn't exist yet</li>
+              <li>There are no records in the table</li>
+              <li>There are permission issues accessing the table</li>
+            </ul>
+          </Card>
+        )}
       </section>
     </div>
   )
