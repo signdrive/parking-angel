@@ -53,15 +53,39 @@ export async function middleware(request: NextRequest) {
   }
   response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
 
+  // Debug: Log request cookies before Supabase initialization
+  const isAdminRoute = pathname.startsWith('/admin');
+  if (isAdminRoute) {
+    console.log('\n=== MIDDLEWARE DEBUG - ADMIN ROUTE ===');
+    console.log('Path:', pathname);
+    console.log('Request cookies before Supabase:');
+    const allCookies = request.cookies.getAll();
+    allCookies.forEach(cookie => {
+      console.log(`  ${cookie.name}: ${cookie.value?.substring(0, 50)}${cookie.value?.length > 50 ? '...' : ''}`);
+    });
+    console.log('Total cookies:', allCookies.length);
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll();
+          const cookies = request.cookies.getAll();
+          if (isAdminRoute) {
+            console.log('Supabase getAll() called, returning', cookies.length, 'cookies');
+          }
+          return cookies;
         },
         setAll(cookiesToSet) {
+          if (isAdminRoute) {
+            console.log('Supabase setAll() called with', cookiesToSet.length, 'cookies:');
+            cookiesToSet.forEach(({ name, value, options }) => {
+              console.log(`  Setting: ${name} = ${value?.substring(0, 50)}${value?.length > 50 ? '...' : ''}`);
+              console.log(`  Options:`, options);
+            });
+          }
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
           });
@@ -72,6 +96,21 @@ export async function middleware(request: NextRequest) {
 
   // Get user session
   const { data: { user }, error } = await supabase.auth.getUser();
+
+  // Debug: Log auth result and response cookies for admin routes
+  if (isAdminRoute) {
+    console.log('\nAuth result:');
+    console.log('  User:', user ? `${user.id} (${user.email})` : 'null');
+    console.log('  Error:', error ? error.message : 'none');
+    
+    console.log('\nResponse cookies after Supabase auth:');
+    const responseCookies = response.cookies.getAll();
+    responseCookies.forEach(cookie => {
+      console.log(`  ${cookie.name}: ${cookie.value?.substring(0, 50)}${cookie.value?.length > 50 ? '...' : ''}`);
+    });
+    console.log('Total response cookies:', responseCookies.length);
+    console.log('=== END MIDDLEWARE DEBUG ===\n');
+  }
 
   // Only log auth errors for protected routes, not public pages
   const protectedRoutes = ['/dashboard', '/admin', '/profile', '/settings'];
