@@ -19,6 +19,8 @@ import Loading from "./loading"
 import { ConsentProvider } from "@/hooks/use-consent"
 import { ConsentScreen } from "@/components/consent/consent-screen"
 import { ServiceWorkerInit } from "@/components/pwa/service-worker-init"
+// Import session error handler to activate global error handling
+import "@/lib/supabase/error-handler"
 
 const inter = Inter({ 
   subsets: ["latin"],

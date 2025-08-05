@@ -24,22 +24,50 @@ export function getBrowserClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        flowType: 'pkce',
+        flowType: 'implicit',
         detectSessionInUrl: true,
         persistSession: true,
         autoRefreshToken: true,
         storage: {
           getItem: (key: string): string | null => {
             if (typeof window === 'undefined') return null;
-            return localStorage.getItem(key);
+            try {
+              const value = localStorage.getItem(key);
+              if (!value) return null;
+              
+              // Handle base64-encoded values that start with 'base64-'
+              if (value.startsWith('base64-')) {
+                try {
+                  const decoded = atob(value.substring(7)); // Remove 'base64-' prefix
+                  return decoded;
+                } catch (e) {
+                  console.warn('Failed to decode base64 value for key:', key, e);
+                  // If decoding fails, return the original value
+                  return value;
+                }
+              }
+              
+              return value;
+            } catch (e) {
+              console.warn('Failed to get item from storage:', key, e);
+              return null;
+            }
           },
           setItem: (key: string, value: string): void => {
             if (typeof window === 'undefined') return;
-            localStorage.setItem(key, value);
+            try {
+              localStorage.setItem(key, value);
+            } catch (e) {
+              console.warn('Failed to set item in storage:', key, e);
+            }
           },
           removeItem: (key: string): void => {
             if (typeof window === 'undefined') return;
-            localStorage.removeItem(key);
+            try {
+              localStorage.removeItem(key);
+            } catch (e) {
+              console.warn('Failed to remove item from storage:', key, e);
+            }
           },
         },
       },
@@ -48,4 +76,27 @@ export function getBrowserClient() {
   
   _isInitializing = false;
   return _browserClient;
+}
+
+// Function to clear corrupted session data
+export function clearCorruptedSession() {
+  if (typeof window === 'undefined') return;
+  
+  // Clear all Supabase-related localStorage items
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.includes('supabase')) {
+      keysToRemove.push(key);
+    }
+  }
+  
+  keysToRemove.forEach(key => {
+    console.log('Clearing corrupted session key:', key);
+    localStorage.removeItem(key);
+  });
+  
+  // Reset the client instance
+  _browserClient = null;
+  _isInitializing = false;
 }

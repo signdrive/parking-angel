@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation"
 
 export default function AdminPage() {
   const router = useRouter()
-  const { user, profile } = useAuth() as AuthContextType;
+  const { user, profile, loading: authLoading } = useAuth() as AuthContextType;
   const [users, setUsers] = useState<Profile[]>([])
   const [spots, setSpots] = useState<ParkingSpot[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,9 +44,18 @@ export default function AdminPage() {
 
   // Check admin access and load data
   useEffect(() => {
+    // Don't do anything while auth is loading
+    if (authLoading) return;
+    
     if (!user) {
       router.push('/auth/login')
       return
+    }
+
+    // Wait for profile to load before checking role
+    if (profile === null) {
+      // Profile is still loading, wait
+      return;
     }
 
     if (profile?.role !== 'admin') {
@@ -55,9 +64,33 @@ export default function AdminPage() {
     }
 
     loadAdminData()
-  }, [user, profile, router, loadAdminData])
+  }, [user, profile, authLoading, router, loadAdminData])
 
-  if (!user || profile?.role !== 'admin') {
+  // Show loading while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Checking authentication...</p>
+      </div>
+    )
+  }
+
+  // Redirect if not authenticated (this should not show due to useEffect redirect)
+  if (!user) {
+    return null
+  }
+
+  // Show loading while profile is being fetched
+  if (profile === null) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Loading profile...</p>
+      </div>
+    )
+  }
+
+  // Redirect if not admin (this should not show due to useEffect redirect)
+  if (profile?.role !== 'admin') {
     return null
   }
 
