@@ -120,3 +120,76 @@ Monitor these metrics in Google Search Console:
 **Status**: ✅ COMPLETE - Ready for production deployment
 **Date**: August 6, 2025
 **Next Review**: Check Google Search Console in 48 hours for validation success
+
+---
+
+## 🆕 ADDITIONAL FIX: Canonical Tag Issues
+
+### New Problem Discovered
+After initial fixes, Google Search Console showed new "Alternate page with proper canonical tag" issues for:
+- `/blog` page (last crawled: Aug 1, 2025)
+- `/consent-settings` page
+
+### Root Cause Analysis
+**Sitemap Duplication Issue**:
+- `/blog` URL appeared in **both** main sitemap and blog sitemap
+- This confused Google about which was the canonical source
+
+**Incorrect Indexing Configuration**:
+- `/consent-settings` had `robots: "noindex, follow"` but was included in sitemap
+- Conflicting signals: sitemap says "index this" while robots says "don't index"
+
+### ✅ Additional Fixes Applied
+
+#### 1. Sitemap Deduplication
+**Problem**: `/blog` URL duplicated across sitemaps
+**Solution**: Removed `/blog` from main sitemap, kept only in blog-specific sitemap
+
+**Files Changed**: `/app/sitemap.ts`
+```typescript
+// REMOVED from main sitemap:
+{
+  url: `${baseUrl}/blog`,
+  lastModified: new Date(),
+  changeFrequency: "daily",
+  priority: 0.8,
+}
+```
+
+#### 2. Noindex Page Cleanup  
+**Problem**: `/consent-settings` included in sitemap despite `noindex` robots directive
+**Solution**: Removed from sitemap to match robots directive
+
+**Files Changed**: `/app/sitemap.ts`
+```typescript
+// REMOVED from main sitemap:
+{
+  url: `${baseUrl}/consent-settings`,
+  lastModified: new Date(),
+  changeFrequency: "yearly", 
+  priority: 0.3,
+}
+```
+
+### 🧪 Validation Results
+
+**Sitemap Structure**:
+✅ Main sitemap: NO `/blog` or `/consent-settings` entries
+✅ Blog sitemap: Contains `/blog` as primary entry
+✅ All canonical tags properly set
+
+**Expected Google Search Console Resolution**:
+- `/blog`: Should change from "Alternate page" → "Indexed" 
+- `/consent-settings`: Correctly excluded (noindex + no sitemap)
+- No more duplicate URL confusion
+
+### 📊 Impact Summary
+
+**Before**: 
+- Google saw conflicting signals (duplicate sitemaps, mismatched robots/sitemap)
+- Pages marked as "alternate" instead of primary
+
+**After**:
+- Clean URL structure with single source of truth
+- Proper separation: indexable pages in sitemap, noindex pages excluded
+- Clear canonical signals to search engines
