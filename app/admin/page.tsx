@@ -3,7 +3,7 @@
 // Force dynamic rendering for admin pages
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { AuthContextType } from '@/lib/types/supabase-helpers';
 import { useAuth } from "@/hooks/use-auth"
 import { getBrowserClient } from "@/lib/supabase/browser"
@@ -43,6 +43,24 @@ export default function AdminPage() {
   })
   const supabase = getBrowserClient()
 
+  // Memoize expensive calculations
+  const memoizedStats = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const activeUsers = users?.filter(user => 
+      new Date((user as any).last_sign_in_at || user.created_at) >= today
+    ).length || 0;
+
+    return {
+      totalUsers: users?.length || 0,
+      activeUsers,
+      totalSpots: spots?.length || 0,
+      activeSpots: spots?.filter((spot: any) => spot.status === 'active').length || 0,
+      reportsToday: 0, // TODO: Add reports table query
+      conversionRate: activeUsers > 0 ? (activeUsers / (users?.length || 1)) * 100 : 0
+    };
+  }, [users, spots]);
+
   const loadAdminData = useCallback(async () => {
     try {
       setLoading(true)
@@ -61,10 +79,22 @@ export default function AdminPage() {
       // Load parking spots with error handling
       let spotsData = [];
       try {
-        const { data, error: spotsError } = await supabase
+        // First try with created_at, fallback to no ordering if column doesn't exist
+        let { data, error: spotsError } = await supabase
           .from('parking_spots')
           .select('*')
           .order('created_at', { ascending: false });
+        
+        // If created_at column doesn't exist, try without ordering
+        if (spotsError && spotsError.code === '42703') {
+          console.warn('created_at column not found, querying without ordering');
+          const fallbackQuery = await supabase
+            .from('parking_spots')
+            .select('*');
+          
+          data = fallbackQuery.data;
+          spotsError = fallbackQuery.error;
+        }
         
         if (spotsError) {
           console.warn('Parking spots query error (non-fatal):', spotsError);
@@ -81,22 +111,8 @@ export default function AdminPage() {
       setUsers(usersData as Profile[]);
       setSpots(spotsData as ParkingSpot[]);
       
-      // Calculate stats
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const activeUsers = usersData?.filter(user => 
-        new Date(user.last_sign_in_at || user.created_at) >= today
-      ).length || 0;
-
-      setStats({
-        totalUsers: usersData?.length || 0,
-        activeUsers,
-        totalSpots: spotsData?.length || 0,
-        activeSpots: spotsData?.filter((spot: any) => spot.status === 'active').length || 0,
-        reportsToday: 0, // TODO: Add reports table query
-        conversionRate: activeUsers > 0 ? (activeUsers / (usersData?.length || 1)) * 100 : 0
-      });
-
+      // Stats will be calculated via useMemo
+      
       // Generate sample analytics data
       const last7Days = Array.from({ length: 7 }, (_, i) => {
         const date = new Date();
@@ -197,7 +213,7 @@ export default function AdminPage() {
         <div className="flex items-center gap-4">
           <Badge variant="secondary" className="text-sm">
             <Users className="w-4 h-4 mr-2" />
-            {stats.totalUsers} Total Users
+            {memoizedStats.totalUsers} Total Users
           </Badge>
           <Button 
             onClick={() => router.push('/admin/dashboard')}
@@ -217,9 +233,9 @@ export default function AdminPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <div className="text-2xl font-bold">{memoizedStats.totalUsers}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.activeUsers} active today
+              {memoizedStats.activeUsers} active today
             </p>
           </CardContent>
         </Card>
@@ -230,9 +246,9 @@ export default function AdminPage() {
             <Car className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalSpots}</div>
+            <div className="text-2xl font-bold">{memoizedStats.totalSpots}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.activeSpots} active spots
+              {memoizedStats.activeSpots} active spots
             </p>
           </CardContent>
         </Card>
@@ -243,7 +259,7 @@ export default function AdminPage() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.reportsToday}</div>
+            <div className="text-2xl font-bold">{memoizedStats.reportsToday}</div>
             <p className="text-xs text-muted-foreground">
               New submissions
             </p>
@@ -256,7 +272,7 @@ export default function AdminPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.conversionRate.toFixed(1)}%</div>
+            <div className="text-2xl font-bold">{memoizedStats.conversionRate.toFixed(1)}%</div>
             <p className="text-xs text-muted-foreground">
               Daily active users
             </p>

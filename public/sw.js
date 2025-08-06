@@ -1,9 +1,22 @@
-// Park Algo Service Worker
-const CACHE_NAME = "park-algo-v13";
-const STATIC_CACHE = "park-algo-static-v13";
+// Park Algo Service Worker - Optimized
+const CACHE_NAME = "park-algo-v15";
+const STATIC_CACHE = "park-algo-static-v15";
 
 // Don't cache in development mode
 const isDevelopment = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+
+// Suppress service worker update notifications in DevTools
+if (isDevelopment) {
+  console.warn = () => {} // Suppress SW warnings in dev
+}
+
+// Skip waiting and activate immediately in development
+if (isDevelopment) {
+  self.addEventListener('install', event => {
+    console.log('SW: Development mode - skipping wait');
+    self.skipWaiting();
+  });
+}
 
 // Essential files for offline functionality
 const ESSENTIAL_FILES = [
