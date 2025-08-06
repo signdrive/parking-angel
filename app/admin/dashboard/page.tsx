@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Shield
+  Shield,
+  Edit
 } from 'lucide-react'
 import { CollapsibleSidebar } from "@/components/layout/collapsible-sidebar"
 import { usePersistentState } from "@/hooks/use-persistent-state"
@@ -45,6 +46,12 @@ const adminSidebarItems = [
     label: "Parking Spots",
     description: "Manage parking data",
     icon: Car,
+  },
+  {
+    id: "blog",
+    label: "Blog Admin",
+    description: "Manage blog content",
+    icon: Edit,
   },
   {
     id: "analytics",
@@ -385,6 +392,39 @@ export default function AdminDashboardPage() {
                 )}
               </CardContent>
             </Card>
+          </div>
+        )
+
+      case "blog":
+        return (
+          <div className="p-6 space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold">Blog Administration</h2>
+              <p className="text-gray-600 mt-1">Manage blog posts, categories, and content</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => window.open('/admin/blog', '_blank')}>
+                <CardContent className="p-6 text-center">
+                  <Edit className="w-12 h-12 mx-auto mb-4 text-blue-600" />
+                  <h3 className="text-lg font-semibold mb-2">Manage Posts</h3>
+                  <p className="text-gray-600 text-sm">Create, edit, and manage blog posts</p>
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => window.open('/admin/blog/new', '_blank')}>
+                <CardContent className="p-6 text-center">
+                  <Users className="w-12 h-12 mx-auto mb-4 text-green-600" />
+                  <h3 className="text-lg font-semibold mb-2">New Post</h3>
+                  <p className="text-gray-600 text-sm">Create a new blog post</p>
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => window.open('/admin/blog/manage', '_blank')}>
+                <CardContent className="p-6 text-center">
+                  <Settings className="w-12 h-12 mx-auto mb-4 text-purple-600" />
+                  <h3 className="text-lg font-semibold mb-2">Categories & Tags</h3>
+                  <p className="text-gray-600 text-sm">Manage categories and tags</p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )
 

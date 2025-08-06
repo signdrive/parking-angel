@@ -1,7 +1,7 @@
 "use client"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { MapPin, Bookmark, History, Settings, Bot, ChevronLeft, ChevronRight, LogOut, User, Shield, MessageSquare, Bell, Car, Trophy, Edit } from "lucide-react"
+import { MapPin, Bookmark, History, Settings, Bot, ChevronLeft, ChevronRight, LogOut, User, Shield, MessageSquare, Bell, Car, Trophy } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useMemo } from "react"
@@ -65,13 +65,6 @@ const sidebarItems = [
     label: "Settings",
     description: "App preferences",
     icon: Settings,
-  },
-  {
-    id: "blog",
-    label: "Blog Admin",
-    description: "Manage blog content",
-    icon: Edit,
-    adminOnly: true,
   },
   {
     id: "ai",
@@ -159,9 +152,7 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className, ad
 
       {/* Navigation Items */}
       <nav className="flex-1 p-4 space-y-2">
-        {menuItems
-          .filter((item) => !item.adminOnly || isAdmin)
-          .map((item) => {
+        {menuItems.map((item) => {
           const Icon = item.icon
           const isActive = activeTab === item.id
 
