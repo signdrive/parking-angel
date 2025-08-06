@@ -194,10 +194,19 @@ export default function AdminPage() {
     <div className="container mx-auto py-8 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <Badge variant="secondary" className="text-sm">
-          <Users className="w-4 h-4 mr-2" />
-          {stats.totalUsers} Total Users
-        </Badge>
+        <div className="flex items-center gap-4">
+          <Badge variant="secondary" className="text-sm">
+            <Users className="w-4 h-4 mr-2" />
+            {stats.totalUsers} Total Users
+          </Badge>
+          <Button 
+            onClick={() => router.push('/admin/dashboard')}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Full Admin Panel
+          </Button>
+        </div>
       </div>
 
       {/* Stats Overview */}

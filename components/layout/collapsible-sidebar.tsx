@@ -10,6 +10,7 @@ interface CollapsibleSidebarProps {
   activeTab: string
   onTabChangeAction: (tab: string) => void
   className?: string
+  adminItems?: typeof sidebarItems // For admin-specific menu items
 }
 
 const sidebarItems = [
@@ -86,7 +87,7 @@ const adminEmails = [
   // Add more admin emails as needed
 ]
 
-export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: CollapsibleSidebarProps) {
+export function CollapsibleSidebar({ activeTab, onTabChangeAction, className, adminItems }: CollapsibleSidebarProps) {
   const { user, signOut } = useAuth()
   const [isCollapsed, setIsCollapsed] = usePersistentState("sidebarCollapsed", false)
 
@@ -97,6 +98,9 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
       adminEmails.includes(user?.email || "")
     )
   }, [user])
+
+  // Use admin items if provided, otherwise use default sidebar items
+  const menuItems = adminItems || sidebarItems
 
   return (
     <div
@@ -112,7 +116,9 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
           {!isCollapsed && (
             <div className="flex items-center space-x-2">
               <MapPin className="w-6 h-6 text-blue-400" />
-              <span className="font-bold text-lg">Park Algo</span>
+              <span className="font-bold text-lg">
+                {adminItems ? "Admin Panel" : "Park Algo"}
+              </span>
             </div>
           )}
           {isCollapsed && (
@@ -124,10 +130,19 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
 
         {!isCollapsed && (
           <div className="mt-2 flex items-center space-x-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-xs text-green-400 font-medium">AI</span>
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-            <span className="text-xs text-blue-400 font-medium">LIVE</span>
+            {adminItems ? (
+              <>
+                <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                <span className="text-xs text-red-400 font-medium">ADMIN</span>
+              </>
+            ) : (
+              <>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-400 font-medium">AI</span>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                <span className="text-xs text-blue-400 font-medium">LIVE</span>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -144,7 +159,7 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
 
       {/* Navigation Items */}
       <nav className="flex-1 p-4 space-y-2">
-        {sidebarItems
+        {menuItems
           .filter((item) => !item.adminOnly || isAdmin)
           .map((item) => {
           const Icon = item.icon
@@ -186,8 +201,8 @@ export function CollapsibleSidebar({ activeTab, onTabChangeAction, className }: 
             </Button>
           )
         })}
-        {/* Admin Sidebar Item */}
-        {isAdmin && (
+        {/* Admin Sidebar Item - only show if not using admin items and user is admin */}
+        {!adminItems && isAdmin && (
           <Button
             key="admin"
             variant="ghost"
