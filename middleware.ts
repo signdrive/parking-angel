@@ -13,8 +13,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(nonWwwUrl, 301);
   }
 
-  // Redirect HTTP to HTTPS
-  if (protocol === 'http' && host === 'parkalgo.com') {
+  // Redirect HTTP to HTTPS (production only)
+  if (protocol === 'http' && host === 'parkalgo.com' && process.env.NODE_ENV === 'production') {
     const httpsUrl = new URL(`https://parkalgo.com${pathname}${search}`);
     return NextResponse.redirect(httpsUrl, 301);
   }

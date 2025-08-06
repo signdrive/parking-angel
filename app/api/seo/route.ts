@@ -512,24 +512,11 @@ export async function GET(request: NextRequest) {
         })
     }
     
-    // For human users, serve a lightweight redirect page
-    const redirectHTML = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Redirecting to Parkalgo...</title>
-    <meta http-equiv="refresh" content="0;url=/">
-    <script>window.location.href='/';</script>
-</head>
-<body>
-    <p>Redirecting to <a href="/">Parkalgo</a>...</p>
-</body>
-</html>`
-    
-    return new NextResponse(redirectHTML, {
-        status: 200,
+    // For human users, return a 404 since this endpoint is only for bots
+    return new NextResponse('Not Found', {
+        status: 404,
         headers: {
-            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Type': 'text/plain',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
     })

@@ -63,6 +63,6 @@ export async function GET(request: NextRequest) {
     });
   }
   
-  // Redirect regular users to the main site
-  return NextResponse.redirect(new URL('/', request.url));
+  // Return 404 for regular users since this endpoint is only for bots
+  return new NextResponse('Not Found', { status: 404 });
 }

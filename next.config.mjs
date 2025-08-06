@@ -239,13 +239,7 @@ const nextConfig = {
 
   async redirects() {
     return [
-      // Only essential redirects - www to non-www handled in middleware
-      // Remove trailing slash redirects to avoid Google confusion
-      {
-        source: '/www',
-        destination: '/',
-        permanent: true,
-      },
+      // Only essential redirects to avoid Google Search Console issues
       // Auth error handling
       {
         source: '/auth/callback',
