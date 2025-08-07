@@ -115,6 +115,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="fo-verify" content="64d238c9-56d8-4dfd-9f36-30590901236b" />
         <link rel="icon" href="/favicon.ico" sizes="32x32" />
         <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
         <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
@@ -124,7 +125,9 @@ export default function RootLayout({
         )}
       </head>
       <body className={inter.className}>
-        <GoogleAnalyticsProvider />
+        {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && process.env.NODE_ENV === 'production' && (
+          <GoogleAnalyticsProvider />
+        )}
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

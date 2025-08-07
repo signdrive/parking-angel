@@ -81,6 +81,9 @@ export function ABTestingMarketingDashboard() {
   const [segments, setSegments] = useState<UserSegment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('ab-testing');
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // A/B Testing state
   const [newExperiment, setNewExperiment] = useState({
@@ -104,51 +107,138 @@ export function ABTestingMarketingDashboard() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (isRetry = false) => {
+    // Prevent infinite retries
+    if (isRetry && retryCount >= 3) {
+      setError('Failed to load data after multiple attempts. Please refresh the page.');
+      setLoading(false);
+      setIsRetrying(false);
+      return;
+    }
+
     try {
-      setLoading(true);
+      if (isRetry) {
+        setIsRetrying(true);
+        setRetryCount(prev => prev + 1);
+        // Exponential backoff: wait 1s, 2s, 4s between retries
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+      } else {
+        setLoading(true);
+        setError(null);
+        setRetryCount(0);
+      }
       
-      // Load A/B test results
-      const abResponse = await fetch('/api/ab-testing/admin');
-      if (abResponse.ok) {
-        const abData = await abResponse.json();
-        setExperiments(abData.experiments || []);
+      // Load A/B test results with timeout
+      try {
+        const abController = new AbortController();
+        const abTimeout = setTimeout(() => abController.abort(), 5000);
+        
+        const abResponse = await fetch('/api/ab-testing/admin', {
+          signal: abController.signal
+        });
+        clearTimeout(abTimeout);
+        
+        if (abResponse.ok) {
+          const abData = await abResponse.json();
+          setExperiments(abData.experiments || []);
+        } else if (abResponse.status !== 500) {
+          // Only retry on network errors, not business logic errors
+          throw new Error(`A/B testing API returned ${abResponse.status}`);
+        }
+      } catch (abError) {
+        console.error('A/B testing API error:', abError);
+        // Don't throw, continue with other APIs
       }
 
-      // Load marketing campaigns
-      const campaignsResponse = await fetch('/api/marketing/automation?type=campaigns');
-      if (campaignsResponse.ok) {
-        const campaignsData = await campaignsResponse.json();
-        setCampaigns(campaignsData.campaigns || []);
+      // Load marketing campaigns with timeout
+      try {
+        const campaignController = new AbortController();
+        const campaignTimeout = setTimeout(() => campaignController.abort(), 5000);
+        
+        const campaignsResponse = await fetch('/api/marketing/automation?type=campaigns', {
+          signal: campaignController.signal
+        });
+        clearTimeout(campaignTimeout);
+        
+        if (campaignsResponse.ok) {
+          const campaignsData = await campaignsResponse.json();
+          setCampaigns(campaignsData.campaigns || []);
+        } else if (campaignsResponse.status !== 500) {
+          throw new Error(`Marketing API returned ${campaignsResponse.status}`);
+        }
+      } catch (campaignError) {
+        console.error('Marketing campaigns API error:', campaignError);
+        // Don't throw, continue with other APIs
       }
 
-      // Load user segments
-      const segmentsResponse = await fetch('/api/marketing/automation?type=segments');
-      if (segmentsResponse.ok) {
-        const segmentsData = await segmentsResponse.json();
-        setSegments(segmentsData.segments || []);
+      // Load user segments with timeout
+      try {
+        const segmentController = new AbortController();
+        const segmentTimeout = setTimeout(() => segmentController.abort(), 5000);
+        
+        const segmentsResponse = await fetch('/api/marketing/automation?type=segments', {
+          signal: segmentController.signal
+        });
+        clearTimeout(segmentTimeout);
+        
+        if (segmentsResponse.ok) {
+          const segmentsData = await segmentsResponse.json();
+          setSegments(segmentsData.segments || []);
+        } else if (segmentsResponse.status !== 500) {
+          throw new Error(`Segments API returned ${segmentsResponse.status}`);
+        }
+      } catch (segmentError) {
+        console.error('Segments API error:', segmentError);
+        // Don't throw, continue loading
       }
+
+      // Success - clear any error state
+      setError(null);
+      setRetryCount(0);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      
+      // Only retry on network errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        if (retryCount < 3) {
+          setTimeout(() => loadData(true), 1000);
+          return;
+        }
+      }
+      
+      setError('Failed to load dashboard data. Please try again.');
     } finally {
       setLoading(false);
+      setIsRetrying(false);
     }
   };
 
   const createExperiment = async () => {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      
       const response = await fetch('/api/ab-testing/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create',
-          experimentId: `exp_${Date.now()}`,
-          config: newExperiment
-        })
+          experimentData: newExperiment
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeout);
 
       if (response.ok) {
-        await loadData();
+        // Only reload data on success, and don't retry if reload fails
+        try {
+          await loadData();
+        } catch (reloadError) {
+          console.error('Failed to reload after creating experiment:', reloadError);
+          // Don't fail the whole operation if reload fails
+        }
+        
         setNewExperiment({
           name: '',
           description: '',
@@ -157,25 +247,41 @@ export function ABTestingMarketingDashboard() {
             treatment: { name: 'Treatment', weight: 50 }
           }
         });
+      } else {
+        console.error('Failed to create experiment:', response.status);
       }
     } catch (error) {
       console.error('Error creating experiment:', error);
+      // Don't retry automatically
     }
   };
 
   const toggleExperiment = async (experimentId: string, action: 'start' | 'stop') => {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      
       const response = await fetch('/api/ab-testing/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action,
           experimentId
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeout);
 
       if (response.ok) {
-        await loadData();
+        // Only reload on success
+        try {
+          await loadData();
+        } catch (reloadError) {
+          console.error('Failed to reload after toggling experiment:', reloadError);
+        }
+      } else {
+        console.error(`Failed to ${action} experiment:`, response.status);
       }
     } catch (error) {
       console.error(`Error ${action}ing experiment:`, error);
@@ -184,6 +290,9 @@ export function ABTestingMarketingDashboard() {
 
   const createCampaign = async (type: string = 'custom') => {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      
       const response = await fetch('/api/marketing/automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,11 +300,21 @@ export function ABTestingMarketingDashboard() {
           action: 'create',
           type: type === 'custom' ? 'campaign' : type,
           data: type === 'custom' ? newCampaign : undefined
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeout);
 
       if (response.ok) {
-        await loadData();
+        // Only reload data on success, don't retry if reload fails
+        try {
+          await loadData();
+        } catch (reloadError) {
+          console.error('Failed to reload after creating campaign:', reloadError);
+          // Don't fail the whole operation if reload fails
+        }
+        
         if (type === 'custom') {
           setNewCampaign({
             name: '',
@@ -204,9 +323,12 @@ export function ABTestingMarketingDashboard() {
             content: ''
           });
         }
+      } else {
+        console.error('Failed to create campaign:', response.status);
       }
     } catch (error) {
       console.error('Error creating campaign:', error);
+      // Don't retry automatically
     }
   };
 
@@ -215,17 +337,40 @@ export function ABTestingMarketingDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          {isRetrying && (
+            <p className="text-sm text-muted-foreground">
+              Retrying... (Attempt {retryCount}/3)
+            </p>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {error && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertDescription className="text-red-800">
+            {error}
+            <Button
+              onClick={() => loadData()}
+              variant="outline"
+              size="sm"
+              className="ml-2 h-6"
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">A/B Testing & Marketing Dashboard</h1>
-        <Button onClick={loadData} variant="outline">
-          Refresh Data
+        <Button onClick={() => loadData()} variant="outline" disabled={loading || isRetrying}>
+          {isRetrying ? 'Retrying...' : 'Refresh Data'}
         </Button>
       </div>
 
