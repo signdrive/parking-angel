@@ -5,11 +5,19 @@ import Script from 'next/script';
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export function GoogleAnalyticsProvider() {
-  // Only render in production and if GA ID is configured
-  if (process.env.NODE_ENV !== 'production' || !GA_MEASUREMENT_ID) {
+  // EMERGENCY CIRCUIT BREAKER: Absolutely prevent GA in development
+  const isDevelopment = process.env.NODE_ENV === 'development' || 
+                       process.env.NODE_ENV !== 'production' ||
+                       typeof window !== 'undefined' && window.location.hostname === 'localhost' ||
+                       typeof window !== 'undefined' && window.location.hostname.includes('codespaces') ||
+                       typeof window !== 'undefined' && window.location.hostname.includes('github.dev');
+
+  if (isDevelopment || !GA_MEASUREMENT_ID || GA_MEASUREMENT_ID.includes('placeholder')) {
+    console.log('🛑 Google Analytics DISABLED in development environment');
     return null;
   }
 
+  console.log('✅ Google Analytics enabled in production');
   return (
     <>
       <Script
@@ -33,8 +41,15 @@ export function GoogleAnalyticsProvider() {
 }
 
 export const trackPageView = (url: string, title?: string) => {
-  // Only track in production
-  if (process.env.NODE_ENV !== 'production') {
+  // EMERGENCY CIRCUIT BREAKER: Absolutely prevent tracking in development
+  const isDevelopment = process.env.NODE_ENV === 'development' || 
+                       process.env.NODE_ENV !== 'production' ||
+                       typeof window !== 'undefined' && window.location.hostname === 'localhost' ||
+                       typeof window !== 'undefined' && window.location.hostname.includes('codespaces') ||
+                       typeof window !== 'undefined' && window.location.hostname.includes('github.dev');
+
+  if (isDevelopment) {
+    console.log('🛑 Page view tracking DISABLED in development');
     return;
   }
 
@@ -50,8 +65,15 @@ export const trackEvent = (
   eventName: string, 
   parameters?: Record<string, any>
 ) => {
-  // Only track in production
-  if (process.env.NODE_ENV !== 'production') {
+  // EMERGENCY CIRCUIT BREAKER: Absolutely prevent tracking in development
+  const isDevelopment = process.env.NODE_ENV === 'development' || 
+                       process.env.NODE_ENV !== 'production' ||
+                       typeof window !== 'undefined' && window.location.hostname === 'localhost' ||
+                       typeof window !== 'undefined' && window.location.hostname.includes('codespaces') ||
+                       typeof window !== 'undefined' && window.location.hostname.includes('github.dev');
+
+  if (isDevelopment) {
+    console.log('🛑 Event tracking DISABLED in development');
     return;
   }
 

@@ -8,6 +8,15 @@ const supabase = createClient(
 
 export async function GET(request: NextRequest) {
   try {
+    // EMERGENCY CIRCUIT BREAKER: Return empty data in development to prevent infinite loops
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV !== 'production') {
+      console.log('🛑 AB Testing API disabled in development environment');
+      return NextResponse.json({ 
+        experiments: [],
+        message: 'AB Testing disabled in development' 
+      }, { status: 200 });
+    }
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
 

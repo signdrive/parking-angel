@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,8 +82,11 @@ export function ABTestingMarketingDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('ab-testing');
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [isRetrying, setIsRetrying] = useState(false);
+  
+  // Emergency circuit breaker to prevent infinite loops
+  const loadingRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const lastLoadTimeRef = useRef(0);
 
   // A/B Testing state
   const [newExperiment, setNewExperiment] = useState({
@@ -108,112 +111,110 @@ export function ABTestingMarketingDashboard() {
   }, []);
 
   const loadData = async (isRetry = false) => {
-    // Prevent infinite retries
-    if (isRetry && retryCount >= 3) {
-      setError('Failed to load data after multiple attempts. Please refresh the page.');
+    // EMERGENCY CIRCUIT BREAKER - Absolutely prevent infinite loops
+    const now = Date.now();
+    
+    // Prevent concurrent requests with ref-based guard
+    if (loadingRef.current) {
+      console.log('🛑 EMERGENCY STOP: Load already in progress');
+      return;
+    }
+
+    // Prevent too many retries
+    if (retryCountRef.current >= 2) {
+      console.log('🛑 EMERGENCY STOP: Maximum retries exceeded');
+      setError('Services temporarily unavailable. Please refresh the page.');
       setLoading(false);
-      setIsRetrying(false);
+      return;
+    }
+
+    // Prevent rapid successive calls
+    if (now - lastLoadTimeRef.current < 5000) {
+      console.log('🛑 EMERGENCY STOP: Too soon since last call');
       return;
     }
 
     try {
+      // Set circuit breaker
+      loadingRef.current = true;
+      lastLoadTimeRef.current = now;
+      
       if (isRetry) {
-        setIsRetrying(true);
-        setRetryCount(prev => prev + 1);
-        // Exponential backoff: wait 1s, 2s, 4s between retries
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+        retryCountRef.current += 1;
+        console.log(`🔄 Retry attempt ${retryCountRef.current}/2`);
+        // Fixed delay to prevent cascade
+        await new Promise(resolve => setTimeout(resolve, 3000));
       } else {
         setLoading(true);
         setError(null);
-        setRetryCount(0);
-      }
-      
-      // Load A/B test results with timeout
-      try {
-        const abController = new AbortController();
-        const abTimeout = setTimeout(() => abController.abort(), 5000);
-        
-        const abResponse = await fetch('/api/ab-testing/admin', {
-          signal: abController.signal
-        });
-        clearTimeout(abTimeout);
-        
-        if (abResponse.ok) {
-          const abData = await abResponse.json();
-          setExperiments(abData.experiments || []);
-        } else if (abResponse.status !== 500) {
-          // Only retry on network errors, not business logic errors
-          throw new Error(`A/B testing API returned ${abResponse.status}`);
-        }
-      } catch (abError) {
-        console.error('A/B testing API error:', abError);
-        // Don't throw, continue with other APIs
+        retryCountRef.current = 0;
       }
 
-      // Load marketing campaigns with timeout
-      try {
-        const campaignController = new AbortController();
-        const campaignTimeout = setTimeout(() => campaignController.abort(), 5000);
-        
-        const campaignsResponse = await fetch('/api/marketing/automation?type=campaigns', {
-          signal: campaignController.signal
-        });
-        clearTimeout(campaignTimeout);
-        
-        if (campaignsResponse.ok) {
-          const campaignsData = await campaignsResponse.json();
-          setCampaigns(campaignsData.campaigns || []);
-        } else if (campaignsResponse.status !== 500) {
-          throw new Error(`Marketing API returned ${campaignsResponse.status}`);
-        }
-      } catch (campaignError) {
-        console.error('Marketing campaigns API error:', campaignError);
-        // Don't throw, continue with other APIs
-      }
+      // Create short-timeout fetch with aggressive abort
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.log('⏰ Request aborted due to timeout');
+      }, 5000); // 5 second timeout
 
-      // Load user segments with timeout
       try {
-        const segmentController = new AbortController();
-        const segmentTimeout = setTimeout(() => segmentController.abort(), 5000);
-        
-        const segmentsResponse = await fetch('/api/marketing/automation?type=segments', {
-          signal: segmentController.signal
+        // Try only the critical AB testing endpoint
+        const response = await fetch('/api/ab-testing/admin', { 
+          signal: controller.signal,
+          headers: { 
+            'Cache-Control': 'no-cache',
+            'X-Requested-With': 'XMLHttpRequest'
+          }
         });
-        clearTimeout(segmentTimeout);
-        
-        if (segmentsResponse.ok) {
-          const segmentsData = await segmentsResponse.json();
-          setSegments(segmentsData.segments || []);
-        } else if (segmentsResponse.status !== 500) {
-          throw new Error(`Segments API returned ${segmentsResponse.status}`);
-        }
-      } catch (segmentError) {
-        console.error('Segments API error:', segmentError);
-        // Don't throw, continue loading
-      }
 
-      // Success - clear any error state
-      setError(null);
-      setRetryCount(0);
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      
-      // Only retry on network errors
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        if (retryCount < 3) {
-          setTimeout(() => loadData(true), 1000);
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          setExperiments(data.experiments || []);
+          setError(null);
+          retryCountRef.current = 0;
+          console.log('✅ Dashboard loaded successfully');
+        } else {
+          throw new Error(`API returned ${response.status}`);
+        }
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        console.error('❌ Fetch error:', fetchError);
+        
+        // Only retry once and only if not already retrying
+        if (!isRetry && retryCountRef.current < 1) {
+          console.log('⚠️ Will retry once in 5 seconds...');
+          setTimeout(() => {
+            if (!loadingRef.current) { // Double check before retry
+              loadData(true);
+            }
+          }, 5000);
           return;
+        } else {
+          setError('Unable to load dashboard data. Please refresh the page.');
+          setExperiments([]); // Set empty state
         }
       }
-      
-      setError('Failed to load dashboard data. Please try again.');
+
+    } catch (error) {
+      console.error('❌ Unexpected error:', error);
+      setError('An unexpected error occurred. Please refresh the page.');
+      setExperiments([]);
     } finally {
+      // Always clear the circuit breaker
+      loadingRef.current = false;
       setLoading(false);
-      setIsRetrying(false);
     }
   };
 
   const createExperiment = async () => {
+    if (loadingRef.current) {
+      console.log('🛑 Create blocked: Load in progress');
+      return;
+    }
+
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
@@ -231,14 +232,6 @@ export function ABTestingMarketingDashboard() {
       clearTimeout(timeout);
 
       if (response.ok) {
-        // Only reload data on success, and don't retry if reload fails
-        try {
-          await loadData();
-        } catch (reloadError) {
-          console.error('Failed to reload after creating experiment:', reloadError);
-          // Don't fail the whole operation if reload fails
-        }
-        
         setNewExperiment({
           name: '',
           description: '',
@@ -247,12 +240,13 @@ export function ABTestingMarketingDashboard() {
             treatment: { name: 'Treatment', weight: 50 }
           }
         });
+        // Don't automatically reload - let user refresh manually
+        console.log('✅ Experiment created successfully');
       } else {
         console.error('Failed to create experiment:', response.status);
       }
     } catch (error) {
       console.error('Error creating experiment:', error);
-      // Don't retry automatically
     }
   };
 
