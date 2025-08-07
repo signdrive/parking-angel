@@ -333,9 +333,9 @@ export function ABTestingMarketingDashboard() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          {isRetrying && (
+          {retryCountRef.current > 0 && (
             <p className="text-sm text-muted-foreground">
-              Retrying... (Attempt {retryCount}/3)
+              Retrying... (Attempt {retryCountRef.current}/2)
             </p>
           )}
         </div>
@@ -363,8 +363,8 @@ export function ABTestingMarketingDashboard() {
       
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">A/B Testing & Marketing Dashboard</h1>
-        <Button onClick={() => loadData()} variant="outline" disabled={loading || isRetrying}>
-          {isRetrying ? 'Retrying...' : 'Refresh Data'}
+        <Button onClick={() => loadData()} variant="outline" disabled={loading || loadingRef.current}>
+          {loadingRef.current ? 'Loading...' : 'Refresh Data'}
         </Button>
       </div>
 
