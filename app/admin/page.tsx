@@ -62,6 +62,15 @@ export default function AdminPage() {
   }, [users, spots]);
 
   const loadAdminData = useCallback(async () => {
+    // EMERGENCY CIRCUIT BREAKER - Prevent infinite loops in development
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV !== 'production') {
+      console.log('🛑 Admin page data loading disabled in development environment');
+      setUsers([]);
+      setSpots([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true)
       
@@ -79,15 +88,15 @@ export default function AdminPage() {
       // Load parking spots with error handling
       let spotsData = [];
       try {
-        // First try with created_at, fallback to no ordering if column doesn't exist
+        // Use last_updated column for ordering parking spots
         let { data, error: spotsError } = await supabase
           .from('parking_spots')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('last_updated', { ascending: false });
         
-        // If created_at column doesn't exist, try without ordering
+        // If last_updated column doesn't exist, try without ordering
         if (spotsError && spotsError.code === '42703') {
-          console.warn('created_at column not found, querying without ordering');
+          console.warn('last_updated column not found, querying without ordering');
           const fallbackQuery = await supabase
             .from('parking_spots')
             .select('*');
