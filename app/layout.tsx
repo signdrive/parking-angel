@@ -21,6 +21,8 @@ import { ConsentScreen } from "@/components/consent/consent-screen"
 import { ServiceWorkerInit } from "@/components/pwa/service-worker-init"
 // Import session error handler to activate global error handling
 import "@/lib/supabase/error-handler"
+// Import console management systems
+import { ConsoleInitializer } from "@/components/system/console-initializer"
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -146,6 +148,7 @@ export default function RootLayout({
                           <FloatingAIChat />
                           <ConsentScreen />
                           <ServiceWorkerInit />
+                          <ConsoleInitializer />
                         </Suspense>
                       </RSCErrorBoundary>
                     </SupabaseBoundary>

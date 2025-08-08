@@ -1,22 +1,45 @@
-// Park Algo Service Worker - Optimized
-const CACHE_NAME = "park-algo-v15";
-const STATIC_CACHE = "park-algo-static-v15";
+// Park Algo Service Worker - Silent Mode
+const CACHE_NAME = "park-algo-v16";
+const STATIC_CACHE = "park-algo-static-v16";
 
-// Don't cache in development mode
-const isDevelopment = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+// Check environment
+const isDevelopment = self.location.hostname === 'localhost' || 
+                     self.location.hostname === '127.0.0.1' ||
+                     self.location.hostname.includes('github.dev') ||
+                     self.location.hostname.includes('.app');
 
-// Suppress service worker update notifications in DevTools
+// SILENT MODE: Completely suppress all service worker logging
+const originalConsole = {
+  log: console.log,
+  warn: console.warn,
+  error: console.error,
+  info: console.info,
+  debug: console.debug
+};
+
+// Silent console in development
 if (isDevelopment) {
-  console.warn = () => {} // Suppress SW warnings in dev
+  console.log = () => {};
+  console.warn = () => {};
+  console.info = () => {};
+  console.debug = () => {};
+  // Keep errors for critical issues
+  console.error = (msg) => {
+    if (msg.includes('critical') || msg.includes('failed')) {
+      originalConsole.error('SW Critical:', msg);
+    }
+  };
 }
 
-// Skip waiting and activate immediately in development
-if (isDevelopment) {
-  self.addEventListener('install', event => {
-    console.log('SW: Development mode - skipping wait');
+// Silent install
+self.addEventListener('install', event => {
+  if (isDevelopment) {
+    // Silent skip waiting in dev
     self.skipWaiting();
-  });
-}
+    return;
+  }
+  self.skipWaiting();
+});
 
 // Essential files for offline functionality
 const ESSENTIAL_FILES = [

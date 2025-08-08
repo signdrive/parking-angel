@@ -13,11 +13,15 @@ export function GoogleAnalyticsProvider() {
                        typeof window !== 'undefined' && window.location.hostname.includes('github.dev');
 
   if (isDevelopment || !GA_MEASUREMENT_ID || GA_MEASUREMENT_ID.includes('placeholder')) {
-    console.log('🛑 Google Analytics DISABLED in development environment');
+    // Silent return in development - no logging
     return null;
   }
 
-  console.log('✅ Google Analytics enabled in production');
+  // Silent in production too - only log once
+  if (typeof window !== 'undefined' && !(window as any).gaLogged) {
+    console.log('✅ Google Analytics enabled in production');
+    (window as any).gaLogged = true;
+  }
   return (
     <>
       <Script
