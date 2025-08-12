@@ -54,9 +54,9 @@ class ConsoleManager {
         
         // Only show the first few instances and then a summary
         if (existing.count <= this.MAX_SAME_LOGS) {
-          this.originalConsole[level as keyof typeof console](...args);
+          (this.originalConsole as any)[level](...args);
         } else if (existing.count === this.MAX_SAME_LOGS + 1) {
-          this.originalConsole[level as keyof typeof console](
+          (this.originalConsole as any)[level](
             `🔇 [THROTTLED] "${message.substring(0, 50)}..." (${existing.count} times in ${this.THROTTLE_DURATION/1000}s)`
           );
         }
@@ -76,7 +76,7 @@ class ConsoleManager {
       return;
     }
 
-    this.originalConsole[level as keyof typeof console](...args);
+    (this.originalConsole as any)[level](...args);
   }
 
   private shouldSuppress(message: string): boolean {

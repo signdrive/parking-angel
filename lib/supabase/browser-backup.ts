@@ -42,17 +42,3 @@ export function getBrowserClient() {
     }
   );
 }
-          },
-          setItem: (key: string, value: string): void => {
-            if (typeof window === 'undefined') return;
-            window.localStorage.setItem(key, value);
-          },
-          removeItem: (key: string): void => {
-            if (typeof window === 'undefined') return;
-            window.localStorage.removeItem(key);
-          },
-        },
-      },
-    }
-  )
-}

@@ -3,10 +3,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './types/supabase'
 
 type Tables = Database['public']['Tables']
-type NotificationPreferencesRow = Tables['notification_preferences']['Row']
-type NotificationsRow = Tables['notifications']['Row']
-type NotificationQueueRow = Tables['notification_queue']['Row']
-type Json = Database['public']['Tables']['notifications']['Row']['data']
+// TODO: Add these tables to the database schema
+// type NotificationPreferencesRow = Tables['notification_preferences']['Row']
+// type NotificationsRow = Tables['notifications']['Row']
+// type NotificationQueueRow = Tables['notification_queue']['Row']
+// type Json = Database['public']['Tables']['notifications']['Row']['data']
 
 export interface NotificationPreferences {
   userId: string
@@ -121,7 +122,7 @@ export class SmartNotificationService {
       return
     }
 
-    const notificationData: Json = {
+    const notificationData: any = {
       spotId: alert.spotId,
       urgency: alert.urgency,
       actionUrl: alert.actionUrl,
