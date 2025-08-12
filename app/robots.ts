@@ -11,7 +11,7 @@ export default function robots(): MetadataRoute.Robots {
           "/admin/",
           "/private/",
           "/auth/callback",
-          "/dashboard/settings/",
+          "/dashboard/",
           "/*.ico$", // Disallow crawling of icon files
           "/*.png$", // Disallow crawling of image assets
           "/*.jpg$", // Disallow crawling of image assets
